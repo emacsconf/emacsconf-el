@@ -101,12 +101,12 @@
 (defun emacsconf-update--update-entry (event zone-map)
   "Update the current Org heading to match EVENT.
 Use ZONE-MAP for timestamp decoding."
-  (let* ((dtstart-time (emacsconf-update--get-time-from-event e 'DTSTART zone-map))
-         (dtend-time (emacsconf-update--get-time-from-event e 'DTEND zone-map)))
+  (let* ((dtstart-time (emacsconf-update--get-time-from-event event 'DTSTART zone-map))
+         (dtend-time (emacsconf-update--get-time-from-event event 'DTEND zone-map)))
     (org-back-to-heading)
     (when (looking-at org-complex-heading-regexp)
       (replace-match (icalendar--convert-string-for-import
-                      (icalendar--get-event-property e 'SUMMARY))
+                      (icalendar--get-event-property event 'SUMMARY))
                      t t nil 4))
     (org-end-of-meta-data)
     (when (re-search-forward (concat "Tentative schedule: " org-ts-regexp "--" org-ts-regexp " *\n")
