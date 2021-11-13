@@ -1,0 +1,29 @@
+
+* emacsconf-update
+** Installation
+
+You can download [[emacsconf-update.el]] and put it somewhere in your load-path.
+
+If you use quelpa, you can put this in your config:
+
+#+begin_src emacs-lisp
+(quelpa '(emacsconf-update :fetcher url :url "https://raw.githubusercontent.com/emacsconf/emacsconf-el/main/emacsconf-update.el"))
+#+end_src
+
+** Usage
+These functions might make it easier for you to keep an Org file with
+your own notes while letting you download schedule updates or title changes.
+
+Make a file for your notes with Org, and then call
+=M-x emacsconf-update-org-from-ical-url= . It should load the talks and
+tentative schedules from the wiki. You can call it again and it should
+update the titles and schedules while still keeping whatever notes
+you've added.
+
+You may also like =M-x emacsconf-update-view-org-agenda=.
+
+I don't know if it works for anyone but me, but it might be worth a
+try. =)
+
+
+- Sacha
