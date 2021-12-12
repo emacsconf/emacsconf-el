@@ -29,9 +29,11 @@
               :resources (plist-get video :resources)
               :extra (or (plist-get talk :extra) "") 
               :speaker-info (or (plist-get talk :speakers) ""))))
-      (conf-replace-plist-in-string
-       talk
-       "<div class=\"vid\">${video-html}${resources}${extra}${chapter-list}</div>")))
+      (if (eq (plist-get talk :format) 'wiki)
+          (plist-get talk :video-html)
+        (conf-replace-plist-in-string
+         talk
+         "<div class=\"vid\">${video-html}${resources}${extra}${chapter-list}</div>"))))
 
 (defun conf-index-card-video (video-id video-file talk extensions)
   (let* ((wiki-caption-dir (expand-file-name
@@ -61,32 +63,49 @@
                   (or (plist-get talk :track-base-url)
                       (plist-get talk :base-url))))
             :chapter-track (or (plist-get chapter-info :track) "")
-            :chapter-list (or (plist-get chapter-info :html) "")
+            :chapter-list
+            (if chapter-info
+                (if (eq (plist-get talk :format) 'wiki)
+                    (format "[[!template id=\"chapters\" vidid=\"%s\" data=\"\"\"\n%s\n\"\"\"]]"
+                            video-id
+                            (plist-get chapter-info :md))
+                  (plist-get chapter-info :html))
+              "")
             :video-id video-id
             :video-duration (if (and video-file (file-exists-p video-file))
                                 (format-seconds "%m:%.2s" (/ (conf-get-file-duration-ms video-file) 1000)))
             :video-file-size (if (and video-file (file-exists-p video-file))
                                  (file-size-human-readable (file-attribute-size (file-attributes video-file))))
-            :other-files (mapconcat (lambda (s) (concat "<li>" s "</li>"))
-                                    (conf-link-file-formats-as-list talk (or extensions conf-published-extensions))
-                                    "")
+            :other-files
+            (mapconcat
+             (lambda (s)
+               (if (eq (plist-get talk :format) 'wiki)
+                   (concat s "  \n")
+                 (concat "<li>" s "</li>")))
+             (conf-link-file-formats-as-list talk (or extensions conf-published-extensions))
+             "")
             :poster (and video-file (format "https://media.emacsconf.org/%s/%s.png" (plist-get talk :conf-year) (file-name-base video-file)))
             :toobnix-info (if (plist-get talk :toobnix-url)
                               (format
-                               "<li><a href=\"%s\">View on Toobnix</a></li>"
+                               (if (eq (plist-get talk :format) 'wiki)
+                                   "[View on Toobnix](%s)  \n"
+                                 "<li><a href=\"%s\">View on Toobnix</a></li>")
                                (plist-get talk :toobnix-url))
                             ""))
            
            talk)))
     (list
-     
      :video
      (conf-replace-plist-in-string
       info
       (if (and video-file (file-exists-p video-file))
-          "<video controls preload=\"metadata\" poster=\"${poster}\" id=\"${video-id}\"><source src=\"${source-src}\" />${captions}${chapter-track}</video>"
+          (if (eq (plist-get talk :format) 'wiki)
+              "[[!template id=\"vid\" vidid=\"${video-id}\" src=\"${source-src}\" poster=\"${poster}\" captions=\"\"\"${captions}\"\"\"
+size=\"${video-file-size}\" duration=\"${video-duration}\" other_resources=\"\"\"${other-files}${toobnix-info}\"\"\"]]
+${chapter-list}
+"
+            "<video controls preload=\"metadata\" poster=\"${poster}\" id=\"${video-id}\"><source src=\"${source-src}\" />${captions}${chapter-track}</video>")
         "The video for \"${title}\" will be posted here when available. You can also subscribe to the <a href=\"https://lists.gnu.org/mailman/listinfo/emacsconf-discuss\">emacsconf-discuss mailing list</a> for updates."))
-     :chapter-list (plist-get chapter-info :html)
      :resources
      (conf-replace-plist-in-string
       (append info
@@ -141,7 +160,8 @@ ${info}
         conf-info))
 
 (defun conf-wiki-talk-resources (o)
-  (setq o (append (list :base-url
+  (setq o (append (list :format 'wiki
+                        :base-url
                         (concat conf-media-base-url (plist-get o :conf-year) "/")
                         :track-base-url
                         (format "/%s/captions/" (plist-get o :conf-year)))
@@ -466,6 +486,13 @@ ${info}
       (list
        :track (format "<track kind=\"chapters\" label=\"Chapters\" src=\"%s\"\" />"
                       (concat (or track-base-url "") (file-name-nondirectory filename)))
+       :md (mapconcat
+            (lambda (chapter)
+              (format "%s %s\n"
+                      (format-seconds "%.2h:%z%.2m:%.2s" (floor (/ (plist-get chapter :start-ms) 1000)))
+                      (plist-get chapter :text)))
+            chapters
+            "")
        :html (format "<ol class=\"chapters\">\n%s\n</ol>"
                      (mapconcat
                       (lambda (chapter)
@@ -509,8 +536,13 @@ ${info}
                                (if (string-match "\\.vtt$" ext)
                                    wiki-captions-dir
                                  conf-captions-directory)))
-                             (format "<a href=\"%s%s\">Download %s</a>"
+                             (if (eq (plist-get talk :format) 'wiki)
+                                 (format "[Download %s](%s%s)"
+                                         ext
+                                         (or (plist-get talk :base-url) "")
+                                         (concat video-slug ext))
+                               (format "<a href=\"%s%s\">Download %s</a>"
                                      (or (plist-get talk :base-url) "")
                                      (concat video-slug ext)
-                                     ext)))
+                                     ext))))
                        extensions))))
