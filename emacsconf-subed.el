@@ -93,12 +93,12 @@
       (kill-new result))
     result))
 
-(defun conf-prepare-transcript-directives ()
+(defun emacsconf-subed-prepare-transcript-directives ()
   (interactive)
   (let* ((info (emacsconf-get-talk-info-for-subtree))
          (wiki-file (plist-get info :wiki-file-path))
          (caption-file (expand-file-name (concat (plist-get info :video-slug) "--main.vtt")
-                                         conf-captions-directory))
+                                         emacsconf-captions-directory))
          (chapters (emacsconf-subed-chapters-as-list info)))
     (with-temp-file wiki-file
       (insert
@@ -114,7 +114,7 @@
       (format "youtube-dl --write-sub --write-auto-sub --no-warnings --sub-lang en --skip-download --sub-format %s %s -o %s"
               f
               youtube-url
-              (expand-file-name video-slug conf-captions-directory)))
+              (expand-file-name video-slug emacsconf-captions-directory)))
     '("vtt" "srv2")
     ";")))
 
@@ -151,7 +151,7 @@ Create it if necessary."
   (require 'compile-media)
   (let ((video-slug (org-entry-get (point) "VIDEO_SLUG")))
     (find-file
-     (or (car (directory-files conf-captions-directory
+     (or (car (directory-files emacsconf-captions-directory
                                t
                                (concat (regexp-quote video-slug)
                                        "--main\\.\\(srt\\|vtt\\)")))
@@ -174,9 +174,9 @@ Create it if necessary."
 
 (defun emacsconf-subed-chapters-as-list (info)
   (when (file-exists-p (expand-file-name (concat (plist-get info :video-slug) "--main--chapters.vtt")
-                                         conf-captions-directory))
+                                         emacsconf-captions-directory))
     (with-current-buffer (find-file-noselect (expand-file-name (concat (plist-get info :video-slug) "--main--chapters.vtt")
-                                                               conf-captions-directory))
+                                                               emacsconf-captions-directory))
       (let (result)
         (subed-for-each-subtitle (point-min) (point-max) nil
           (setq result
