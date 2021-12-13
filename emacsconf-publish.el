@@ -165,7 +165,7 @@
                (if (eq (plist-get talk :format) 'wiki)
                    (concat s "  \n")
                  (concat "<li>" s "</li>")))
-             (emacsconf-link-file-formats-as-list talk (or extensions emacsconf-published-extensions))
+             (emacsconf-link-file-formats-as-list talk (or extensions emacsconf-main-extensions))
              "")
             :poster (and video-file (format "https://media.emacsconf.org/%s/%s.png" (plist-get talk :conf-year) (file-name-base video-file)))
             :toobnix-info (if (plist-get talk :toobnix-url)
@@ -384,7 +384,7 @@ ${info}
             (pcase emacsconf-publishing-phase
               ('program "<tr><th>Status</th><th>Title<th><th>Speaker(s)</th></tr>")
               ('schedule "<tr><th>Status</th><th>Start</th><th>Title</th><th>Speaker(s)</th></tr>")
-              ('resources "<tr><th>Title</th><th>Speaker(s)</th><th>Resources</th></tr>")) 
+              ('resources "<tr><th>Title</th><th>Speaker(s)</th><th>Resources</th></tr>"))
             (mapconcat
              (lambda (o)
                (let* ((time-fmt "%l:%M %p")
@@ -430,7 +430,7 @@ ${info}
                                          (emacsconf-link-file-formats-as-list
                                           (append o
                                                   (list :base-url (format "%s%s/" emacsconf-media-base-url emacsconf-year)))
-                                          (append emacsconf-published-extensions '("--main.webm")))
+                                          (append emacsconf-main-extensions '("--main.webm")))
                                          "")))))))
              (seq-remove (lambda (o) (string= (plist-get o :status) "CANCELLED"))
                          (cdr info))
@@ -538,7 +538,7 @@ ${info}
                                      :track-base-url
                                      (format "/%s/captions/" (plist-get f :conf-year)))
                                f)
-                       emacsconf-published-extensions)
+                       emacsconf-main-extensions)
                     "")
                   (if (plist-get f :qa-public)
                       (emacsconf-index-card
@@ -595,13 +595,12 @@ ${info}
      "")
    (mapconcat
     (lambda (lang)
-      (let ((lang-file (concat (file-name-sans-extension filename) "_" (car lang) (file-name-extension filename))))
+      (let ((lang-file (concat (file-name-sans-extension filename) "_" (car lang) "." (file-name-extension filename))))
         (if (file-exists-p lang-file)
-            (format "<track label=\"%s\" kind=\"captions\" srclang=\"%s\" src=\"%s--main_%s.vtt\" />"
+            (format "<track label=\"%s\" kind=\"captions\" srclang=\"%s\" src=\"%s\" />"
                     (cdr lang)
                     (car lang)
-                    (concat (or track-base-url "") (file-name-nondirectory lang-file))
-                    (car lang))
+                    (concat (or track-base-url "") (file-name-nondirectory lang-file)))
           "")))
     '(("fr" . "French") ("ja" . "Japanese"))
     "")))
