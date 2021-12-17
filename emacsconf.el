@@ -38,6 +38,12 @@
   "Directory where the wiki files are."
   :group 'emacsconf
   :type 'directory)
+
+
+(defcustom emacsconf-timezone "America/Toronto" "Main timezone."
+  :group 'emacsconf
+  :type 'string)
+
 (defcustom emacsconf-timezones '("America/Toronto" "America/Los_Angeles" "UTC" "Europe/Paris" "Europe/Athens" "Asia/Kolkata" "Asia/Singapore" "Asia/Tokyo") "List of timezones."
   :group 'emacsconf
   :type '(repeat string))
@@ -262,6 +268,9 @@
                                       (pop a)
                                       string t t)))
     string))
+
+(defun emacsconf-public-talks (info)
+  (seq-filter (lambda (f) (plist-get f :public)) info))
 
 (provide 'emacsconf)
 ;;; emacsconf.el ends here

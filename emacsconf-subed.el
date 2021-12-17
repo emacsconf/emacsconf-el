@@ -99,7 +99,8 @@
          (wiki-file (plist-get info :wiki-file-path))
          (caption-file (expand-file-name (concat (plist-get info :video-slug) "--main.vtt")
                                          emacsconf-captions-directory))
-         (chapters (emacsconf-subed-chapters-as-list info)))
+         (chapters (with-current-buffer (find-file-noselect caption-file)
+                     (subed-subtitle-list))))
     (with-temp-file wiki-file
       (insert
        (with-current-buffer (find-file-noselect caption-file)
@@ -171,49 +172,6 @@ Create it if necessary."
     (if (< (- (subed-subtitle-msecs-stop) (subed-subtitle-msecs-start)) emacsconf-subed-subtitle-minimum-duration-ms)
         (error "Duration %d is less than minimum" (- (subed-subtitle-msecs-stop) (subed-subtitle-msecs-start))))
     (or (subed-forward-subtitle-text) (goto-char (point-max)))))
-
-(defun emacsconf-subed-chapters-as-list (info)
-  (when (file-exists-p (expand-file-name (concat (plist-get info :video-slug) "--main--chapters.vtt")
-                                         emacsconf-captions-directory))
-    (with-current-buffer (find-file-noselect (expand-file-name (concat (plist-get info :video-slug) "--main--chapters.vtt")
-                                                               emacsconf-captions-directory))
-      (let (result)
-        (subed-for-each-subtitle (point-min) (point-max) nil
-          (setq result
-                (cons
-                 (cons (subed-subtitle-msecs-start)
-                       (subed-subtitle-text)) 
-                 result)))
-        (nreverse result)))))
-
-(defun emacsconf-subed-chapters-buffer-as-list ()
-  (let (result)
-    (subed-for-each-subtitle (point-min) (point-max) nil
-      (setq result
-            (cons
-             (list
-              :text
-              (subed-subtitle-text)
-              :start-ms
-              (subed-subtitle-msecs-start)
-              :stop-ms
-              (subed-subtitle-msecs-stop)) 
-             result)))
-    (nreverse result)))
-
-(defun emacsconf-subed-chapters-as-description ()
-  (interactive)
-  (let ((result
-         (mapconcat
-          (lambda (o)
-            (concat (format-seconds "%.2m:%.2s" (/ (plist-get o :start-ms) 1000))
-                    " "
-                    (plist-get o :text)))
-          (emacsconf-subed-chapters-buffer-as-list)
-          "\n")))
-    (when (called-interactively-p 'any)
-      (kill-new result))
-    result))
 
 (provide 'emacsconf-subed)
 ;;; emacsconf-subed.el ends here
