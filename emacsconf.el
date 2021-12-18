@@ -144,6 +144,8 @@
                        (:captioner "CAPTIONER")
                        (:youtube-url "YOUTUBE_URL")
                        (:toobnix-url "TOOBNIX_URL")
+                       (:qa-youtube "QA_YOUTUBE")
+                       (:qa-toobnix "QA_TOOBNIX")
                        (:pronunciation "PRONUNCIATION")
                        (:pronouns "PRONOUNS")
                        (:buffer "BUFFER")

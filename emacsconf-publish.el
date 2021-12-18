@@ -690,7 +690,11 @@ Columns are: slug,title,speakers,talk page url,video url,duration,sha."
                                          (plist-get o :video-slug))
                                  date
                                  (format-seconds "%02h:%z%02m:%02s" (/ (compile-media-get-file-duration-ms main-video) 1000))
-                                 (string-trim (shell-command-to-string (concat "sha1sum -b " (shell-quote-argument main-video) " | cut -d ' ' -f 1"))))
+                                 (if (file-exists-p main-video)
+                                     (string-trim (shell-command-to-string (concat "sha1sum -b " (shell-quote-argument main-video) " | cut -d ' ' -f 1")))
+                                   "")
+                                 (or (plist-get o :youtube-url) "")
+                                 (or (plist-get o :toobnix-url) ""))
                                 (if (plist-get o :qa-public)
                                     (list
                                      (concat emacsconf-name " " emacsconf-year)
@@ -704,11 +708,14 @@ Columns are: slug,title,speakers,talk page url,video url,duration,sha."
                                              (plist-get o :video-slug))
                                      date
                                      (format-seconds "%02h:%z%02m:%02s" (/ (compile-media-get-file-duration-ms qa-video) 1000))
-                                     (string-trim (shell-command-to-string (concat "sha1sum -b " (shell-quote-argument qa-video) " | cut -d ' ' -f 1")))
-                                     ))))))
+                                     (if (file-exists-p qa-video)
+                                         (string-trim (shell-command-to-string (concat "sha1sum -b " (shell-quote-argument qa-video) " | cut -d ' ' -f 1")))
+                                       "")
+                                     (or (plist-get o :qa-youtube) "")
+                                     (or (plist-get o :qa-toobnix) "")))))))
                           (emacsconf-public-talks (emacsconf-get-talk-info))))))
       (insert (orgtbl-to-csv
-               (cons '("Conference" "Slug" "Title" "Speakers" "Talk page URL" "Video URL" "Date" "Duration" "SHA")
+               (cons '("Conference" "Slug" "Title" "Speakers" "Talk page URL" "Video URL" "Date" "Duration" "SHA" "Youtube URL" "Toobnix URL")
                      results)
                nil)))))
 
