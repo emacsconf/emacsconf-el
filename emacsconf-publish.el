@@ -268,7 +268,7 @@ ${info}
                                                     (concat (file-name-sans-extension (plist-get o :video-slug)) "--answers.webm")
                                                     emacsconf-captions-directory))
                                       o)
-                                     (list "--answers.vtt" "--answers--chapters.vtt")))
+                                     (list "--answers.vtt" "--answers--chapters.vtt" "--answers--compressed32.webm")))
      "")))
 
 
