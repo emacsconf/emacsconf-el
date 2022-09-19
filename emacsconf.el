@@ -321,24 +321,44 @@
   (seq-filter (lambda (f) (plist-get f :public)) info))
 
 ;;; Schedule summary
-(defun emacsconf-format-short-time (string)
+(defun emacsconf-update-schedules ()
+  "Schedule the talks based on TIME and BUFFER.
+Talks with a FIXED_TIME property are not moved."
+  (interactive)
+  (save-excursion
+    (org-with-wide-buffer
+     (let (current-time scheduled end-time duration) 
+       (org-map-entries
+        (lambda ()
+          (if (org-entry-get (point) "FIXED_TIME")
+              (setq current-time (org-get-scheduled-time (point))))
+          (when (and (org-entry-get (point) "TIME")
+                     (not (string= (org-entry-get (point) "TODO") "CANCELLED")))
+            (setq duration (* (string-to-number (org-entry-get (point) "TIME")) 60)
+                  end-time (time-add current-time (seconds-to-time duration)))
+            (org-set-property "SCHEDULED" (format "%s-%s" (org-format-time-string "%Y-%m-%d %H:%M" current-time)
+                                                  (org-format-time-string "%H:%M" end-time)))
+            (setq current-time (time-add end-time (* (string-to-number (org-entry-get (point) "BUFFER")) 60))))))))))
+
+(defun emacsconf-format-short-time (string &optional omit-end-time)
   (if (stringp string) (setq string (org-timestamp-from-string string)))
   (downcase
    (concat (format-time-string "~%l:%M%p"
                                (org-timestamp-to-time
                                 (org-timestamp-split-range
                                  string)))
-           (format-time-string "-%l:%M%p"
-                               (org-timestamp-to-time
-                                (org-timestamp-split-range
-                                 string t))))))
+           (if omit-end-time ""
+             (format-time-string "-%l:%M%p"
+                                 (org-timestamp-to-time
+                                  (org-timestamp-split-range
+                                   string t)))))))
 
 (defvar emacsconf-focus 'time "'time or 'status")
 
 (defun emacsconf-summarize-schedule ()
   (cons
    (if (eq emacsconf-focus 'time)
-       (list "Slug" "Schedule" "Time" "Buffer" "Min" "Max" "Title" "Name" "Availability")
+       (list "Slug" "Schedule" "Time" "Buffer" "Max" "Title" "Name" "Availability")
      (list "Status" "Slug" "Schedule" "Time" "Buffer" "Title" "Name" "Q&A" "Availability"))
    (save-excursion
      (delq nil
@@ -377,11 +397,10 @@
                       "")
                     (if (and (org-entry-get (point) "SCHEDULED")
                              (not (org-entry-get (point) "FIXED_TIME")))
-                        (emacsconf-format-short-time (org-entry-get (point) "SCHEDULED"))
+                        (emacsconf-format-short-time (org-entry-get (point) "SCHEDULED") t)
                       "")
                     (or (org-entry-get (point) "TIME") "")
                     (or (org-entry-get (point) "BUFFER") "")
-                    (or (org-entry-get (point) "MIN_TIME") "")
                     (or (org-entry-get (point) "MAX_TIME") "")
                     (org-link-make-string (concat "*" (org-entry-get (point) "ITEM"))
                                           (org-entry-get (point) "ITEM"))
