@@ -30,7 +30,7 @@
   "Name of conference"
   :group 'emacsconf
   :type 'string)
-(defcustom emacsconf-year "2021"
+(defcustom emacsconf-year "2022"
   "Conference year. String for easy inclusion."
   :group 'emacsconf
   :type 'string)
@@ -81,6 +81,52 @@
   "Return the newest file in PATH. Optionally filter by FILTER."
   (car (sort (seq-remove #'file-directory-p (directory-files path 'full filter t)) #'file-newer-than-file-p)))
 
+(defun emacsconf-find-captions-from-slug (search)
+  (interactive (list (emacsconf-complete-talk)))
+  (emacsconf-with-talk-heading search (emacsconf-find-captions)))
+
+(defun emacsconf-edit-wiki-page (search)
+  (interactive (list (emacsconf-complete-talk)))
+  (setq search (emacsconf-get-slug-from-string search))
+  (find-file (expand-file-name (concat search ".md")
+                               (expand-file-name "talks" (expand-file-name emacsconf-year emacsconf-directory)))))
+
+(defun conf-find-caption-directives-from-slug (search)
+  (interactive (list (emacsconf-complete-talk)))
+  (setq search (emacsconf-get-slug-from-string search))
+  (find-file (expand-file-name (concat search ".md")
+                               (expand-file-name "captions" (expand-file-name emacsconf-year emacsconf-directory)))))
+
+
+(defun emacsconf-browse-wiki-page (search)
+  (interactive (list (emacsconf-complete-talk)))
+  (setq search (emacsconf-get-slug-from-string search))
+  (browse-url (concat emacsconf-base-url "/" emacsconf-year "/talks/" search "/")))
+
+(defun emacsconf-set-property-from-slug (search prop value)
+  (interactive (list (conf-complete-talk) nil nil))
+  (save-window-excursion
+    (emacsconf-with-talk-heading search
+      (setq prop (or prop (org-read-property-name)))
+      (setq value (or value (org-read-property-value prop)))
+      (org-entry-put (point) prop value))))
+
+(defun emacsconf-complete-talk ()
+  (let ((choices (with-current-buffer (find-file-noselect emacsconf-org-file)
+                   (save-excursion
+                     (delq nil
+                           (org-map-entries
+                            (lambda ()
+                              (when (org-entry-get (point) "SLUG")
+                                (concat (org-entry-get (point) "SLUG") " - "
+                                        (org-entry-get (point) "ITEM") " - "
+                                        (org-entry-get (point) "NAME"))))))))))
+    (completing-read
+     "Talk: " 
+     (lambda (string predicate action)
+       (if (eq action 'metadata)
+           '(metadata (category . emacsconf))
+         (complete-with-action action choices string predicate))))))
 
 (defun emacsconf-get-slug-from-string (search)
   (if (listp search) (setq search (car search)))
@@ -273,6 +319,99 @@
 
 (defun emacsconf-public-talks (info)
   (seq-filter (lambda (f) (plist-get f :public)) info))
+
+;;; Schedule summary
+(defun emacsconf-format-short-time (string)
+  (if (stringp string) (setq string (org-timestamp-from-string string)))
+  (downcase
+   (concat (format-time-string "~%l:%M%p"
+                               (org-timestamp-to-time
+                                (org-timestamp-split-range
+                                 string)))
+           (format-time-string "-%l:%M%p"
+                               (org-timestamp-to-time
+                                (org-timestamp-split-range
+                                 string t))))))
+
+(defvar emacsconf-focus 'time "'time or 'status")
+
+(defun emacsconf-summarize-schedule ()
+  (cons
+   (if (eq emacsconf-focus 'time)
+       (list "Slug" "Schedule" "Time" "Buffer" "Min" "Max" "Title" "Name" "Availability")
+     (list "Status" "Slug" "Schedule" "Time" "Buffer" "Title" "Name" "Q&A" "Availability"))
+   (save-excursion
+     (delq nil
+           (org-map-entries
+            (lambda ()
+              (when (org-entry-get (point) "SCHEDULED") ;; (and (org-entry-get (point) "SCHEDULED")
+                    ;;      (or (string= include "all")
+                    ;;          (and (org-entry-get (point) "TIME")
+                    ;;               (not (string= (org-entry-get (point) "TIME")
+                    ;;                             (org-entry-get (point) "MIN_TIME"))))))
+                (pcase emacsconf-focus
+                  ('status
+                   (list
+                    (org-get-todo-state)
+                    (if (org-entry-get (point) "SLUG")
+                        (org-link-make-string (concat "https://emacsconf.org/" emacsconf-year "/talks/"
+                                                      (org-entry-get (point) "SLUG"))
+                                              (org-entry-get (point) "SLUG"))
+                      "")
+                    (if (org-entry-get (point) "SCHEDULED")
+                        (emacsconf-format-short-time (org-entry-get (point) "SCHEDULED"))
+                      ""
+                      (or (org-entry-get (point) "TIME") "")
+                      (or (org-entry-get (point) "BUFFER") "")
+                      (org-link-make-string (concat "*" (org-entry-get (point) "ITEM"))
+                                            (org-entry-get (point) "ITEM")))
+                    (or (org-entry-get (point) "NAME") "")
+                    (org-entry-get (point) "Q_AND_A") 
+                    (org-entry-get (point) "AVAILABILITY")))
+                  ('time
+                   (list
+                    (if (org-entry-get (point) "SLUG")
+                        (org-link-make-string (concat "https://emacsconf.org/" emacsconf-year "/talks/"
+                                                      (org-entry-get (point) "SLUG"))
+                                              (org-entry-get (point) "SLUG"))
+                      "")
+                    (if (and (org-entry-get (point) "SCHEDULED")
+                             (not (org-entry-get (point) "FIXED_TIME")))
+                        (emacsconf-format-short-time (org-entry-get (point) "SCHEDULED"))
+                      "")
+                    (or (org-entry-get (point) "TIME") "")
+                    (or (org-entry-get (point) "BUFFER") "")
+                    (or (org-entry-get (point) "MIN_TIME") "")
+                    (or (org-entry-get (point) "MAX_TIME") "")
+                    (org-link-make-string (concat "*" (org-entry-get (point) "ITEM"))
+                                          (org-entry-get (point) "ITEM"))
+                    (or (org-entry-get (point) "NAME") "")
+                    (or (org-entry-get (point) "AVAILABILITY") "")))))))))))
+
+;;; Embark
+(defun emacsconf-embark-finder ()
+  (when (and (derived-mode-p 'org-mode)
+             (org-entry-get-with-inheritance "SLUG"))
+    (cons 'emacsconf (org-entry-get-with-inheritance "SLUG"))))
+
+(with-eval-after-load 'embark
+  (add-to-list 'embark-target-finders 'emacsconf-embark-finder)
+  (embark-define-keymap embark-emacsconf-actions
+    "Keymap for conference-related things"
+    ("a" emacsconf-announce)
+    ("c" emacsconf-find-captions-from-slug)
+    ("d" emacsconf-find-caption-directives-from-slug)
+    ("p" emacsconf-set-property-from-slug)
+    ("w" emacsconf-edit-wiki-page)
+    ("s" emacsconf-set-start-time-for-slug)
+    ("W" emacsconf-browse-wiki-page)
+    ("u" emacsconf-update-talk)
+    ("m" emacsconf-mail-speaker-from-slug)
+    ("n" emacsconf-notmuch-search-mail-from-entry)
+    ("f" org-forward-heading-same-level)
+    ("b" org-backward-heading-same-level)
+    ("RET" emacsconf-go-to-talk))
+  (add-to-list 'embark-keymap-alist '(emacsconf . embark-emacsconf-actions)))
 
 (provide 'emacsconf)
 ;;; emacsconf.el ends here
