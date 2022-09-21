@@ -27,7 +27,7 @@
 (defgroup emacsconf nil "EmacsConf" :group 'multimedia)
 
 (defcustom emacsconf-name "EmacsConf"
-  "Name of emacsconference"
+  "Name of conference"
   :group 'emacsconf
   :type 'string)
 (defcustom emacsconf-year "2022"
@@ -51,7 +51,7 @@
 (defcustom emacsconf-base-url "https://emacsconf.org/" "Includes trailing slash"
   :group 'emacsconf
   :type 'string)
-(defcustom emacsconf-publishing-phase 'resources
+(defcustom emacsconf-publishing-phase 'program
   "Controls what information to include.
 'program - don't include times
 'schedule - include times; use this leading up to the emacsconference
@@ -194,6 +194,7 @@
                        (:qa-toobnix "QA_TOOBNIX")
                        (:pronunciation "PRONUNCIATION")
                        (:pronouns "PRONOUNS")
+                       (:public-email "PUBLIC_EMAIL")
                        (:buffer "BUFFER")
                        (:time "TIME")
                        (:time "MAX_TIME")
@@ -209,6 +210,7 @@
      'append
      o
      (list
+      :year emacsconf-year
       :type (if (org-entry-get (point) "SLUG") 'talk 'headline)
       :status (elt heading 2)
       :level (car heading)
@@ -243,6 +245,22 @@
        (plist-put o :abstract (org-get-entry))))
    nil 'tree)
   o)
+
+(defun emacsconf-convert-talk-abstract-to-markdown (o)
+  (plist-put o :abstract-md (org-export-string-as (or (plist-get o :abstract) "") 'md t)))
+
+(defun emacsconf-summarize-times (time timezones)
+  (let (prev-day)
+    (mapconcat
+     (lambda (tz)
+       (let ((cur-day (format-time-string "%a %b %-e" time tz))
+             (cur-time (format-time-string "%H%MH %Z" time tz)))
+         (if (equal prev-day cur-day)
+             cur-time
+           (setq prev-day cur-day)
+           (concat cur-day " " cur-time))))
+     timezones
+     " / ")))
 
 (defun emacsconf-add-timezone-conversions (o)
   (plist-put o :scheduled-tzs
@@ -361,7 +379,7 @@
     (while a
       (setq string
             (replace-regexp-in-string (regexp-quote (concat "${" (substring (symbol-name (pop a)) 1) "}"))
-                                      (pop a)
+                                      (or (pop a) "")
                                       string t t)))
     string))
 
