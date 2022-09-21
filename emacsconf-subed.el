@@ -71,7 +71,7 @@
       (save-buffer))))
 
 (defun emacsconf-subed-convert-transcript-to-directives (id &optional chapters)
-  (interactive (read-string "ID: " "mainVideo"))
+  (interactive (list (read-string "ID: " "mainVideo")))
   (goto-char (point-min))
   (let* ((chapter-starts (mapcar 'car chapters))
          (result (concat
@@ -87,7 +87,7 @@
                                     (replace-regexp-in-string
                                      "\"" "&quot ;"
      (replace-regexp-in-string "[][]" "" (subed-subtitle-text))))
-                                   (subed-vtt--msecs-to-timestamp (subed-subtitle-msecs-start))
+                                   (subed-msecs-to-timestamp (subed-subtitle-msecs-start))
                                    id)))))
     (when (called-interactively-p 'any)
       (kill-new result))

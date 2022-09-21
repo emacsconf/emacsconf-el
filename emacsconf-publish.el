@@ -719,4 +719,212 @@ Columns are: slug,title,speakers,talk page url,video url,duration,sha."
                      results)
                nil)))))
 
+(defun emacsconf-generate-pad-template (emacsconf-info)
+    "Generate a template for copying and pasting into the pad.
+  Writes it to pad-template.html."
+    (interactive (list (emacsconf-get-talk-info)))
+    (let* ((talks (emacsconf-filter-talks emacsconf-info))
+           (text (concat
+                "<p>Conference info, how to watch/participate: https://emacsconf.org/2021/<br />
+  Guidelines for conduct: https://emacsconf.org/conduct/</p>
+
+  <p>Except where otherwise noted, the material on the EmacsConf pad are dual-licensed under the terms of the Creative Commons Attribution-ShareAlike 4.0 International Public License; and the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) an later version.
+  Copies of these two licenses are included in the EmacsConf wiki repository, in the COPYING.GPL and COPYING.CC-BY-SA files (https://emacsconf.org/COPYING/).</p>
+
+  <p>By contributing to this pad, you agree to make your contributions available under the above licenses. You are also promising that you are the author of your changes, or that you copied them from a work in the public domain or a work released under a free license that is compatible with the above two licenses. DO NOT SUBMIT COPYRIGHTED WORK WITHOUT PERMISSION.</p>
+
+  <p>
+  This pad is here to be curated by everybody and its rough structure is like this:
+  <ol><li>General info and license
+  <li>A section for each talk -> please do add questions and notes
+  <li>A general feedback section
+  </ol>
+  </p>
+    "
+         (mapconcat
+          (lambda (o)
+            (let ((url (format "https://emacsconf.org/%s/schedule/%s" emacsconf-year (plist-get o :talk-id))))
+              (format "-------------------------------------------------------------------------------------------------<br/><strong>Talk%s: %s</strong><br />
+  Speaker(s): %s<br />
+  Talk page: <a href=\"%s\">%s</a><br />
+  Actual start of talk EST: &nbsp;&nbsp;&nbsp;  Start of Q&A: &nbsp;&nbsp;  End of Q&A: &nbsp;&nbsp;<br />
+  <strong>Questions:</strong>
+  Speakers may answer in any order or skip questions. As much as possible, put your questions at the top level instead of under another question. If adding an answer, please indicate [speaker] or your nick accordingly. Volunteers, please add new slots as ones get filled.<br />
+  <ul>
+    <li>Q1:&nbsp;<ul><li>A:&nbsp;</li></ul></li>
+    <li>Q2:&nbsp;<ul><li>A:&nbsp;</li></ul></li>
+    <li>Q3:&nbsp;<ul><li>A:&nbsp;</li></ul></li>
+    <li>Q4:&nbsp;<ul><li>A:&nbsp;</li></ul></li>
+  </ul>
+
+  <strong>Links and other notes:</strong>
+  <ul>
+    <li>sample text</li>
+    <li>sample text</li>
+    <li>sample text</li>
+    <li>sample text</li>
+  </ul>
+  " (plist-get o :talk-id) (plist-get o :title) (plist-get o :speakers) url url))) talks "<br/><br/>\n") 
+         "<br/><br/>-------------------------------------------------------------------------------------------------<br/>
+  <strong>General Feedback: What went well?</strong><br/><br/>
+  <ul>
+    <li>sample text</li>
+    <li>sample text</li>
+    <li>sample text</li>
+    <li>sample text</li>
+  </ul>
+  <br /><br />
+  -------------------------------------------------------------------------------------------------<br/>
+  <strong>General Feedback: What to improve?</strong><br/><br/>
+  <ul>
+    <li>sample text</li>
+    <li>sample text</li>
+    <li>sample text</li>
+    <li>sample text</li>
+  </ul>
+  <br/><br/>
+  -------------------------------------------------------------------------------------------------<br/>
+  <strong>Colophon:</strong>
+  <ul></ul>")))
+      (with-current-buffer (find-file "pad-template.html")
+        (erase-buffer)
+        (insert text)
+        (save-buffer)))
+    (browse-url-of-file "pad-template.html"))
+
+
+(defun emacsconf-generate-playlist (filename playlist-name talks &optional base-url)
+  (with-temp-file filename
+    (insert (format "#EXTM3U\n#PLAYLIST: %s\n#EXTALB: %s\n#EXTGENRE: Speech\n%s"
+                    playlist-name playlist-name
+                    (mapconcat
+                     (lambda (talk)
+                       (let* ((slug (plist-get talk :video-slug))
+                              (filename (concat (plist-get talk :video-slug) "--main.webm")))
+                         (if (and slug (file-exists-p (expand-file-name filename emacsconf-captions-directory))) 
+                             (format "#EXTINF:-1,%s - %s\n%s%s\n"
+                                     (plist-get talk :title)
+                                     (plist-get talk :speakers)
+                                     base-url
+                                     filename)
+                           "")))
+                     talks
+                     "")))))
+
+(defun emacsconf-get-preferred-video (video-slug)
+  (or
+   (seq-find
+    'file-exists-p
+    (seq-map (lambda (suffix)
+               (expand-file-name (concat video-slug "--" suffix ".webm")
+                                 emacsconf-captions-directory))
+             '("main" "captioned" "normalized" "compressed")))
+   (car (directory-files emacsconf-captions-directory
+                         nil
+                         (concat (regexp-quote video-slug)
+                                 "\\."
+                                 (regexp-opt subed-video-extensions))))))
+
+(defun emacsconf-check-video-formats ()
+  (interactive)
+  (with-current-buffer (get-buffer-create "*Video check*")
+    (erase-buffer)
+    (mapc
+     (lambda (filename)
+       (insert "* " (if (string-match "--\\(main\\|compressed\\|normalized\\|captioned\\)\\.webm$" filename)
+                        (match-string 1 filename)
+                      "")
+               ": "
+               filename "\n"
+               (shell-command-to-string (format "ffprobe %s 2>&1 | grep -E '(Duration|Stream)'"
+                                                (shell-quote-argument filename)))
+               "\n"))
+     (delq nil
+           (mapcar (lambda (talk) (emacsconf-get-preferred-video (plist-get talk :video-slug)))
+                   emacsconf-info)))
+    (switch-to-buffer (current-buffer))))
+
+;;; Video services
+
+(defun emacsconf-cache-all-video-data ()
+  (interactive)
+  (org-map-entries (lambda () (when (and (org-entry-get (point) "VIDEO_SLUG") (null (org-entry-get (point) "VIDEO_FILE_SIZE"))) (emacsconf-cache-video-data-for-entry)))))
+(defun emacsconf-cache-video-data-for-entry ()
+  (interactive)
+  (let* ((video-file (emacsconf-get-preferred-video (org-entry-get (point) "VIDEO_SLUG")))
+         (duration (/ (compile-media-get-file-duration-ms video-file) 1000)))
+    (org-entry-put (point) "VIDEO_FILE" (file-name-nondirectory video-file))
+    (org-entry-put (point) "VIDEO_FILE_SIZE" (file-size-human-readable (file-attribute-size (file-attributes video-file))))
+    (org-entry-put (point) "VIDEO_DURATION" (format-seconds "%m:%.2s" duration))
+    (org-entry-put (point) "TIME" (number-to-string (ceiling (/ duration 60))))))
+
+(defvar emacsconf-youtube-channel-id "UCwuyodzTl_KdEKNuJmeo99A")
+(defun emacsconf-youtube-edit ()
+  (interactive)
+  (let ((url (org-entry-get (point) "YOUTUBE_URL")))
+    (if url
+        (when (or (string-match "youtu\\.be/\\([-A-Za-z0-9_]+\\)" url)
+                  (string-match "watch\\?v=\\([-A-Za-z0-9_]+\\)" url))
+          (browse-url (format "https://studio.youtube.com/video/%s/edit" (match-string 1 url))))
+      (browse-url (concat "https://studio.youtube.com/channel/" emacsconf-youtube-channel-id)))))
+
+(defun emacsconf-toobnix-edit ()
+  (interactive)
+  (let ((url (org-entry-get (point) "TOOBNIX_URL")))
+    (if url
+        (when (string-match "/w/\\([A-Za-z0-9]+\\)" url)
+          (browse-url (format "https://toobnix.org/videos/update/%s" (match-string 1 url))))
+      (when (> (length (org-entry-get (point) "VIDEO_SLUG")) 80)
+        (copy-file (expand-file-name (concat (org-entry-get (point) "VIDEO_SLUG") "--main.webm") emacsconf-captions-directory)
+                   (expand-file-name (concat "emacsconf-" emacsconf-year "-" (org-entry-get (point) "SLUG") ".webm") emacsconf-captions-directory) t))
+      (browse-url "https://toobnix.org/videos/upload#upload"))))
+
+(defun emacsconf-publish-files ()
+  (interactive)
+  (let* ((slug (org-entry-get (point) "VIDEO_SLUG"))
+         (video-file (emacsconf-get-preferred-video slug))
+         (wiki-captions-directory (expand-file-name "captions" (expand-file-name emacsconf-year emacsconf-directory)))
+         (new-captions-file (expand-file-name (concat slug "--main.vtt") wiki-captions-directory)))
+    (org-entry-put (point) "PUBLIC" "1")
+    (when (file-exists-p video-file)
+      (emacsconf-youtube-edit)      
+      (emacsconf-toobnix-edit)
+      (emacsconf-cache-video-data-for-entry)
+      (emacsconf-update-talk)
+      (when (file-exists-p (expand-file-name (concat slug ".md")  wiki-captions-directory))
+        (with-current-buffer (find-file-noselect (file-exists (expand-file-name (concat slug ".md")  wiki-captions-directory)))
+          (magit-stage-file (buffer-file-name))))
+      (mapc
+       (lambda (suffix)
+         (when (file-exists-p (expand-file-name (concat slug suffix) emacsconf-captions-directory))
+           (copy-file (expand-file-name (concat slug suffix) emacsconf-captions-directory)
+                      (expand-file-name (concat slug suffix) wiki-captions-directory)t)
+           (with-current-buffer (find-file-noselect (expand-file-name (concat slug suffix) wiki-captions-directory))
+             (magit-stage-file (buffer-file-name)))))
+       '("--main.vtt" "--chapters.vtt" "--main_ja.vtt" "--main_fr.vtt"))
+      (magit-status-setup-buffer emacsconf-directory)
+      (when (and emacsconf-public-media-directory slug (> (length (string-trim slug)) 0)
+                 ;; TODO: make this customizable
+                 (shell-command
+                  (format "ssh front -- 'rm /var/www/media.emacsconf.org/%s/%s*; cp -n -l /var/www/media.emacsconf.org/%s/protected/%s* /var/www/media.emacsconf.org/%s/; chmod ugo+r /var/www/media.emacsconf.org/%s/ -R'"
+                          emacsconf-year slug
+                          emacsconf-year slug
+                          emacsconf-year
+                          emacsconf-year)))
+        (when emacsconf-public-media-directory
+          (emacsconf-make-public-index (expand-file-name "index.html" emacsconf-public-media-directory))
+          (emacsconf-generate-playlist (expand-file-name "index.m3u" emacsconf-public-media-directory)
+                                  "EmacsConf 2021"
+                                  (emacsconf-public-talks (emacsconf-get-talk-info))))))
+    ;; (copy-file (emacsconf-get-preferred-video slug) emacsconf-public-media-directory t)
+    ;; (mapc (lambda (ext)
+    ;;         (when (file-exists-p (expand-file-name (concat slug ext) emacsconf-captions-directory))
+    ;;           (copy-file (expand-file-name (concat slug ext) emacsconf-captions-directory)
+    ;;                      emacsconf-public-media-directory
+    ;;                      t)))
+    ;;       emacsconf-published-extensions)
+    ))
+
+
+
 (provide 'emacsconf-publish)
