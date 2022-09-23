@@ -48,7 +48,7 @@
   :type '(repeat (list (string :tag "Channel")
                        (string :tag "Topic suffix"))))
 
-;; For testing: (setq emacsconf-topic-templates '(("#emacsconf-test" "EmacsConf 2021 | Dedicated channel for EmacsConf organizers and speakers | this is intended as an internal, low-traffic channel; for main discussion around EmacsConf, please join #emacsconf | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")))
+;; For testing: (setq emacsconf-topic-templates '(("#emacsconf-test" "EmacsConf 2022 | Dedicated channel for EmacsConf organizers and speakers | this is intended as an internal, low-traffic channel; for main discussion around EmacsConf, please join #emacsconf | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")))
 
 (defcustom emacsconf-rooms
   '(("A" "http://example.org?room=a")
@@ -59,24 +59,24 @@
   :type '(repeat (list (string :tag "ID")
                        (string :tag "URL"))))
 
-    (defmacro emacsconf-erc-with-channels (channel-list &rest forms)
-      (declare (indent 1) (debug (form form body)))
-      `(mapcar (lambda (channel)
-                 (with-current-buffer (erc-get-buffer channel)
-                   ,@forms))
-               ,channel-list))
+(defmacro emacsconf-erc-with-channels (channel-list &rest forms)
+  (declare (indent 1) (debug (form form body)))
+  `(mapcar (lambda (channel)
+             (with-current-buffer (erc-get-buffer channel)
+               ,@forms))
+           ,channel-list))
 
-    (defun emacsconf-get-room (room)
-      (cadr (assoc (upcase room) emacsconf-rooms)))
+(defun emacsconf-get-room (room)
+  (cadr (assoc (upcase room) emacsconf-rooms)))
 
-    (defun erc-cmd-CONFTOPIC (&rest message)
-      "Set the topic to MESSAGE | template in the emacsconference channels.
+(defun erc-cmd-CONFTOPIC (&rest message)
+  "Set the topic to MESSAGE | template in the EmacsConf channels.
     If MESSAGE is not specified, reset the topic to the template."
-      (mapc (lambda (template) 
-              (with-current-buffer (erc-get-buffer (car template))
-                (erc-cmd-TOPIC (if message (concat (if (stringp message) message (s-join " " message)) " | " (cadr template))
-                                 (cadr template)))))
-            emacsconf-topic-templates))
+  (mapc (lambda (template) 
+          (with-current-buffer (erc-get-buffer (car template))
+            (erc-cmd-TOPIC (if message (concat (if (stringp message) message (s-join " " message)) " | " (cadr template))
+                             (cadr template)))))
+        emacsconf-topic-templates))
 
 (defun erc-cmd-CHECKIN (nick &optional q-and-a)
   (let ((talk (emacsconf-complete-talk))
@@ -259,7 +259,7 @@ TIME can be hh:mm or an offset such as -2 (two minutes ago) based on current tim
           (insert "\n* TODO [#B] Update schedule on wiki\n"))
         (goto-char (point-max))
         (insert (emacsconf-replace-plist-in-string info 
-"\n* TODO [#B] Check ${title} on https://media.emacsconf.org/${conf-year}
+                                                   "\n* TODO [#B] Check ${title} on https://media.emacsconf.org/${conf-year}
 
 ,* TODO [#B] Commit the page update for ${title} and check https://emacsconf.org/${conf-year}/talks/${slug}/
 
