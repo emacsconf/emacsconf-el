@@ -111,6 +111,16 @@
       (setq value (or value (org-read-property-value prop)))
       (org-entry-put (point) prop value))))
 
+
+(defun emacsconf-complete-slug ()
+  (emacsconf-get-slug-from-string (emacsconf-complete-talk)))
+
+(with-eval-after-load 'org
+  (org-link-set-parameters
+   "emacsconf"
+   :follow #'emacsconf-go-to-talk
+   :complete (lambda () (concat "emacsconf:" (emacsconf-complete-slug)))))
+
 (defun emacsconf-complete-talk ()
   (let ((choices (with-current-buffer (find-file-noselect emacsconf-org-file)
                    (save-excursion
