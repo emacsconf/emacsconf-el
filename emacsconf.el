@@ -191,6 +191,7 @@
                        (:email "EMAIL")
                        (:caption-note "CAPTION_NOTE")
                        (:duration "TIME")
+                       (:availability "AVAILABILITY")
                        (:q-and-a "Q_AND_A")
                        (:bbb-room "ROOM")
                        (:irc "IRC")
@@ -207,7 +208,8 @@
                        (:public-email "PUBLIC_EMAIL")
                        (:buffer "BUFFER")
                        (:time "TIME")
-                       (:time "MAX_TIME")
+                       (:min-time "MIN_TIME")
+                       (:max-time "MAX_TIME")
                        (:present "PRESENT")
                        (:speakers "NAME")
                        (:speakers-short "NAME_SHORT")
@@ -286,7 +288,11 @@
              (assoc-default (plist-get o :status) 
                             (emacsconf-status-types) 'string= "")))
 
-(defvar emacsconf-talk-info-functions '(emacsconf-get-talk-info-from-properties emacsconf-get-talk-abstract-from-subtree emacsconf-add-talk-status emacsconf-add-timezone-conversions))
+(defvar emacsconf-talk-info-functions
+  '(emacsconf-get-talk-info-from-properties
+    emacsconf-get-talk-abstract-from-subtree
+    emacsconf-add-talk-status
+    emacsconf-add-timezone-conversions))
 
 (defun emacsconf-get-talk-info-for-subtree ()
   (seq-reduce (lambda (prev val) (funcall val prev))
@@ -299,7 +305,7 @@
       (let (talk results (status-types (emacsconf-status-types)))
         (org-map-entries
          (lambda ()
-           (when (or (org-entry-get (point) "SLUG")
+           (when (or (org-entry-get (point) "TIME")
                      (org-entry-get (point) "INCLUDE_IN_INFO"))
              (setq results
                    (cons (emacsconf-get-talk-info-for-subtree)
@@ -397,27 +403,55 @@
   (seq-filter (lambda (f) (plist-get f :public)) info))
 
 ;;; Schedule summary
+
+(defun emacsconf-round-start-to-five ()
+  (let* ((start-time (org-get-scheduled-time (point)))
+         (decoded-time (decode-time start-time "America/Toronto"))
+         (duration (* (string-to-number (org-entry-get (point) "TIME")) 60))
+         (minutes (elt decoded-time 1))
+         offset end-time)
+    (unless (= (mod minutes 5) 0)
+      (setq offset (seconds-to-time (* 60 (- 5 (mod minutes 5))))
+            end-time (time-add start-time (time-to-seconds duration)))
+      (org-set-property "SCHEDULED" (format "%s-%s" (format-time-string "%Y-%m-%d %H:%M" (time-add start-time offset))
+                                            (format-time-string "%H:%M" (time-add end-time offset)))))))
+
+;(emacsconf-update-schedules #'emacsconf-round-start-to-five)
+(defun emacsconf-allocate-buffer-time (o)
+  (when (plist-get o :slug)
+    (if (string-match "live" (plist-get o :q-and-a))
+        (plist-put o :buffer "15")
+      (plist-put o :buffer "5")))
+  o)
+
+(defun emacsconf-allocate-max-time (o)
+  (when (plist-get o :max-time)
+    (plist-put o :time (plist-get o :max-time)))
+  o)
+
 (defun emacsconf-update-schedules (&optional modify-func)
   "Schedule the talks based on TIME and BUFFER.
 Talks with a FIXED_TIME property are not moved."
   (interactive)
   (save-excursion
     (org-with-wide-buffer
-     (let (current-time scheduled end-time duration) 
+     (let (current-time end-time duration) 
        (org-map-entries
         (lambda ()
-          (if (org-entry-get (point) "FIXED_TIME")
-              (setq current-time (org-get-scheduled-time (point))))
-          (when (and (org-entry-get (point) "TIME")
-                     (not (string= (org-entry-get (point) "TODO") "CANCELLED")))
-            (setq duration (* (string-to-number (org-entry-get (point) "TIME")) 60)
-                  end-time (time-add current-time (seconds-to-time duration)))
-            (org-set-property "SCHEDULED" (format "%s-%s" (org-format-time-string "%Y-%m-%d %H:%M" current-time)
-                                                  (org-format-time-string "%H:%M" end-time)))
-            (when (functionp modify-func)
-              (funcall modify-func))
-            (setq end-time (time-add (org-get-scheduled-time (point)) (seconds-to-time duration)))
-            (setq current-time (time-add end-time (* (string-to-number (org-entry-get (point) "BUFFER")) 60))))))))))
+          (when (or (org-entry-get (point) "TIME") (org-entry-get (point) "FIXED_TIME"))
+            (let ((talk (emacsconf-get-talk-info-for-subtree)))
+              (when (org-entry-get (point) "FIXED_TIME")
+                (setq current-time (plist-get talk :start-time)))
+              (when (and (plist-get talk :time) 
+                         (not (string= (plist-get talk :status) "CANCELLED")))
+                (setq duration (* (string-to-number (plist-get talk :time)) 60)
+                      end-time (time-add current-time (seconds-to-time duration)))
+                (org-set-property "SCHEDULED" (format "%s-%s" (format-time-string "%Y-%m-%d %H:%M" current-time)
+                                                      (format-time-string "%H:%M" end-time)))
+                (when (functionp modify-func)
+                  (funcall modify-func))
+                (setq end-time (time-add (org-get-scheduled-time (point)) (seconds-to-time duration)))
+                (setq current-time (time-add end-time (* (string-to-number (or (plist-get talk :buffer) "0")) 60))))))))))))
 
 (defun emacsconf-format-short-time (string &optional omit-end-time)
   (if (stringp string) (setq string (org-timestamp-from-string string)))
@@ -434,57 +468,54 @@ Talks with a FIXED_TIME property are not moved."
 
 (defvar emacsconf-focus 'time "'time or 'status")
 
+(defun emacsconf-format-schedule-summary-row (o)
+  (pcase emacsconf-focus
+    ('status
+      (list
+       (plist-get o :status)
+       (if (plist-get o :slug)
+           (org-link-make-string (concat "https://emacsconf.org/" emacsconf-year "/talks/"
+                                         (plist-get o :slug))
+                                 (plist-get o :slug))
+         "")
+       (if (plist-get o :scheduled)
+           (emacsconf-format-short-time (plist-get o :scheduled))
+         "")
+       (or (plist-get o :time) "")
+       (or (plist-get o :buffer) "")
+       (org-link-make-string (org-link-heading-search-string (plist-get o :title))
+                             (plist-get o :title))
+       (or (plist-get o :speakers) "")
+       (or (plist-get o :q-and-a) "")
+       (or (plist-get o :availability) "")))
+    ('time
+      (list
+       (if (plist-get o :slug)
+           (org-link-make-string (concat "https://emacsconf.org/" emacsconf-year "/talks/"
+                                         (plist-get o :slug))
+                                 (plist-get o :slug))
+         "------")
+       (if (and (plist-get o :scheduled)
+                (not (plist-get o :fixed)))
+           (emacsconf-format-short-time (plist-get o :scheduled) t)
+         "")
+       (or (plist-get o :time) "")
+       (or (plist-get o :buffer) "")
+       (or (plist-get o :max-time) "")
+       (org-link-make-string (org-link-heading-search-string (plist-get o :title))
+                             (plist-get o :title))
+       (or (plist-get o :speakers) "")
+       (if (plist-get o :scheduled) ; time is here twice so we can easily check it against availability
+           (emacsconf-format-short-time (plist-get o :scheduled))
+         "")
+       (or (plist-get o :availability) "")))))
+
 (defun emacsconf-summarize-schedule ()
   (cons
    (if (eq emacsconf-focus 'time)
-       (list "Slug" "Schedule" "Time" "Buffer" "Max" "Title" "Name" "Availability")
+       (list "Slug" "Schedule" "Time" "Buffer" "Max" "Title" "Name" "Time" "Availability")
      (list "Status" "Slug" "Schedule" "Time" "Buffer" "Title" "Name" "Q&A" "Availability"))
-   (save-excursion
-     (delq nil
-           (org-map-entries
-            (lambda ()
-              (when (org-entry-get (point) "SCHEDULED") ;; (and (org-entry-get (point) "SCHEDULED")
-                    ;;      (or (string= include "all")
-                    ;;          (and (org-entry-get (point) "TIME")
-                    ;;               (not (string= (org-entry-get (point) "TIME")
-                    ;;                             (org-entry-get (point) "MIN_TIME"))))))
-                (pcase emacsconf-focus
-                  ('status
-                   (list
-                    (org-get-todo-state)
-                    (if (org-entry-get (point) "SLUG")
-                        (org-link-make-string (concat "https://emacsconf.org/" emacsconf-year "/talks/"
-                                                      (org-entry-get (point) "SLUG"))
-                                              (org-entry-get (point) "SLUG"))
-                      "")
-                    (if (org-entry-get (point) "SCHEDULED")
-                        (emacsconf-format-short-time (org-entry-get (point) "SCHEDULED"))
-                      ""
-                      (or (org-entry-get (point) "TIME") "")
-                      (or (org-entry-get (point) "BUFFER") "")
-                      (org-link-make-string (concat "*" (org-entry-get (point) "ITEM"))
-                                            (org-entry-get (point) "ITEM")))
-                    (or (org-entry-get (point) "NAME") "")
-                    (org-entry-get (point) "Q_AND_A") 
-                    (org-entry-get (point) "AVAILABILITY")))
-                  ('time
-                   (list
-                    (if (org-entry-get (point) "SLUG")
-                        (org-link-make-string (concat "https://emacsconf.org/" emacsconf-year "/talks/"
-                                                      (org-entry-get (point) "SLUG"))
-                                              (org-entry-get (point) "SLUG"))
-                      "")
-                    (if (and (org-entry-get (point) "SCHEDULED")
-                             (not (org-entry-get (point) "FIXED_TIME")))
-                        (emacsconf-format-short-time (org-entry-get (point) "SCHEDULED") t)
-                      "")
-                    (or (org-entry-get (point) "TIME") "")
-                    (or (org-entry-get (point) "BUFFER") "")
-                    (or (org-entry-get (point) "MAX_TIME") "")
-                    (org-link-make-string (concat "*" (org-entry-get (point) "ITEM"))
-                                          (org-entry-get (point) "ITEM"))
-                    (or (org-entry-get (point) "NAME") "")
-                    (or (org-entry-get (point) "AVAILABILITY") "")))))))))))
+   (mapcar #'emacsconf-format-schedule-summary-row (emacsconf-get-talk-info))))
 
 ;;; Embark
 (defun emacsconf-embark-finder ()
