@@ -115,11 +115,24 @@
 (defun emacsconf-complete-slug ()
   (emacsconf-get-slug-from-string (emacsconf-complete-talk)))
 
+(defun emacsconf-export-slug (link description format _)
+  (let ((path (format "https://emacsconf.org/%s/talks/%s" emacsconf-year link))
+        (desc (or description link)))
+    (pcase format
+      (`html
+       (format "<a href=\"#%s\">%s</a>" link desc))
+      (`ascii (format "%s (%s)" desc path))
+      (`markdown
+       (format "[[%s|%s/talks/%s]]" desc emacsconf-year link))
+      (t path))))
+
 (with-eval-after-load 'org
   (org-link-set-parameters
    "emacsconf"
    :follow #'emacsconf-go-to-talk
-   :complete (lambda () (concat "emacsconf:" (emacsconf-complete-slug)))))
+   :complete (lambda () (concat "emacsconf:" (emacsconf-complete-slug)))
+   :export #'emacsconf-export-slug))
+
 
 (defun emacsconf-complete-talk ()
   (let ((choices (with-current-buffer (find-file-noselect emacsconf-org-file)
@@ -417,11 +430,15 @@
                                             (format-time-string "%H:%M" (time-add end-time offset)))))))
 
 ;(emacsconf-update-schedules #'emacsconf-round-start-to-five)
+(defvar emacsconf-default-buffer-minutes-for-live-q-and-a 15)
+(defvar emacsconf-default-buffer-minutes 5)
 (defun emacsconf-allocate-buffer-time (o)
   (when (plist-get o :slug)
-    (if (string-match "live" (plist-get o :q-and-a))
-        (plist-put o :buffer "15")
-      (plist-put o :buffer "5")))
+    (plist-put o :buffer
+               (number-to-string 
+                (if (string-match "live" (plist-get o :q-and-a))
+                    emacsconf-default-buffer-minutes-for-live-q-and-a
+                  emacsconf-default-buffer-minutes))))
   o)
 
 (defun emacsconf-allocate-max-time (o)
@@ -501,10 +518,12 @@ Talks with a FIXED_TIME property are not moved."
          "")
        (or (plist-get o :time) "")
        (or (plist-get o :buffer) "")
-       (or (plist-get o :max-time) "")
+       (if (< (string-to-number (or (plist-get o :time) ""))
+              (string-to-number (or (plist-get o :max-time) "")))
+           (plist-get o :max-time)
+         "")
        (org-link-make-string (org-link-heading-search-string (plist-get o :title))
                              (plist-get o :title))
-       (or (plist-get o :speakers) "")
        (if (plist-get o :scheduled) ; time is here twice so we can easily check it against availability
            (emacsconf-format-short-time (plist-get o :scheduled))
          "")
@@ -513,7 +532,7 @@ Talks with a FIXED_TIME property are not moved."
 (defun emacsconf-summarize-schedule ()
   (cons
    (if (eq emacsconf-focus 'time)
-       (list "Slug" "Schedule" "Time" "Buffer" "Max" "Title" "Name" "Time" "Availability")
+       (list "Slug" "Schedule" "Time" "Buffer" "Max" "Title" "Time" "Availability")
      (list "Status" "Slug" "Schedule" "Time" "Buffer" "Title" "Name" "Q&A" "Availability"))
    (mapcar #'emacsconf-format-schedule-summary-row (emacsconf-get-talk-info))))
 
@@ -640,6 +659,26 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
              (apply '+ (seq-map 'string-to-number (conf-collect-field-for-status "CAPTIONED" :duration)))
              (length (emacsconf-collect-field-for-status "PREREC_RECEIVED" :title))
              (apply '+ (seq-map 'string-to-number (conf-collect-field-for-status "PREREC_RECEIVED" :duration)))))))
+
+;; Timezones
+(defvar emacsconf-date "2022-12-03" "Starting date of EmacsConf.")
+(defun emacsconf-convert-from-timezone (timezone time)
+  (interactive (list (completing-read "From zone: " tzc-time-zones)
+                     (read-string "Time: ")))
+  (let* ((from-offset (tzc--get-offset timezone))
+         (time
+          (date-to-time
+           (concat emacsconf-date "T" (string-pad time 5 ?0 t)  ":00.000"
+                   from-offset))))
+    (message "%s = %s"
+             (format-time-string
+              "%b %d %H:%M %z"
+              time
+              timezone)
+             (format-time-string
+              "%b %d %H:%M %z"
+              time
+              emacsconf-timezone))))
 
 (provide 'emacsconf)
 ;;; emacsconf.el ends here
