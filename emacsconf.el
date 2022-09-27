@@ -166,13 +166,13 @@
              (delq nil
                    (org-map-entries
                     (lambda ()
-                      (when (org-entry-get (point) "SLUG")
-                        (cons
-                         (concat (org-entry-get (point) "SLUG") " - "
-                                 (org-entry-get (point) "ITEM") " - "
-                                 (org-entry-get (point) "NAME") " - "
-                                 (org-entry-get (point) "EMAIL"))
-                         (point)))))))))
+                      (cons
+                       (concat (org-entry-get (point) "SLUG") " - "
+                               (org-entry-get (point) "ITEM") " - "
+                               (org-entry-get (point) "NAME") " - "
+                               (org-entry-get (point) "EMAIL"))
+                       (point)))
+                    "SLUG={.}")))))
       (goto-char
        (if search
            (or (org-find-property "SLUG" search)
@@ -180,6 +180,10 @@
          (assoc-default (completing-read "Find: " choices)
                         choices)))
       (org-reveal))))
+
+(defmacro emacsconf-for-each-talk (&rest body)
+  (declare (indent 0) (debug t))
+  `(org-map-entries (lambda () ,@body) "SLUG={.}"))
 
 (defmacro emacsconf-with-talk-heading (search &rest body)
   (declare (indent 1) (debug t))
@@ -681,20 +685,21 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
               emacsconf-timezone))))
 
 ;;; Etherpad
+(defvar emacsconf-review-comments-heading "Comments")
 (defun emacsconf-import-comments-from-etherpad-text (filename)
   (interactive "FEtherpad text export: ")
   (with-temp-buffer
     (insert-file-contents filename)
     (goto-char (point-min))
-    (while (re-search-forward "^\t+Comments for \\([^:]+\\)" nil t)
+    (while (re-search-forward "^[\t ]+Comments for \\([^:]+\\)" nil t)
       (let ((slug (match-string 1))
             comments)
         (forward-line 1)
         (setq comments
               (split-string
-               (replace-regexp-in-string
-                "\t\t\\*" 
-                "- "
+                (replace-regexp-in-string
+                "\t\t\\*[ \t]*"
+                ""
                 (buffer-substring-no-properties
                  (point)
                  (if (re-search-forward "^[^\t]" nil t)
@@ -704,11 +709,12 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
         (save-window-excursion
           (emacsconf-with-talk-heading slug
             ;; Do we already have a heading for comments?
-            (if (re-search-forward "^\\(\\*+\\) +Review comments" (save-excursion (org-end-of-subtree)) t)
+            (if (re-search-forward (concat "^\\(\\*+\\) +" emacsconf-review-comments-heading)
+                                   (save-excursion (org-end-of-subtree)) t)
                 (org-end-of-meta-data)
               (org-end-of-subtree)
               (org-insert-heading-after-current)
-              (insert "Review comments\n"))
+              (insert emacsconf-review-comments-heading "\n"))
             ;; Are these comments already included?
             (save-restriction
               (org-narrow-to-subtree)
@@ -717,7 +723,21 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
                       (unless (re-search-forward (regexp-quote o) nil t)
                         (goto-char (point-max))
                         (unless (bolp) (insert "\n"))
-                        (insert o "\n")))
+                        (insert "- " o "\n")))
                     comments))))))))
+
+(defun emacsconf-validate-all-talks-have-comments-for-speakers ()
+  (interactive)
+  (emacsconf-for-each-talk
+    (unless (re-search-forward "^\\(- \\)?For \\(the \\)?[^ ]+ speaker" (save-excursion (org-end-of-subtree) (point)) t)
+      (error "Could not find comment for %s" (org-entry-get (point) "SLUG"))))
+  t)
+
+(defun emacsconf-validate-all-talks-have-field (field)
+  (emacsconf-for-each-talk
+    (when (string= (or (org-entry-get (point) field) "") "")
+      (error "%s is missing %s" (org-entry-get (point) "SLUG") field)))
+  t)
+
 (provide 'emacsconf)
 ;;; emacsconf.el ends here
