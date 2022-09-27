@@ -680,5 +680,44 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
               time
               emacsconf-timezone))))
 
+;;; Etherpad
+(defun emacsconf-import-comments-from-etherpad-text (filename)
+  (interactive "FEtherpad text export: ")
+  (with-temp-buffer
+    (insert-file-contents filename)
+    (goto-char (point-min))
+    (while (re-search-forward "^\t+Comments for \\([^:]+\\)" nil t)
+      (let ((slug (match-string 1))
+            comments)
+        (forward-line 1)
+        (setq comments
+              (split-string
+               (replace-regexp-in-string
+                "\t\t\\*" 
+                "- "
+                (buffer-substring-no-properties
+                 (point)
+                 (if (re-search-forward "^[^\t]" nil t)
+                     (match-beginning 0)
+                   (point-max))))
+               "\n"))
+        (save-window-excursion
+          (emacsconf-with-talk-heading slug
+            ;; Do we already have a heading for comments?
+            (if (re-search-forward "^\\(\\*+\\) +Review comments" (save-excursion (org-end-of-subtree)) t)
+                (org-end-of-meta-data)
+              (org-end-of-subtree)
+              (org-insert-heading-after-current)
+              (insert "Review comments\n"))
+            ;; Are these comments already included?
+            (save-restriction
+              (org-narrow-to-subtree)
+              (mapc (lambda (o)
+                      (goto-char (point-min))
+                      (unless (re-search-forward (regexp-quote o) nil t)
+                        (goto-char (point-max))
+                        (unless (bolp) (insert "\n"))
+                        (insert o "\n")))
+                    comments))))))))
 (provide 'emacsconf)
 ;;; emacsconf.el ends here
