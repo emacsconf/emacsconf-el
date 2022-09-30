@@ -706,6 +706,14 @@ Talks with a FIXED_TIME property are not moved."
          (org-find-property "NAME"
                             (completing-read "Name: " (delq nil (org-map-entries (lambda () (org-entry-get "NAME"))))))))))
 
+(defun emacsconf-mail-merge-wrap ()
+  (interactive)
+  (with-undo-amalgamate 
+    (save-excursion
+      (while (re-search-forward " *${wrap}" nil t)
+        (replace-match "")
+        (fill-paragraph)))))
+
 (defun emacsconf-mail-merge-get-template (id)
   "Return the information for the e-mail template with EMAIL_ID set to ID."
   (save-excursion
@@ -808,7 +816,7 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
             comments)
         (forward-line 1)
         (setq comments
-a              (split-string
+              (split-string
                 (replace-regexp-in-string
                 "\t\t\\*[ \t]*"
                 ""
@@ -866,12 +874,13 @@ Both start and end time are tested."
           (format "%s: Ends at %s after %s" label end-time to-time)))))
 
 (defun emacsconf-get-time-constraint (o)
-  (let ((avail (or (plist-get o :availability) ""))
-        hours)
-    (when (string-match "\\([<>]\\)=? *\\([0-9]+:[0-9]+\\) *EST" avail)
-      (if (string= (match-string 1 avail) ">")
-          (list (match-string 2 avail) nil)
-        (list nil (match-string 2 avail))))))
+  (unless (string-match "after the event" (or (plist-get o :q-and-a) ""))
+    (let ((avail (or (plist-get o :availability) ""))
+          hours)
+      (when (string-match "\\([<>]\\)=? *\\([0-9]+:[0-9]+\\) *EST" avail)
+        (if (string= (match-string 1 avail) ">")
+            (list (match-string 2 avail) nil)
+          (list nil (match-string 2 avail)))))))
 
 (defvar emacsconf-time-constraints
   '(("saturday morning break" "10:00" "11:30")
