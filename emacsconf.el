@@ -195,6 +195,13 @@
   ;; TODO
   )
 
+(defun emacsconf-get-talk-categories (o)
+  (org-narrow-to-subtree)
+  (let (list)
+    (while (re-search-forward "Category[^ \t\n]+" nil t)
+      (setq list (cons (match-string-no-properties 0) list)))
+    (plist-put o :categories (reverse list))))
+
 (defun emacsconf-get-talk-info-from-properties (o)
   (let ((heading (org-heading-components))
         (field-props '((:title "ITEM")
@@ -207,7 +214,6 @@
                        (:uuid "UUID")
                        (:email "EMAIL")
                        (:caption-note "CAPTION_NOTE")
-                       (:duration "TIME")
                        (:availability "AVAILABILITY")
                        (:q-and-a "Q_AND_A")
                        (:bbb-room "ROOM")
@@ -224,9 +230,11 @@
                        (:pronouns "PRONOUNS")
                        (:public-email "PUBLIC_EMAIL")
                        (:buffer "BUFFER")
+                       (:duration "TIME")
                        (:time "TIME")
                        (:min-time "MIN_TIME")
                        (:max-time "MAX_TIME")
+                       (:fixed-time "FIXED_TIME")
                        (:present "PRESENT")
                        (:speakers "NAME")
                        (:speakers-short "NAME_SHORT")
@@ -239,6 +247,7 @@
      'append
      o
      (list
+      :point (point)
       :year emacsconf-year
       :type (if (org-entry-get (point) "SLUG") 'talk 'headline)
       :status (elt heading 2)
@@ -266,14 +275,43 @@
       field-props))))
 
 (defvar emacsconf-abstract-heading-regexp "abstract" "Regexp matching heading for talk abstract.")
+
+(defun emacsconf-get-subtree-entry (heading-regexp)
+  (car
+   (delq nil
+         (org-map-entries
+          (lambda ()
+            (when (string-match heading-regexp (org-entry-get (point) "ITEM"))
+              (org-get-entry)))
+          nil 'tree))))
+
 (defun emacsconf-get-talk-abstract-from-subtree (o)
   "Add the abstract from a subheading with a title matching Abstract."
-  (org-map-entries
-   (lambda ()
-     (when (string-match "abstract" (org-entry-get (point) "ITEM"))
-       (plist-put o :abstract (org-get-entry))))
-   nil 'tree)
-  o)
+  (plist-put o :abstract (substring-no-properties (or (emacsconf-get-subtree-entry "abstract") ""))))
+
+
+(defun emacsconf-get-talk-comments-from-subtree (o)
+  (setq o (plist-put o :comments
+                     (apply 'append
+                            (org-map-entries
+                             (lambda ()
+                               (org-end-of-meta-data)
+                               (mapcar (lambda (item)
+                                         (string-trim
+                                          (replace-regexp-in-string
+                                           " *\n *"
+                                           " "
+                                           (buffer-substring-no-properties (+ (car item) (length (elt item 2)))
+                                                                           (min (point-max) (elt item 6))))))
+                                       (org-element-property  :structure (org-element-at-point)))
+                               )
+                             "ITEM={comments}" 'tree))))
+  (plist-put o :acceptance-comment
+             (car (delq nil (mapcar
+                             (lambda (o)
+                               (when (string-match "For the [^ ]+ speakers?: " o)
+                                 (replace-match "" t t o)))
+                             (plist-get o :comments))))))
 
 (defun emacsconf-convert-talk-abstract-to-markdown (o)
   (plist-put o :abstract-md (org-export-string-as (or (plist-get o :abstract) "") 'md t)))
@@ -300,6 +338,7 @@
 (defun emacsconf-get-abstract-from-wiki (o)
   (plist-put o :markdown (emacsconf-talk-markdown-from-wiki (plist-get o :slug))))
 
+
 (defun emacsconf-add-talk-status (o)
   (plist-put o :status-label
              (assoc-default (plist-get o :status) 
@@ -307,22 +346,48 @@
 
 (defvar emacsconf-talk-info-functions
   '(emacsconf-get-talk-info-from-properties
+    emacsconf-get-talk-categories
     emacsconf-get-talk-abstract-from-subtree
     emacsconf-add-talk-status
     emacsconf-add-timezone-conversions))
 
+(defun emacsconf-search-talk-info (search &optional info)
+  (setq info (or info (emacsconf-get-talk-info)))
+  (or
+   (seq-find (lambda (o) (string= (plist-get o :slug)
+                                   (emacsconf-get-slug-from-string search)))
+              info)
+   (seq-find (lambda (o)
+                (string-match
+                 search
+                 (format "%s - %s - %s - %s"
+                         (plist-get o :slug)
+                         (plist-get o :title)
+                         (plist-get o :speakers)
+                         (plist-get o :email))))
+              info)))
+
 (defun emacsconf-get-talk-info-for-subtree ()
-  (seq-reduce (lambda (prev val) (funcall val prev))
+  (seq-reduce (lambda (prev val) (save-excursion (save-restriction (funcall val prev))))
               emacsconf-talk-info-functions
               nil))
 
-(defun emacsconf-get-talk-info (&optional description-source)
+(defun emacsconf-sort-by-scheduled (a b)
+  (let ((time-a (plist-get a :start-time))
+        (time-b (plist-get b :start-time)))
+    (cond
+     ((time-less-p time-a time-b) t)
+     ((time-less-p time-b time-a) nil)
+     (t (< (plist-get a :point) (plist-get b :point))))))
+
+(defun emacsconf-get-talk-info ()
   (with-current-buffer (find-file-noselect emacsconf-org-file)
     (save-excursion
-      (let (talk results (status-types (emacsconf-status-types)))
+      (let (results)
         (org-map-entries
          (lambda ()
            (when (or (org-entry-get (point) "TIME")
+                     (org-entry-get (point) "SLUG")
                      (org-entry-get (point) "INCLUDE_IN_INFO"))
              (setq results
                    (cons (emacsconf-get-talk-info-for-subtree)
@@ -408,12 +473,14 @@
 
 (defun emacsconf-replace-plist-in-string (attrs string)
   "Replace ${keyword} from ATTRS in STRING."
-  (let ((a attrs))
+  (let ((a attrs) name val)
     (while a
-      (setq string
-            (replace-regexp-in-string (regexp-quote (concat "${" (substring (symbol-name (pop a)) 1) "}"))
-                                      (or (pop a) "")
-                                      string t t)))
+      (setq name (pop a) val (pop a))
+      (when (stringp val)
+        (setq string
+              (replace-regexp-in-string (regexp-quote (concat "${" (substring (symbol-name name) 1) "}"))
+                                        (or val "")
+                                        string t t))))
     string))
 
 (defun emacsconf-public-talks (info)
@@ -449,6 +516,36 @@
   (when (plist-get o :max-time)
     (plist-put o :time (plist-get o :max-time)))
   o)
+
+(defvar emacsconf-tweaked-allocations nil "Alist of slug . time")
+(defun emacsconf-tweak-allocations (o)
+  (let ((talk-times emacsconf-tweaked-allocations))
+    (when (assoc (plist-get o :slug) emacsconf-tweaked-allocations)
+      (plist-put o :time
+                 (number-to-string
+                  (assoc-default (plist-get o :slug) emacsconf-tweaked-allocations)))))
+  o)
+
+
+
+(defun emacsconf-schedule-based-on-info (info)
+  (let (current-time end-time duration) 
+    (mapcar
+     (lambda (talk)
+       (when (plist-get talk :fixed-time)
+         (setq current-time (plist-get talk :start-time)))
+       (when (and (plist-get talk :time) 
+                  (not (string= (plist-get talk :status) "CANCELLED")))
+         (setq duration (* (string-to-number (plist-get talk :time)) 60)
+               end-time (time-add current-time (seconds-to-time duration)))
+         (plist-put talk :scheduled
+                    (format "<%s-%s>" (format-time-string "%Y-%m-%d %a %H:%M" current-time)
+                            (format-time-string "%H:%M" end-time)))
+         (plist-put talk :start-time current-time)
+         (plist-put talk :end-time end-time)
+         (setq current-time (time-add end-time (* (string-to-number (or (plist-get talk :buffer) "0")) 60))))
+       talk)
+     info)))
 
 (defun emacsconf-update-schedules (&optional modify-func)
   "Schedule the talks based on TIME and BUFFER.
@@ -517,7 +614,7 @@ Talks with a FIXED_TIME property are not moved."
                                  (plist-get o :slug))
          "------")
        (if (and (plist-get o :scheduled)
-                (not (plist-get o :fixed)))
+                (not (plist-get o :fixed-time)))
            (emacsconf-format-short-time (plist-get o :scheduled) t)
          "")
        (or (plist-get o :time) "")
@@ -533,18 +630,22 @@ Talks with a FIXED_TIME property are not moved."
          "")
        (or (plist-get o :availability) "")))))
 
-(defun emacsconf-summarize-schedule ()
+(defun emacsconf-summarize-schedule (&optional info)
   (cons
    (if (eq emacsconf-focus 'time)
        (list "Slug" "Schedule" "Time" "Buffer" "Max" "Title" "Time" "Availability")
      (list "Status" "Slug" "Schedule" "Time" "Buffer" "Title" "Name" "Q&A" "Availability"))
-   (mapcar #'emacsconf-format-schedule-summary-row (emacsconf-get-talk-info))))
+   (mapcar #'emacsconf-format-schedule-summary-row (or info (emacsconf-get-talk-info)))))
 
 ;;; Embark
 (defun emacsconf-embark-finder ()
   (when (and (derived-mode-p 'org-mode)
              (org-entry-get-with-inheritance "SLUG"))
     (cons 'emacsconf (org-entry-get-with-inheritance "SLUG"))))
+
+(defun emacsconf-insert-talk-title (search)
+  (interactive (list (emacsconf-complete-talk)))
+  (insert (plist-get (emacsconf-search-talk-info search) :title)))
 
 (with-eval-after-load 'embark
   (add-to-list 'embark-target-finders 'emacsconf-embark-finder)
@@ -558,6 +659,7 @@ Talks with a FIXED_TIME property are not moved."
     ("s" emacsconf-set-start-time-for-slug)
     ("W" emacsconf-browse-wiki-page)
     ("u" emacsconf-update-talk)
+    ("it" emacsconf-insert-talk-title)
     ("m" emacsconf-mail-speaker-from-slug)
     ("n" emacsconf-notmuch-search-mail-from-entry)
     ("f" org-forward-heading-same-level)
@@ -610,8 +712,9 @@ Talks with a FIXED_TIME property are not moved."
     (goto-char (org-find-property "EMAIL_ID" id))
     (list :subject (org-entry-get-with-inheritance "SUBJECT")
           :cc (org-entry-get-with-inheritance "CC")
-          :reply-to (org-entry-get-with-inheritance "REPLY_TO")
-          :mail-followup-to (org-entry-get-with-inheritance "MAIL_FOLLOWUP_TO")
+          :reply-to (or (org-entry-get-with-inheritance "REPLY_TO") (org-entry-get-with-inheritance "REPLY-TO"))
+          :mail-followup-to (or (org-entry-get-with-inheritance "MAIL_FOLLOWUP_TO")
+                                (org-entry-get-with-inheritance "MAIL-FOLLOWUP-TO"))
           :body (replace-regexp-in-string "\n *," "\n" (buffer-substring-no-properties
                                                         (progn (org-end-of-meta-data) (point))
                                                         (org-end-of-subtree))))))
@@ -652,6 +755,15 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
       (when note (insert "#+NOTE: " note "\n======== Delete above before sending =============\n\n"))
       (insert body))))
 
+(defun emacsconf-cancel-mail-merge ()
+  (interactive)
+  (mapc (lambda (buffer)
+          (when (string-match "unsent" (buffer-name buffer))
+            (let ((kill-buffer-query-functions nil)
+                  (buffer-modified-p nil))
+              (kill-buffer buffer))))
+        (buffer-list)))
+
 ;;; Status updates
 
 (defun emacsconf-status-update ()
@@ -669,7 +781,7 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
 (defun emacsconf-convert-from-timezone (timezone time)
   (interactive (list (completing-read "From zone: " tzc-time-zones)
                      (read-string "Time: ")))
-  (let* ((from-offset (tzc--get-offset timezone))
+  (let* ((from-offset (format-time-string "%z" (date-to-time emacsconf-date) timezone))
          (time
           (date-to-time
            (concat emacsconf-date "T" (string-pad time 5 ?0 t)  ":00.000"
@@ -696,7 +808,7 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
             comments)
         (forward-line 1)
         (setq comments
-              (split-string
+a              (split-string
                 (replace-regexp-in-string
                 "\t\t\\*[ \t]*"
                 ""
@@ -726,18 +838,73 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
                         (insert "- " o "\n")))
                     comments))))))))
 
+;;; Validation
+
 (defun emacsconf-validate-all-talks-have-comments-for-speakers ()
   (interactive)
   (emacsconf-for-each-talk
     (unless (re-search-forward "^\\(- \\)?For \\(the \\)?[^ ]+ speaker" (save-excursion (org-end-of-subtree) (point)) t)
       (error "Could not find comment for %s" (org-entry-get (point) "SLUG"))))
-  t)
+  nil)
 
 (defun emacsconf-validate-all-talks-have-field (field)
   (emacsconf-for-each-talk
     (when (string= (or (org-entry-get (point) field) "") "")
       (error "%s is missing %s" (org-entry-get (point) "SLUG") field)))
-  t)
+  nil)
+
+(defun emacsconf-check-time (label o &optional from-time to-time)
+  "FROM-TIME and TO-TIME should be strings like HH:MM in EST.
+Both start and end time are tested."
+  (let* ((start-time (format-time-string "%H:%M" (plist-get o :start-time)))
+         (end-time (format-time-string "%H:%M" (plist-get o :end-time))))
+    (or
+     (and (null o) (format "%s: Not found" label))
+     (and from-time (string< start-time from-time)
+          (format "%s: Starts at %s before %s" label start-time from-time))
+     (and to-time (string< to-time end-time)
+          (format "%s: Ends at %s after %s" label end-time to-time)))))
+
+(defun emacsconf-get-time-constraint (o)
+  (let ((avail (or (plist-get o :availability) ""))
+        hours)
+    (when (string-match "\\([<>]\\)=? *\\([0-9]+:[0-9]+\\) *EST" avail)
+      (if (string= (match-string 1 avail) ">")
+          (list (match-string 2 avail) nil)
+        (list nil (match-string 2 avail))))))
+
+(defvar emacsconf-time-constraints
+  '(("saturday morning break" "10:00" "11:30")
+    ("saturday lunch" "11:30" "13:30")
+    ("saturday closing remarks" "16:30" "17:30")
+    ("sunday morning break" "10:00" "11:30")
+    ("sunday lunch" "11:30" "13:30")
+    ("sunday closing remarks" "16:30" "17:30")))
+
+(defun emacsconf-validate-time-constraints (&optional info)
+  (interactive)
+  (let* ((info (or info (emacsconf-get-talk-info)))
+         (results (delq nil
+                        (append
+                         (mapcar
+                          (lambda (o)
+                            (apply #'emacsconf-check-time
+                                   (car o)
+                                   (emacsconf-search-talk-info (car o) info)
+                                   (cdr o)))
+                          emacsconf-time-constraints)
+                         (mapcar
+                          (lambda (o)
+                            (let ((constraint (emacsconf-get-time-constraint o)))
+                              (when constraint
+                                (apply #'emacsconf-check-time
+                                       (plist-get o :slug)
+                                       o
+                                       constraint))))
+                          info)))))
+    (if (called-interactively-p 'any)
+        (message "%s" (string-join results "\n"))
+      results)))
 
 (provide 'emacsconf)
 ;;; emacsconf.el ends here
