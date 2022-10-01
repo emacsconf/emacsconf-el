@@ -44,7 +44,9 @@
   "Publish the schedule page and the page for this talk."
   (interactive)
   (emacsconf-upcoming-insert-or-update)
-  (emacsconf-generate-before-page (emacsconf-get-talk-info-for-subtree))
+  (let ((info (emacsconf-get-talk-info-for-subtree)))
+    (emacsconf-generate-before-page info)
+    (emacsconf-generate-after-page info))
   (emacsconf-generate-main-schedule))
 
 (defun emacsconf-update-conf-html ()
@@ -66,6 +68,13 @@
       (org-html-export-to-html))))
 
   
+(defun emacsconf-regenerate-wiki ()
+  (interactive)
+  (let ((info (emacsconf-get-talk-info)))
+    (emacsconf-generate-info-pages info)
+    (emacsconf-generate-main-schedule info)
+    (emacsconf-generate-talk-pages info t)
+    (magit-status emacsconf-directory)))
 
 (defun emacsconf-update-schedules-in-wiki ()
   (emacsconf-generate-info-pages)
@@ -221,7 +230,8 @@ ${chapter-list}
                                (delq nil (list
                                           (unless (string= (plist-get o :pronunciation) "nil") (plist-get o :pronunciation))
                                           (unless (string= (plist-get o :pronouns) "nil") (plist-get o :pronouns))
-                                          (when (plist-get o :public-email) (format "[%s]"))))
+                                          (when (plist-get o :irc) (format "IRC: %s" (plist-get o :irc)))
+                                          (when (plist-get o :public-email) (format "<mailto:%s>" (plist-get o :public-email)))))
                                ", ")))
     (concat (plist-get o :speakers)
             (if (> (length extra-info) 0)
@@ -241,7 +251,7 @@ ${chapter-list}
          (emacsconf-replace-plist-in-string
           (emacsconf-convert-talk-abstract-to-markdown
            (append o (list
-                      :speaker-info (emacsconf-format-speaker-info talk)
+                      :speaker-info (emacsconf-format-speaker-info o)
                       :meta "!meta"
                       :categories (if (plist-get o :categories)
                                       (mapconcat (lambda (o) (format "[[!taglink %s]]" o))
@@ -347,7 +357,7 @@ resources."
       (insert "\n"
               (emacsconf-format-talk-schedule-info talk) "\n"))
     ;; Contact information
-    (insert "\n\n" (emacsconf-format-email-questions-and-comments talk) "\n")
+    ;; (insert "\n\n" (emacsconf-format-email-questions-and-comments talk) "\n")
     (insert "<!-- End of emacsconf-generate-before-page -->")))
 
 (defun emacsconf-generate-after-page (talk &optional info)
@@ -379,11 +389,11 @@ resources."
                           (if prev-talk (format "Previous: %s  \n" prev-talk) "")
                           (if next-talk (format "Next: %s  \n" next-talk) ""))))))))
 
-(defun emacsconf-generate-info-pages ()
+(defun emacsconf-generate-info-pages (&optional info)
   (interactive)
   "Populate year/info/*-nav, -before, and -after files."
   (let* ((talks (seq-remove (lambda (o) (string= (plist-get o :status) "CANCELLED"))
-                            (sort (emacsconf-filter-talks (emacsconf-get-talk-info)) #'emacsconf-sort-by-scheduled))))
+                            (sort (emacsconf-filter-talks (or info (emacsconf-get-talk-info))) #'emacsconf-sort-by-scheduled))))
     (emacsconf-generate-nav-pages talks)
     (mapc #'emacsconf-generate-before-page talks)
     (mapc #'emacsconf-generate-after-page talks)))
@@ -408,7 +418,7 @@ resources."
                        info "\n")))
       (save-buffer))))
 
-(defun emacsconf-generate-main-schedule (&optional filename)
+(defun emacsconf-generate-main-schedule (&optional info)
   (interactive)
   (with-temp-file (expand-file-name "schedule-details.md" (expand-file-name emacsconf-year emacsconf-directory))
     (insert (emacsconf-format-main-schedule (sort (emacsconf-get-talk-info) #'emacsconf-sort-by-scheduled)))))
