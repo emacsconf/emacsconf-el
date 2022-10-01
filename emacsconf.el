@@ -156,30 +156,25 @@
   (if (and search (string-match "\\(.*?\\) - " search))
       (match-string 1 search)
     search))
-(defun emacsconf-go-to-talk (&optional search)
+
+(defun emacsconf-go-to-talk (search)
   (interactive (list (emacsconf-complete-talk)))
-  (when search
-    (setq search (emacsconf-get-slug-from-string search))
-    (pop-to-buffer (find-file-noselect emacsconf-org-file))
-    (let ((choices
-           (save-excursion
-             (delq nil
-                   (org-map-entries
-                    (lambda ()
-                      (cons
-                       (concat (org-entry-get (point) "SLUG") " - "
-                               (org-entry-get (point) "ITEM") " - "
-                               (org-entry-get (point) "NAME") " - "
-                               (org-entry-get (point) "EMAIL"))
-                       (point)))
-                    "SLUG={.}")))))
-      (goto-char
-       (if search
-           (or (org-find-property "SLUG" search)
-               (cdr (seq-find (lambda (s) (string-match search (car s))) choices)))
-         (assoc-default (completing-read "Find: " choices)
-                        choices)))
-      (org-reveal))))
+  (pop-to-buffer (find-file-noselect emacsconf-org-file))
+  (if (emacsconf-get-slug-from-string search)
+      (goto-char (org-find-property "SLUG" (emacsconf-get-slug-from-string search)))
+    (catch 'found
+      (org-map-entries
+       (lambda ()
+         (when (string-match search
+                             (cons
+                              (concat (org-entry-get (point) "SLUG") " - "
+                                      (org-entry-get (point) "ITEM") " - "
+                                      (org-entry-get (point) "NAME") " - "
+                                      (org-entry-get (point) "EMAIL"))
+                              (point)))
+           (throw 'found)))
+       "SLUG={.}")))
+  (org-reveal))
 
 (defmacro emacsconf-for-each-talk (&rest body)
   (declare (indent 0) (debug t))
