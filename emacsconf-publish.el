@@ -345,7 +345,11 @@ resources."
 
 (defun emacsconf-format-email-questions-and-comments (talk)
   (format "Questions or comments? Please e-mail %s"
-          (emacsconf-format-public-email talk (or (plist-get talk :public-email) "emacsconf-org-private@gnu.org"))))
+          (emacsconf-format-public-email talk
+                                         (or
+                                          (and (string= (plist-get talk :public-email) "t")) (plist-get talk :email)
+                                          (plist-get talk :public-email)
+                                          "emacsconf-org-private@gnu.org"))))
 
 (defun emacsconf-generate-before-page (talk)
   "Info included before the abstract."
