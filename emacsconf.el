@@ -684,8 +684,8 @@ Talks with a FIXED_TIME property are not moved."
               (1+ (seq-position info start
                                 (lambda (o match) (string-match match (plist-get o :title)))))
               (if end
-                  (1- (seq-position info end
-                                    (lambda (o match) (string-match match (plist-get o :title)))))
+                  (seq-position info end
+                                (lambda (o match) (string-match match (plist-get o :title))))
                 (length info))))
 
 ;;; Embark
