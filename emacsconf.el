@@ -630,6 +630,57 @@ Talks with a FIXED_TIME property are not moved."
      (list "Status" "Slug" "Schedule" "Time" "Buffer" "Title" "Name" "Q&A" "Availability"))
    (mapcar #'emacsconf-format-schedule-summary-row (or info (emacsconf-get-talk-info)))))
 
+(defun emacsconf-summarize-track-as-svg (svg x y width height start-time end-time info)
+  (let ((x-scale (/ width (float-time (time-subtract end-time start-time)))))
+    (mapc
+     (lambda (o)
+       (let ((x1 (+ x (floor (* x-scale (float-time (time-subtract (plist-get o :start-time) start-time))))))
+             (x2 (+ x (floor (* x-scale (float-time (time-subtract (plist-get o :end-time) start-time))))))
+             )
+         (svg-rectangle
+          svg
+          x1
+          y
+          (- x2 x1)
+          (1- height)
+          :stroke "white"
+          :fill "gray"
+          :title (or (plist-get o :slug) (plist-get o :title)))
+         (svg-text
+          svg
+          (or (plist-get o :slug) (plist-get o :title))
+          :fill "black"
+          :x x1
+          :y (+ y (/ height 2))
+          )))
+     (emacsconf-filter-talks info))))
+
+(defun emacsconf-summarize-schedule-as-svg (width height info)
+  (let* ((svg (svg-create width height))
+         (gen-sat (emacsconf-schedule-get-subsequence info "^GEN Sat" "^GEN Sun"))
+         (dev-sat (emacsconf-schedule-get-subsequence info "^DEV Sat" "^DEV Sun")))
+    (emacsconf-summarize-track-as-svg
+     svg 0 0 width (/ height 2)
+     (date-to-time "2022-12-03 9:00")
+     (date-to-time "2022-12-03 18:00")
+     gen-sat)
+    (emacsconf-summarize-track-as-svg
+     svg 0 (/ height 2) width height
+     (date-to-time "2022-12-03 9:00")
+     (date-to-time "2022-12-03 18:00")
+     dev-sat)
+    svg))
+
+(defun emacsconf-schedule-get-subsequence (info start &optional end)
+  "START and END are regexps to match against the title in INFO."
+  (seq-subseq info
+              (1+ (seq-position info start
+                                (lambda (o match) (string-match match (plist-get o :title)))))
+              (if end
+                  (1- (seq-position info end
+                                    (lambda (o match) (string-match match (plist-get o :title)))))
+                (length info))))
+
 ;;; Embark
 (defun emacsconf-embark-finder ()
   (when (and (derived-mode-p 'org-mode)
@@ -882,6 +933,20 @@ Both start and end time are tested."
     ("sunday morning break" "10:00" "11:30")
     ("sunday lunch" "11:30" "13:30")
     ("sunday closing remarks" "16:30" "17:30")))
+
+(defun emacsconf-validate-no-overlaps (&optional info)
+  (let (results))
+  (while (cdr info)
+    (when (and (plist-get (car info) :slug)
+               (time-less-p (plist-get (cadr info) :start-time) (plist-get (car info) :end-time)))
+      (setq results (cons "%s overlaps with %s (ends %s, starts %s)"
+                          (or (plist-get (car info) :slug)
+                              (plist-get (car info) :title))
+                          (or (plist-get (cadr info) :slug)
+                              (plist-get (cadr info) :title))
+                          (format-time-string "%H:%M" (plist-get (car info) :end-time))
+                          (format-time-string "%H:%M" (plist-get (cadr info) :start-time)))))
+    (setq info (cdr info))))
 
 (defun emacsconf-validate-time-constraints (&optional info)
   (interactive)
