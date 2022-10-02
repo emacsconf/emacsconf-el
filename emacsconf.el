@@ -630,45 +630,58 @@ Talks with a FIXED_TIME property are not moved."
      (list "Status" "Slug" "Schedule" "Time" "Buffer" "Title" "Name" "Q&A" "Availability"))
    (mapcar #'emacsconf-format-schedule-summary-row (or info (emacsconf-get-talk-info)))))
 
-(defun emacsconf-summarize-track-as-svg (svg x y width height start-time end-time info)
-  (let ((x-scale (/ width (float-time (time-subtract end-time start-time)))))
+(defun emacsconf-summarize-track-as-svg (svg base-x base-y width height start-time end-time info &optional vertical)
+  (let ((scale (/ (if vertical height width)
+                  (float-time (time-subtract end-time start-time)))))
     (mapc
      (lambda (o)
-       (let ((x1 (+ x (floor (* x-scale (float-time (time-subtract (plist-get o :start-time) start-time))))))
-             (x2 (+ x (floor (* x-scale (float-time (time-subtract (plist-get o :end-time) start-time))))))
-             )
+       (let* ((offset (floor (* scale (float-time (time-subtract (plist-get o :start-time) start-time)))))
+              (size (floor (* scale (float-time (time-subtract (plist-get o :end-time) (plist-get o :start-time))))))
+              (x (if vertical base-x (+ base-x offset)))
+              (y (if vertical (+ base-y offset) base-y)))
          (svg-rectangle
           svg
-          x1
+          x
           y
-          (- x2 x1)
-          (1- height)
+          (if vertical width size)
+          (1- (if vertical size height))
           :stroke "white"
-          :fill "gray"
-          :title (or (plist-get o :slug) (plist-get o :title)))
-         (svg-text
+          :fill "gray")
+         (dom-append-child
           svg
-          (or (plist-get o :slug) (plist-get o :title))
-          :fill "black"
-          :x x1
-          :y (+ y (/ height 2))
-          )))
+          (dom-node
+           'g
+           `((transform . ,(format "translate(%d,%d)"
+                                   (+ x (if vertical width size) -2) (+ y (if vertical size height) -2))))
+           (dom-node
+            'text
+            '((fill . "white")
+              (x . 0)
+              (y . 0)
+              (font-size . 10)
+              (transform . "rotate(-90)"))
+            (svg--encode-text (or (plist-get o :slug) (plist-get o :title))))))))
      (emacsconf-filter-talks info))))
 
-(defun emacsconf-summarize-schedule-as-svg (width height info)
+(defun emacsconf-summarize-schedule-as-svg (width height info &optional vertical)
   (let* ((svg (svg-create width height))
          (gen-sat (emacsconf-schedule-get-subsequence info "^GEN Sat" "^GEN Sun"))
-         (dev-sat (emacsconf-schedule-get-subsequence info "^DEV Sat" "^DEV Sun")))
+         (dev-sat (emacsconf-schedule-get-subsequence info "^DEV Sat" "^DEV Sun"))
+         (track-width (if vertical (/ width 2) width))
+         (track-height (if vertical height (/ height 2)))) 
     (emacsconf-summarize-track-as-svg
-     svg 0 0 width (/ height 2)
+     svg 0 0 track-width track-height
      (date-to-time "2022-12-03 9:00")
      (date-to-time "2022-12-03 18:00")
-     gen-sat)
+     gen-sat vertical)
     (emacsconf-summarize-track-as-svg
-     svg 0 (/ height 2) width height
+     svg
+     (if vertical track-width 0)
+     (if vertical 0 track-height)
+     track-width track-height
      (date-to-time "2022-12-03 9:00")
      (date-to-time "2022-12-03 18:00")
-     dev-sat)
+     dev-sat vertical)
     svg))
 
 (defun emacsconf-schedule-get-subsequence (info start &optional end)
