@@ -646,7 +646,7 @@ Talks with a FIXED_TIME property are not moved."
           (if vertical width size)
           (1- (if vertical size height))
           :stroke "white"
-          :fill "gray")
+          :fill (if (plist-get o :invalid) "red" "gray"))
          (dom-append-child
           svg
           (dom-node
@@ -663,25 +663,19 @@ Talks with a FIXED_TIME property are not moved."
             (svg--encode-text (or (plist-get o :slug) (plist-get o :title))))))))
      (emacsconf-filter-talks info))))
 
-(defun emacsconf-summarize-schedule-as-svg (width height info &optional vertical)
+(defun emacsconf-summarize-schedule-as-svg (width height start end tracks &optional vertical)
   (let* ((svg (svg-create width height))
-         (gen-sat (emacsconf-schedule-get-subsequence info "^GEN Sat" "^GEN Sun"))
-         (dev-sat (emacsconf-schedule-get-subsequence info "^DEV Sat" "^DEV Sun"))
-         (track-width (if vertical (/ width 2) width))
-         (track-height (if vertical height (/ height 2)))) 
-    (emacsconf-summarize-track-as-svg
-     svg 0 0 track-width track-height
-     (date-to-time "2022-12-03 9:00")
-     (date-to-time "2022-12-03 18:00")
-     gen-sat vertical)
-    (emacsconf-summarize-track-as-svg
-     svg
-     (if vertical track-width 0)
-     (if vertical 0 track-height)
-     track-width track-height
-     (date-to-time "2022-12-03 9:00")
-     (date-to-time "2022-12-03 18:00")
-     dev-sat vertical)
+         (track-width (if vertical (/ width (length tracks)) width))
+         (track-height (if vertical height (/ height (length tracks))))
+         (x 0) (y 0))
+    (mapc (lambda (track)
+            (emacsconf-summarize-track-as-svg
+             svg x y track-width track-height
+             start end track vertical)
+            (if vertical
+                (setq x (+ x track-width))
+              (setq y (+ y track-height))))
+          tracks)
     svg))
 
 (defun emacsconf-schedule-get-subsequence (info start &optional end)
@@ -922,13 +916,17 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
   "FROM-TIME and TO-TIME should be strings like HH:MM in EST.
 Both start and end time are tested."
   (let* ((start-time (format-time-string "%H:%M" (plist-get o :start-time)))
-         (end-time (format-time-string "%H:%M" (plist-get o :end-time))))
-    (or
-     (and (null o) (format "%s: Not found" label))
-     (and from-time (string< start-time from-time)
-          (format "%s: Starts at %s before %s" label start-time from-time))
-     (and to-time (string< to-time end-time)
-          (format "%s: Ends at %s after %s" label end-time to-time)))))
+         (end-time (format-time-string "%H:%M" (plist-get o :end-time)))
+         result)
+    (setq result
+          (or
+           (and (null o) (format "%s: Not found" label))
+           (and from-time (string< start-time from-time)
+                (format "%s: Starts at %s before %s" label start-time from-time))
+           (and to-time (string< to-time end-time)
+                (format "%s: Ends at %s after %s" label end-time to-time))))
+    (when result (plist-put o :invalid result))
+    result))
 
 (defun emacsconf-get-time-constraint (o)
   (unless (string-match "after the event" (or (plist-get o :q-and-a) ""))
