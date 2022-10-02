@@ -134,16 +134,14 @@
    :export #'emacsconf-export-slug))
 
 
-(defun emacsconf-complete-talk ()
-  (let ((choices (with-current-buffer (find-file-noselect emacsconf-org-file)
-                   (save-excursion
-                     (delq nil
-                           (org-map-entries
-                            (lambda ()
-                              (when (org-entry-get (point) "SLUG")
-                                (concat (org-entry-get (point) "SLUG") " - "
-                                        (org-entry-get (point) "ITEM") " - "
-                                        (org-entry-get (point) "NAME"))))))))))
+(defun emacsconf-complete-talk (&optional info)
+  (let ((choices
+         (mapcar (lambda (o)
+                   (string-join
+                    (delq nil
+                          (mapcar (lambda (f) (plist-get o f)) '(:slug :title :speakers :irc)))
+                    " - "))
+                 (or info (emacsconf-get-talk-info)))))
     (completing-read
      "Talk: " 
      (lambda (string predicate action)
