@@ -166,13 +166,13 @@ Each function should take the info and manipulate it as needed, returning the ne
             (list :title seq)))
           ;; Slug with time
           ((and (listp seq) (symbolp (car seq)) (stringp (cdr seq)))
-           (append (assoc-default seq by-assoc)
+           (append (assoc-default (car seq) by-assoc)
                    (list :scheduled (format-time-string (car org-time-stamp-formats) (date-to-time (cdr seq)))
                          :start-time (date-to-time (cdr seq))
                          :fixed-time t)))
           ;; Slug with duration
           ((and (listp seq) (symbolp (car seq)) (numberp (cdr seq)))
-           (append (assoc-default seq by-assoc)
+           (append (assoc-default (car seq) by-assoc)
                    (list :override-time t
                          :time (number-to-string (cdr seq)))))
           ;; Just the slug
