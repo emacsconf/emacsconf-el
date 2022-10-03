@@ -138,7 +138,7 @@ Each function should take the info and manipulate it as needed, returning the ne
            (list :title "LUNCH" :time emacsconf-schedule-lunch-time))
           ((and (listp seq) (member (car seq) '(break lunch)) (stringp (cdr seq)))
            (list :title (if (eq (car seq) 'lunch) "LUNCH" "BREAK")
-                 :scheduled (format-time-string (car org-time-stamp-formats) (date-to-time (cdr seq)))
+                 :scheduled (format-time-string (cdr org-time-stamp-formats) (date-to-time (cdr seq)))
                  :start-time (date-to-time (cdr seq))
                  :fixed-time t
                  :time (if (eq (car seq) 'lunch) emacsconf-schedule-lunch-time emacsconf-schedule-break-time)))
@@ -148,33 +148,33 @@ Each function should take the info and manipulate it as needed, returning the ne
           ;; Named thing with fixed time
           ((and (listp seq) (stringp (car seq)) (stringp (cdr seq)))
            (append
-            (seq-find (lambda (o) (string= (plist-get o :title) (car seq))) info)
             (list :title (car seq)
                   :scheduled (format-time-string (car org-time-stamp-formats) (date-to-time (cdr seq)))
                   :start-time (date-to-time (cdr seq))
-                  :fixed-time t)))
+                  :fixed-time t)
+            (seq-find (lambda (o) (string= (plist-get o :title) (car seq))) info)
+            ))
           ;; Named thing with duration
           ((and (listp seq) (stringp (car seq)) (numberp (cdr seq)))
            (append
-            (seq-find (lambda (o) (string= (plist-get o :title) (car seq))) info)
             (list :title (car seq)
-                  :time (number-to-string (cdr seq)))))
+                  :time (number-to-string (cdr seq)))
+            (seq-find (lambda (o) (string= (plist-get o :title) (car seq))) info)))
           ;; Named thing
           ((stringp seq)
-           (append
-            (seq-find (lambda (o) (string= (plist-get o :title) seq)) info)
-            (list :title seq)))
+           (or (seq-find (lambda (o) (string= (plist-get o :title) seq)) info)
+               (list :title seq)))
           ;; Slug with time
           ((and (listp seq) (symbolp (car seq)) (stringp (cdr seq)))
-           (append (assoc-default (car seq) by-assoc)
-                   (list :scheduled (format-time-string (car org-time-stamp-formats) (date-to-time (cdr seq)))
+           (append (list :scheduled (format-time-string (cdr org-time-stamp-formats) (date-to-time (cdr seq)))
                          :start-time (date-to-time (cdr seq))
-                         :fixed-time t)))
+                         :fixed-time t)
+                   (assoc-default (car seq) by-assoc)))
           ;; Slug with duration
           ((and (listp seq) (symbolp (car seq)) (numberp (cdr seq)))
-           (append (assoc-default (car seq) by-assoc)
-                   (list :override-time t
-                         :time (number-to-string (cdr seq)))))
+           (append (list :override-time t
+                         :time (number-to-string (cdr seq)))
+                   (assoc-default (car seq) by-assoc)))
           ;; Just the slug
           ((symbolp seq)
            (assoc-default seq by-assoc))
@@ -262,7 +262,7 @@ Each function should take the info and manipulate it as needed, returning the ne
               (height . ,(1- (if vertical size height)))
               (stroke . "black")
               (fill . ,(cond
-                        ((string-match "BREAK\\|LUNCH" (plist-get o :title)) nil)
+                        ((string-match "BREAK\\|LUNCH" (plist-get o :title)) "white")
                         ((plist-get o :invalid) "red")
                         ((string-match "EST"
                                        (or (plist-get o :availability) ""))
@@ -494,5 +494,41 @@ Both start and end time are tested."
             (list (match-string 2 avail) nil)
           (list nil (match-string 2 avail)))))))
 
+(defun emacsconf-schedule-validate (sched)
+  (let* ((sched-slugs (mapcar (lambda (o) (plist-get o :slug))
+                              (emacsconf-filter-talks sched)))
+         (diff (delq nil
+                     (seq-difference
+                      (mapcar (lambda (o) (plist-get o :slug))
+                              (seq-remove (lambda (o)
+                                            (string= (plist-get o :status) "CANCELLED"))
+                                          (let ((emacsconf-talk-info-functions '(emacsconf-get-talk-info-from-properties)))
+                                            (emacsconf-get-talk-info))))
+                      sched-slugs)))
+         (dupes (seq-filter (lambda (o) (> (length (cdr o)) 1))
+                           (seq-group-by #'identity sched-slugs))))
+    (append
+     (emacsconf-schedule-validate-time-constraints sched)
+     (when diff
+       (list (concat "Missing talks: " (string-join diff ", "))))
+     (when dupes
+       (list (concat "Duplicate talks: " (mapconcat 'car dupes ", ")))))))
+
+(defmacro emacsconf-schedule-test (filename &rest varlist)
+  `(let* (,@varlist)
+     (let* ((schedule (emacsconf-schedule-prepare arranged))
+            (validation (or (emacsconf-schedule-validate schedule) "")))
+       (with-temp-file ,filename
+         (svg-print (emacsconf-schedule-svg 800 200
+                                            (mapcar
+                                             (lambda (day)
+                                               (plist-put day :track
+                                                          (mapcar
+                                                           (lambda (track)
+                                                             (apply #'emacsconf-schedule-get-subsequence schedule track))
+                                                           (plist-get day :track)))
+                                               day)
+                                             tracks))))
+       (mapconcat (lambda (o) (format "- %s\n" o)) (append validation (list (format "[[file:%s]]" filename)))))))
 (provide 'emacsconf-schedule)
 ;;; emacsconf-schedule.el ends here
