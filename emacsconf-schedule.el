@@ -229,12 +229,12 @@ Each function should take the info and manipulate it as needed, returning the ne
      (list "Status" "Slug" "Schedule" "Time" "Buffer" "Title" "Name" "Q&A" "Availability"))
    (mapcar #'emacsconf-schedule-format-summary-row (or info (emacsconf-get-talk-info)))))
 
-(defun emacsconf-update-schedules-from-info (info)
-  (emacsconf-schedule-update info)
+(defun emacsconf-schedule-update-from-info (info)
   (save-window-excursion
     (save-excursion
       (mapc (lambda (talk)
               (emacsconf-go-to-talk (plist-get talk :slug))
+              (org-entry-put (point) "SCHEDULED" (plist-get talk :scheduled))
               (org-entry-put (point) "TIME" (plist-get talk :time)))
             (emacsconf-filter-talks info)))))
 
@@ -514,21 +514,67 @@ Both start and end time are tested."
      (when dupes
        (list (concat "Duplicate talks: " (mapconcat 'car dupes ", ")))))))
 
+(defun emacsconf-schedule-inflate-tracks (tracks schedule)
+  (mapcar
+   (lambda (day)
+     (plist-put day :tracks
+                (mapcar
+                 (lambda (track)
+                   (apply #'emacsconf-schedule-get-subsequence schedule track))
+                 (plist-get day :tracks)))
+     day)
+   tracks))
+
 (defmacro emacsconf-schedule-test (filename &rest varlist)
   `(let* (,@varlist)
      (let* ((schedule (emacsconf-schedule-prepare arranged))
             (validation (or (emacsconf-schedule-validate schedule) "")))
        (with-temp-file ,filename
-         (svg-print (emacsconf-schedule-svg 800 200
-                                            (mapcar
-                                             (lambda (day)
-                                               (plist-put day :track
-                                                          (mapcar
-                                                           (lambda (track)
-                                                             (apply #'emacsconf-schedule-get-subsequence schedule track))
-                                                           (plist-get day :track)))
-                                               day)
-                                             tracks))))
+         (svg-print (emacsconf-schedule-svg 800 200 (emacsconf-schedule-inflate-tracks tracks schedule))))
        (mapconcat (lambda (o) (format "- %s\n" o)) (append validation (list (format "[[file:%s]]" filename)))))))
+
+(defun emacsconf-schedule-format-summary-row (o)
+  (pcase emacsconf-focus
+    ('status
+      (list
+       (plist-get o :status)
+       (if (plist-get o :slug)
+           (org-link-make-string (concat "https://emacsconf.org/" emacsconf-year "/talks/"
+                                         (plist-get o :slug))
+                                 (plist-get o :slug))
+         "")
+       (if (plist-get o :scheduled)
+           (emacsconf-format-short-time (plist-get o :scheduled))
+         "")
+       (or (plist-get o :time) "")
+       (or (plist-get o :buffer) "")
+       (org-link-make-string (org-link-heading-search-string (plist-get o :title))
+                             (plist-get o :title))
+       (or (plist-get o :speakers) "")
+       (or (plist-get o :q-and-a) "")
+       (or (plist-get o :availability) "")))
+    ('time
+      (list
+       (if (plist-get o :slug)
+           (org-link-make-string (concat "https://emacsconf.org/" emacsconf-year "/talks/"
+                                         (plist-get o :slug))
+                                 (plist-get o :slug))
+         "------")
+       (if (plist-get o :scheduled)
+           (format-time-string "%l:%M%#p" (plist-get o :start-time))
+         "")
+       (or (plist-get o :time) "")
+       (or (plist-get o :buffer) "")
+       (if (< (string-to-number (or (plist-get o :time) ""))
+              (string-to-number (or (plist-get o :max-time) "")))
+           (plist-get o :max-time)
+         "")
+       (org-link-make-string (org-link-heading-search-string (plist-get o :title))
+                             (plist-get o :title))
+       (if (plist-get o :scheduled) ; time is here twice so we can easily check it against availability
+           (emacsconf-format-short-time (plist-get o :scheduled))
+         "")
+       (or (plist-get o :availability) "")))))
+
 (provide 'emacsconf-schedule)
 ;;; emacsconf-schedule.el ends here
