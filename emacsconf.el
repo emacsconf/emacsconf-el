@@ -718,30 +718,7 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
       (error "%s is missing %s" (org-entry-get (point) "SLUG") field)))
   nil)
 
-(defun emacsconf-check-time (label o &optional from-time to-time)
-  "FROM-TIME and TO-TIME should be strings like HH:MM in EST.
-Both start and end time are tested."
-  (let* ((start-time (format-time-string "%H:%M" (plist-get o :start-time)))
-         (end-time (format-time-string "%H:%M" (plist-get o :end-time)))
-         result)
-    (setq result
-          (or
-           (and (null o) (format "%s: Not found" label))
-           (and from-time (string< start-time from-time)
-                (format "%s: Starts at %s before %s" label start-time from-time))
-           (and to-time (string< to-time end-time)
-                (format "%s: Ends at %s after %s" label end-time to-time))))
-    (when result (plist-put o :invalid result))
-    result))
 
-(defun emacsconf-get-time-constraint (o)
-  (unless (string-match "after the event" (or (plist-get o :q-and-a) ""))
-    (let ((avail (or (plist-get o :availability) ""))
-          hours)
-      (when (string-match "\\([<>]\\)=? *\\([0-9]+:[0-9]+\\) *EST" avail)
-        (if (string= (match-string 1 avail) ">")
-            (list (match-string 2 avail) nil)
-          (list nil (match-string 2 avail)))))))
 
 (defvar emacsconf-time-constraints
   '(("saturday morning break" "10:00" "11:30")
@@ -765,30 +742,7 @@ Both start and end time are tested."
                           (format-time-string "%H:%M" (plist-get (cadr info) :start-time)))))
     (setq info (cdr info))))
 
-(defun emacsconf-validate-time-constraints (&optional info)
-  (interactive)
-  (let* ((info (or info (emacsconf-get-talk-info)))
-         (results (delq nil
-                        (append
-                         (mapcar
-                          (lambda (o)
-                            (apply #'emacsconf-check-time
-                                   (car o)
-                                   (emacsconf-search-talk-info (car o) info)
-                                   (cdr o)))
-                          emacsconf-time-constraints)
-                         (mapcar
-                          (lambda (o)
-                            (let ((constraint (emacsconf-get-time-constraint o)))
-                              (when constraint
-                                (apply #'emacsconf-check-time
-                                       (plist-get o :slug)
-                                       o
-                                       constraint))))
-                          info)))))
-    (if (called-interactively-p 'any)
-        (message "%s" (string-join results "\n"))
-      results)))
+
 
 (provide 'emacsconf)
 ;;; emacsconf.el ends here

@@ -214,11 +214,6 @@ ${chapter-list}
                       "")))
       "<div class=\"files resources\"><ul>${video-download}${other-files}${toobnix-info}</ul></div>"))))
 
-(condition-case nil
-    (when (featurep 'memoize)
-      (memoize #'compile-media-get-file-duration-ms))
-  nil)
-
 (defun emacsconf-format-public-email (o &optional email)
   (format "[%s](mailto:%s?subject=%s)"
           (or email (plist-get o :public-email))

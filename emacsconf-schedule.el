@@ -110,8 +110,8 @@ Each function should take the info and manipulate it as needed, returning the ne
           info))
 
 (defun emacsconf-schedule-validate-and-summarize (schedule)
-  (let ((validation-results (emacsconf-validate-time-constraints schedule))
-        (sched (emacsconf-summarize-schedule schedule)))
+  (let ((validation-results (emacsconf-schedule-validate-time-constraints schedule))
+        (sched (emacsconf-schedule-summarize schedule)))
     (append
      (list (list (format "%d talks" (length (emacsconf-filter-talks arranged)))))
      (mapcar (lambda (o) (list nil nil nil nil nil o)) validation-results)
@@ -239,10 +239,7 @@ Each function should take the info and manipulate it as needed, returning the ne
             (emacsconf-filter-talks info)))))
 
 
-
-
-
-(defun emacsconf-summarize-track-as-svg (svg base-x base-y width height start-time end-time info &optional vertical)
+(defun emacsconf-schedule-svg-track (svg base-x base-y width height start-time end-time info &optional vertical)
   (let ((scale (/ (if vertical height width)
                   (float-time (time-subtract end-time start-time)))))
     (mapc
@@ -259,12 +256,18 @@ Each function should take the info and manipulate it as needed, returning the ne
              (title . ,(plist-get o :title)))
            (dom-node
             'rect
-            `((x . ,x)
-              (y . ,y)
+             `((x . ,x)
+               (y . ,y)
               (width . ,(if vertical width size))
               (height . ,(1- (if vertical size height)))
               (stroke . "black")
-              (fill . ,(if (plist-get o :invalid) "red" "gray"))))
+              (fill . ,(cond
+                        ((string-match "BREAK\\|LUNCH" (plist-get o :title)) nil)
+                        ((plist-get o :invalid) "red")
+                        ((string-match "EST"
+                                       (or (plist-get o :availability) ""))
+                         "lightgray")
+                        (t "lightgreen")))))
            (dom-node
             'g
             `((transform . ,(format "translate(%d,%d)"
@@ -277,51 +280,64 @@ Each function should take the info and manipulate it as needed, returning the ne
                (font-size . 10)
                (transform . "rotate(-90)"))
              (svg--encode-text (or (plist-get o :slug) (plist-get o :title)))))))))
-     (emacsconf-filter-talks info))))
+     info)))
 
-(defun emacsconf-summarize-schedule-as-svg (width height start end tracks &optional vertical)
-  (let* ((svg (svg-create width height :background "white"))
-         (track-width (if vertical (/ width (length tracks)) width))
-         (grid-margin 10)
-         (track-height (if vertical height (/ (- height grid-margin) (length tracks))))
-         (x 0) (y 0)
-         (scale (/ (if vertical height width)
-                   (float-time (time-subtract end start))))
+(defun emacsconf-schedule-svg-day (elem label width height start end tracks)
+  (let* ((label-margin 15)
+         (track-height (/ (- height (* 2 label-margin)) (length tracks)))
+         (x 0) (y label-margin)
+         (scale (/ width (float-time (time-subtract end start))))
          (time start))
-    (svg-rectangle svg 0 0 width height :fill "white")
+    (svg-rectangle elem 0 0 width height :fill "white")
+    (svg-text elem label :x 3 :y (- label-margin 3) :fill "black" :font-size "10")
+    (mapc (lambda (track)
+            (emacsconf-schedule-svg-track
+             elem x y width track-height
+             start end track)
+            (setq y (+ y track-height)))
+          tracks)
     ;; draw grid
     (while (time-less-p time end)
       (let ((x (* (float-time (time-subtract time start)) scale)))
         (dom-append-child
-         svg
+         elem
          (dom-node
           'g
-          `((transform . ,(format "translate(%d,0)" x)))
+          `((transform . ,(format "translate(%d,%d)" x label-margin)))
           (dom-node
            'line
-           `((stroke . "gray")
+           `((stroke . "lightgray")
              (x1 . 0)
              (y1 . 0)
              (x2 . 0)
-             (y2 . ,(- height grid-margin))))
+             (y2 . ,(- height label-margin label-margin))))
           (dom-node
            'text
-           `((fill . "gray")
+           `((fill . "darkgray")
              (x . 0)
-             (y . ,(- height 2))
-             (font-size . 5))
+             (y . ,(- height 2 label-margin))
+             (font-size . 10)
+             (text-anchor . "middle"))
            (svg--encode-text (format-time-string "%-l" time)))))
-        (setq time (time-add time (seconds-to-time 3600))))
-      
-      )
-    (mapc (lambda (track)
-            (emacsconf-summarize-track-as-svg
-             svg x y track-width track-height
-             start end track vertical)
-            (if vertical
-                (setq x (+ x track-width))
-              (setq y (+ y track-height))))
-          tracks)
+        (setq time (time-add time (seconds-to-time 3600)))))
+    elem))
+
+(defun emacsconf-schedule-svg (width height days)
+  (let ((svg (svg-create width height :background "white"))
+        (day-height (/ height (length days)))
+        (y 0))
+    (mapc
+     (lambda (day)
+       (let ((group (dom-node 'g `((transform . ,(format "translate(0,%d)" y))))))
+         (dom-append-child svg group)
+         (emacsconf-schedule-svg-day group
+                                     (plist-get day :label)
+                                     width day-height
+                                     (date-to-time (plist-get day :start))
+                                     (date-to-time (plist-get day :end))
+                                     (plist-get day :tracks)))
+       (setq y (+ y day-height)))
+     days)
     svg))
 
 (defun emacsconf-schedule-get-subsequence (info start &optional end)
@@ -424,6 +440,59 @@ Talks with a FIXED_TIME property are not moved."
                   (funcall modify-func))
                 (setq end-time (time-add (org-get-scheduled-time (point)) (seconds-to-time duration)))
                 (setq current-time (time-add end-time (* (string-to-number (or (plist-get talk :buffer) "0")) 60))))))))))))
+
+(defun emacsconf-schedule-validate-time-constraints (&optional info)
+  (interactive)
+  (let* ((info (or info (emacsconf-get-talk-info)))
+         (results (delq nil
+                        (append
+                         (mapcar
+                          (lambda (o)
+                            (apply #'emacsconf-schedule-check-time
+                                   (car o)
+                                   (emacsconf-search-talk-info (car o) info)
+                                   (cdr o)))
+                          emacsconf-time-constraints)
+                         (mapcar
+                          (lambda (o)
+                            (let (result
+                                  (constraint (emacsconf-schedule-get-time-constraint o)))
+                              (when constraint
+                                (setq result (apply #'emacsconf-schedule-check-time
+                                                      (plist-get o :slug)
+                                                      o
+                                                      constraint))
+                                (when result (plist-put o :invalid result))
+                                result)))
+                          info)))))
+    (if (called-interactively-p 'any)
+        (message "%s" (string-join results "\n"))
+      results)))
+
+(defun emacsconf-schedule-check-time (label o &optional from-time to-time)
+  "FROM-TIME and TO-TIME should be strings like HH:MM in EST.
+Both start and end time are tested."
+  (let* ((start-time (format-time-string "%H:%M" (plist-get o :start-time)))
+         (end-time (format-time-string "%H:%M" (plist-get o :end-time)))
+         result)
+    (setq result
+          (or
+           (and (null o) (format "%s: Not found" label))
+           (and from-time (string< start-time from-time)
+                (format "%s: Starts at %s before %s" label start-time from-time))
+           (and to-time (string< to-time end-time)
+                (format "%s: Ends at %s after %s" label end-time to-time))))
+    (when result (plist-put o :invalid result))
+    result))
+
+(defun emacsconf-schedule-get-time-constraint (o)
+  (unless (string-match "after the event" (or (plist-get o :q-and-a) ""))
+    (let ((avail (or (plist-get o :availability) ""))
+          hours)
+      (when (string-match "\\([<>]\\)=? *\\([0-9]+:[0-9]+\\) *EST" avail)
+        (if (string= (match-string 1 avail) ">")
+            (list (match-string 2 avail) nil)
+          (list nil (match-string 2 avail)))))))
 
 (provide 'emacsconf-schedule)
 ;;; emacsconf-schedule.el ends here
