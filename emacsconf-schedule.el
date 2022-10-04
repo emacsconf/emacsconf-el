@@ -126,7 +126,8 @@ Each function should take the info and manipulate it as needed, returning the ne
 (defun emacsconf-schedule-inflate-sexp (sequence &optional info include-time)
   "Pairs with `emacsconf-schedule-dump-sexp'."
   (setq info (or info (emacsconf-get-talk-info)))
-  (let ((by-assoc (mapcar (lambda (o) (cons (intern (plist-get o :slug)) o)) (emacsconf-filter-talks info))))
+  (let ((by-assoc (mapcar (lambda (o) (cons (intern (plist-get o :slug)) o)) (emacsconf-filter-talks info)))
+        date)
     (mapcar
      (lambda (seq)
        (if include-time
@@ -137,6 +138,9 @@ Each function should take the info and manipulate it as needed, returning the ne
           ((eq seq 'lunch)
            (list :title "LUNCH" :time emacsconf-schedule-lunch-time))
           ((and (listp seq) (member (car seq) '(break lunch)) (stringp (cdr seq)))
+           (if (string-match "-" (cdr seq))
+               (setq date (format-time-string "%Y-%m-%d" (date-to-time (cdr seq))))
+             (setcdr seq (concat date " " (cdr seq))))
            (list :title (if (eq (car seq) 'lunch) "LUNCH" "BREAK")
                  :scheduled (format-time-string (cdr org-time-stamp-formats) (date-to-time (cdr seq)))
                  :start-time (date-to-time (cdr seq))
@@ -147,6 +151,9 @@ Each function should take the info and manipulate it as needed, returning the ne
                  :time (string-to-number (cdr seq))))
           ;; Named thing with fixed time
           ((and (listp seq) (stringp (car seq)) (stringp (cdr seq)))
+           (if (string-match "-" (cdr seq))
+               (setq date (format-time-string "%Y-%m-%d" (date-to-time (cdr seq))))
+             (setcdr seq (concat date " " (cdr seq))))
            (append
             (list :title (car seq)
                   :scheduled (format-time-string (car org-time-stamp-formats) (date-to-time (cdr seq)))
@@ -166,6 +173,9 @@ Each function should take the info and manipulate it as needed, returning the ne
                (list :title seq)))
           ;; Slug with time
           ((and (listp seq) (symbolp (car seq)) (stringp (cdr seq)))
+           (if (string-match "-" (cdr seq))
+               (setq date (format-time-string "%Y-%m-%d" (date-to-time (cdr seq))))
+             (setcdr seq (concat date " " (cdr seq))))
            (append (list :scheduled (format-time-string (cdr org-time-stamp-formats) (date-to-time (cdr seq)))
                          :start-time (date-to-time (cdr seq))
                          :fixed-time t)
