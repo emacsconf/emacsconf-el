@@ -418,6 +418,61 @@ resources."
                        info "\n")))
       (save-buffer))))
 
+
+(defun emacsconf-generate-main-schedule-with-tracks (&optional info)
+  (interactive)
+  (setq info (or info (emacsconf-schedule-inflate-sexp emacsconf-schedule-plan
+                                                       (emacsconf-get-talk-info))))
+  (with-temp-file (expand-file-name "schedule-details.md"
+                                    (expand-file-name emacsconf-year emacsconf-directory))
+    (let ((links
+           (mapconcat (lambda (track)
+                        (concat (cadr track) ": "
+                                (mapconcat (lambda (sec)
+                                             (format "<a href=\"#%s-%s\">%s</a>"
+                                                     (car track) (car sec) (cadr sec)))
+                                           '(("sat-am" "Sat AM")
+                                             ("sat-pm" "Sat PM")
+                                             ("sun-am" "Sun AM")
+                                             ("sun-pm" "Sun PM"))
+                                           " - ")))
+                      '(("gen" "General")
+                        ("dev" "Development"))
+                      "  \n")))
+      (insert (mapconcat
+               (lambda (track)
+                 (let* ((id (elt track 0))
+                        (label (elt track 1))
+                        (start (elt track 2))
+                        (end (elt track 3))
+                        (sequence (emacsconf-schedule-get-subsequence info start end))
+                        (sat (emacsconf-schedule-get-subsequence sequence "Saturday" "Sunday"))
+                        (sun (emacsconf-schedule-get-subsequence sequence "Sunday"))) 
+                   (format "\n\n<a name=\"%s\"></a>\n## %s\n\n%s\n\n"
+                           id
+                           label
+                           (mapconcat
+                            (lambda (section)
+                              (let ((section-id (elt section 0))
+                                    (section-label (elt section 1))
+                                    (section-seq (caddr section)))
+                                (format "%s\n\n<a name=\"%s-%s\"></a>\n### %s track - %s\n%s\n"
+                                        links
+                                        id section-id
+                                        label
+                                        section-label
+                                        (emacsconf-format-main-schedule
+                                         section-seq))))
+                            `(("sat-am" "Saturday morning - Dec 3" ,(cdr (emacsconf-schedule-get-subsequence sat nil "LUNCH")))
+                              ("sat-pm" "Saturday afternoon - Dec 3" ,(cdr (emacsconf-schedule-get-subsequence sat "LUNCH")))
+                              ("sun-am" "Sunday morning - Dec 4" ,(cdr (emacsconf-schedule-get-subsequence sun nil "LUNCH")))
+                              ("sun-pm" "Sunday afternoon - Dec 4" ,(cdr (emacsconf-schedule-get-subsequence sun "LUNCH"))))
+                            "\n\n")
+                           )))
+               '(("gen" "General" "^GEN Sat" "^DEV Sat")
+                 ("dev" "Development" "^DEV Sat"))
+               "\n")))))
+
 (defun emacsconf-generate-main-schedule (&optional info)
   (interactive)
   (with-temp-file (expand-file-name "schedule-details.md" (expand-file-name emacsconf-year emacsconf-directory))

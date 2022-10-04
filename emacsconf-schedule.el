@@ -268,16 +268,21 @@ Each function should take the info and manipulate it as needed, returning the ne
             'rect
              `((x . ,x)
                (y . ,y)
-              (width . ,(if vertical width size))
-              (height . ,(1- (if vertical size height)))
-              (stroke . "black")
-              (fill . ,(cond
-                        ((string-match "BREAK\\|LUNCH" (plist-get o :title)) "white")
-                        ((plist-get o :invalid) "red")
-                        ((string-match "EST"
-                                       (or (plist-get o :availability) ""))
-                         "lightgray")
-                        (t "lightgreen")))))
+               (width . ,(if vertical width size))
+               (height . ,(1- (if vertical size height)))
+               (stroke . "black")
+               (stroke-dasharray . 
+                                 ,(if (string-match "live" (or (plist-get o :q-and-a) "live"))
+                                      ""
+                                    "5,5,5"
+                                    ))
+               (fill . ,(cond
+                         ((string-match "BREAK\\|LUNCH" (plist-get o :title)) "white")
+                         ((plist-get o :invalid) "red")
+                         ((string-match "EST"
+                                        (or (plist-get o :availability) ""))
+                          "lightgray")
+                         (t "lightgreen")))))
            (dom-node
             'g
             `((transform . ,(format "translate(%d,%d)"
@@ -352,13 +357,17 @@ Each function should take the info and manipulate it as needed, returning the ne
 
 (defun emacsconf-schedule-get-subsequence (info start &optional end)
   "START and END are regexps to match against the title in INFO."
-  (seq-subseq info
-              (1+ (seq-position info start
-                                (lambda (o match) (string-match match (plist-get o :title)))))
-              (if end
-                  (seq-position info end
-                                (lambda (o match) (string-match match (plist-get o :title))))
-                (length info))))
+  (let ((start-position
+         (and start
+              (seq-position info start
+                            (lambda (o match) (string-match match (plist-get o :title)))))))
+    (seq-subseq info
+                (or start-position 0)
+                (if end
+                    (seq-position (seq-subseq info (or start-position 0)) 
+                                  end
+                                  (lambda (o match) (string-match match (plist-get o :title))))
+                  (length info)))))
 
 ;;; Schedule summary
 
@@ -586,5 +595,6 @@ Both start and end time are tested."
          "")
        (or (plist-get o :availability) "")))))
 
+(defvar emacsconf-schedule-plan nil "Sequence of talks.")
 (provide 'emacsconf-schedule)
 ;;; emacsconf-schedule.el ends here
