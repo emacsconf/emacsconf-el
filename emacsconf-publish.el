@@ -50,6 +50,14 @@
     (emacsconf-generate-after-page info))
   (emacsconf-generate-main-schedule))
 
+(defun emacsconf-publish-add-talk ()
+  "Add the current talk to the wiki."
+  (interactive)
+  (emacsconf-update-talk)
+  (emacsconf-generate-info-pages)
+  (emacsconf-generate-main-schedule)
+  (magit-status-setup-buffer emacsconf-directory))
+
 (defun emacsconf-update-conf-html ()
   "Update the schedules and export the page so I can easily review it."
   (interactive)
@@ -69,13 +77,15 @@
       (org-html-export-to-html))))
 
   
-(defun emacsconf-regenerate-wiki ()
+(defun emacsconf-regenerate-wiki (&optional force)
   (interactive)
-  (let ((info (emacsconf-get-talk-info)))
-    (emacsconf-generate-info-pages info)
-    (emacsconf-generate-main-schedule info)
-    (emacsconf-generate-talk-pages info t)
-    (magit-status emacsconf-directory)))
+  (when
+    (let ((info (emacsconf-get-talk-info))
+          (force (or force (yes-or-no-p "Overwrite existing talk pages? "))))
+      (emacsconf-generate-info-pages info)
+      (emacsconf-generate-main-schedule info)
+      (emacsconf-generate-talk-pages info force)
+      (magit-status emacsconf-directory))))
 
 (defun emacsconf-update-schedules-in-wiki ()
   (emacsconf-generate-info-pages)
