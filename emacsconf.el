@@ -753,6 +753,17 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
   "Remove CANCELLED talks from the list."
   (seq-remove (lambda (o) (string= (plist-get o :status) "CANCELLED")) list))
 
+(defun emacsconf-validate-talk-subtree ()
+  "Report an error if required properties are missing."
+  (interactive)
+  (let* ((props (org-entry-properties))
+         (missing (seq-remove
+                  (lambda (o) (assoc-default (symbol-name o) props))
+                  '(CUSTOM_ID SLUG NAME NAME_SHORT EMAIL AVAILABILITY Q_AND_A TRACK MAX_TIME))))
+    (when missing
+      (if (called-interactively-p 'any)
+          (message "Missing %s"  (mapconcat #'symbol-name missing ", "))
+        (format "Missing %s"  (mapconcat #'symbol-name missing ", "))))))
 
 (provide 'emacsconf)
 ;;; emacsconf.el ends here
