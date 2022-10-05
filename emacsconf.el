@@ -199,6 +199,7 @@
   (let ((heading (org-heading-components))
         (field-props '((:title "ITEM")
                        (:talk-id "TALK_ID")
+                       (:track "TRACK")
                        (:slug "SLUG")
                        (:video-slug "VIDEO_SLUG")
                        (:public "PUBLIC")
@@ -369,9 +370,11 @@
   (let ((time-a (plist-get a :start-time))
         (time-b (plist-get b :start-time)))
     (cond
+     ((null time-b) t)
+     ((null time-a) nil)
      ((time-less-p time-a time-b) t)
      ((time-less-p time-b time-a) nil)
-     (t (< (plist-get a :point) (plist-get b :point))))))
+     (t (< (or (plist-get a :point) 0) (or (plist-get b :point) 0))))))
 
 (defun emacsconf-get-talk-info ()
   (with-current-buffer (find-file-noselect emacsconf-org-file)

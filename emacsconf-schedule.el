@@ -24,7 +24,7 @@
 
 ;;; Code:
 
-(defvar emacsconf-scheduling-strategies nil "List of scheduling functions.
+(defvar emacsconf-schedule-strategies nil "List of scheduling functions.
 Each function should take the info and manipulate it as needed, returning the new info.")
 
 (defvar emacsconf-schedule-max-time 30)
@@ -56,7 +56,7 @@ Each function should take the info and manipulate it as needed, returning the ne
 (defun emacsconf-schedule-prepare (&optional info)
   (emacsconf-schedule-based-on-info
    (seq-reduce (lambda (prev val) (funcall val prev))
-               emacsconf-scheduling-strategies
+               emacsconf-schedule-strategies
                (or info (emacsconf-get-talk-info)))))
 
 (defun emacsconf-schedule-summarize-breaks (&optional list)
@@ -79,12 +79,12 @@ Each function should take the info and manipulate it as needed, returning the ne
          (emacsconf-schedule-tweaked-allocations '(("indieweb" . 20)
                                                    ("maint" . 20)
                                                    ("workflows" . 20)))
-         (emacsconf-scheduling-strategies '(emacsconf-schedule-allocate-buffer-time
-                                            emacsconf-schedule-override-breaks
-                                            emacsconf-schedule-allocate-buffer-time-at-most-max-time
-                                            emacsconf-schedule-allocate-max-time
-                                            emacsconf-schedule-allocate-at-most
-                                            emacsconf-schedule-tweak-allocations)))
+         (emacsconf-schedule-strategies '(emacsconf-schedule-allocate-buffer-time
+                                          emacsconf-schedule-override-breaks
+                                          emacsconf-schedule-allocate-buffer-time-at-most-max-time
+                                          emacsconf-schedule-allocate-max-time
+                                          emacsconf-schedule-allocate-at-most
+                                          emacsconf-schedule-tweak-allocations)))
     (emacsconf-schedule-prepare info)))
 
 (defun emacsconf-schedule-allocate-buffer-time-at-most-max-time (info)
@@ -122,7 +122,6 @@ Each function should take the info and manipulate it as needed, returning the ne
                        schedule))
           '(hline)))
      sched nil)))
-
 (defun emacsconf-schedule-inflate-sexp (sequence &optional info include-time)
   "Pairs with `emacsconf-schedule-dump-sexp'."
   (setq info (or info (emacsconf-get-talk-info)))
@@ -130,65 +129,41 @@ Each function should take the info and manipulate it as needed, returning the ne
         date)
     (mapcar
      (lambda (seq)
+       (unless (listp seq) (setq seq (list seq)))
+       
        (if include-time
            (error "Not yet implemented")
-         (cond
-          ((eq seq 'break)
-           (list :title "BREAK" :time emacsconf-schedule-break-time))
-          ((eq seq 'lunch)
-           (list :title "LUNCH" :time emacsconf-schedule-lunch-time))
-          ((and (listp seq) (member (car seq) '(break lunch)) (stringp (cdr seq)))
-           (if (string-match "-" (cdr seq))
-               (setq date (format-time-string "%Y-%m-%d" (date-to-time (cdr seq))))
-             (setcdr seq (concat date " " (cdr seq))))
-           (list :title (if (eq (car seq) 'lunch) "LUNCH" "BREAK")
-                 :scheduled (format-time-string (cdr org-time-stamp-formats) (date-to-time (cdr seq)))
-                 :start-time (date-to-time (cdr seq))
-                 :fixed-time t
-                 :time (if (eq (car seq) 'lunch) emacsconf-schedule-lunch-time emacsconf-schedule-break-time)))
-          ((and (listp seq) (member (car seq) '(break lunch)) (numberp (cdr seq)))
-           (list :title (if (eq (car seq) 'lunch) "LUNCH" "BREAK")
-                 :time (string-to-number (cdr seq))))
-          ;; Named thing with fixed time
-          ((and (listp seq) (stringp (car seq)) (stringp (cdr seq)))
-           (if (string-match "-" (cdr seq))
-               (setq date (format-time-string "%Y-%m-%d" (date-to-time (cdr seq))))
-             (setcdr seq (concat date " " (cdr seq))))
+         (let ((start-prop (or (plist-get (cdr seq) :start)
+                               (and (stringp (cdr seq)) (cdr seq))))
+               (time-prop (or (plist-get (cdr seq) :time) ; this is duration in minutes
+                              (and (numberp (cdr seq)) (cdr seq))))
+               (track-prop (plist-get (cdr seq) :track)))
            (append
-            (list :title (car seq)
-                  :scheduled (format-time-string (car org-time-stamp-formats) (date-to-time (cdr seq)))
-                  :start-time (date-to-time (cdr seq))
-                  :fixed-time t)
-            (seq-find (lambda (o) (string= (plist-get o :title) (car seq))) info)
-            ))
-          ;; Named thing with duration
-          ((and (listp seq) (stringp (car seq)) (numberp (cdr seq)))
-           (append
-            (list :title (car seq)
-                  :time (number-to-string (cdr seq)))
-            (seq-find (lambda (o) (string= (plist-get o :title) (car seq))) info)))
-          ;; Named thing
-          ((stringp seq)
-           (or (seq-find (lambda (o) (string= (plist-get o :title) seq)) info)
-               (list :title seq)))
-          ;; Slug with time
-          ((and (listp seq) (symbolp (car seq)) (stringp (cdr seq)))
-           (if (string-match "-" (cdr seq))
-               (setq date (format-time-string "%Y-%m-%d" (date-to-time (cdr seq))))
-             (setcdr seq (concat date " " (cdr seq))))
-           (append (list :scheduled (format-time-string (cdr org-time-stamp-formats) (date-to-time (cdr seq)))
-                         :start-time (date-to-time (cdr seq))
-                         :fixed-time t)
-                   (assoc-default (car seq) by-assoc)))
-          ;; Slug with duration
-          ((and (listp seq) (symbolp (car seq)) (numberp (cdr seq)))
-           (append (list :override-time t
-                         :time (number-to-string (cdr seq)))
-                   (assoc-default (car seq) by-assoc)))
-          ;; Just the slug
-          ((symbolp seq)
-           (assoc-default seq by-assoc))
-          (t (error "Unknown %s" (prin1-to-string seq))))))
+            ;; overriding 
+            (when start-prop
+              (if (string-match "-" start-prop)
+                  (setq date (format-time-string "%Y-%m-%d" (date-to-time start-prop)))
+                (setq start-prop  (concat date " " start-prop)))
+              (list
+               :scheduled (format-time-string (cdr org-time-stamp-formats) (date-to-time start-prop))
+               :start-time (date-to-time start-prop)
+               :fixed-time t))
+            (when track-prop
+              (list :track track-prop))
+            (when time-prop
+              (list :time (if (numberp time-prop) (number-to-string time-prop) time-prop)))
+            ;; base entity
+            (cond
+             ((eq (car seq) 'lunch)
+              (list :title "LUNCH" :time (number-to-string emacsconf-schedule-lunch-time)))
+             ((eq (car seq) 'break)
+              (list :title "BREAK" :time (number-to-string emacsconf-schedule-break-time)))
+             ((symbolp (car seq))
+              (assoc-default (car seq) by-assoc))
+             ((stringp (car seq))
+              (or (seq-find (lambda (o) (string= (plist-get o :title) (car seq))) info)
+                  (list :title (car seq))))
+             (t (error "Unknown %s" (prin1-to-string seq))))))))
      sequence)))
 
 (defun emacsconf-format-schedule-summary-row (o)
@@ -268,6 +243,7 @@ Each function should take the info and manipulate it as needed, returning the ne
             'rect
              `((x . ,x)
                (y . ,y)
+               (opacity . "0.8")
                (width . ,(if vertical width size))
                (height . ,(1- (if vertical size height)))
                (stroke . "black")
@@ -364,9 +340,10 @@ Each function should take the info and manipulate it as needed, returning the ne
     (seq-subseq info
                 (or start-position 0)
                 (if end
-                    (seq-position (seq-subseq info (or start-position 0)) 
-                                  end
-                                  (lambda (o match) (string-match match (plist-get o :title))))
+                    (+ (or start-position 0)
+                       (seq-position (seq-subseq info (or start-position 0)) 
+                                     end
+                                     (lambda (o match) (string-match match (plist-get o :title)))))
                   (length info)))))
 
 ;;; Schedule summary
@@ -528,6 +505,7 @@ Both start and end time are tested."
                            (seq-group-by #'identity sched-slugs))))
     (append
      (emacsconf-schedule-validate-time-constraints sched)
+     (emacsconf-schedule-validate-live-q-and-a-sessions-are-staggered sched)
      (when diff
        (list (concat "Missing talks: " (string-join diff ", "))))
      (when dupes
@@ -539,7 +517,13 @@ Both start and end time are tested."
      (plist-put day :tracks
                 (mapcar
                  (lambda (track)
-                   (apply #'emacsconf-schedule-get-subsequence schedule track))
+                   (if (stringp track)
+                       ;; track property
+                       (seq-filter (lambda (o) (string= (or (plist-get o :track) (car (plist-get day :tracks)))
+                                                        track))
+                                   schedule)
+                     ;; start and end regexp
+                     (apply #'emacsconf-schedule-get-subsequence schedule track)))
                  (plist-get day :tracks)))
      day)
    tracks))
@@ -595,6 +579,35 @@ Both start and end time are tested."
          "")
        (or (plist-get o :availability) "")))))
 
+(defvar emacsconf-schedule-validate-live-q-and-a-sessions-buffer 5 "Number of minutes' allowance for a streamer to adjust audio and get set up.
+Try to avoid overlapping the start of live Q&A sessions.")
+(defun emacsconf-schedule-validate-live-q-and-a-sessions-are-staggered (schedule)
+  "Return nil if there are no errors.
+Try to avoid overlapping the start of live Q&A sessions."
+  (when emacsconf-schedule-validate-live-q-and-a-sessions-buffer
+    (let (last-end)
+      (delq nil
+            (mapcar (lambda (o)
+                      (prog1
+                          (when (and last-end
+                                     (time-less-p
+                                      (plist-get o :end-time)
+                                      (time-add last-end (seconds-to-time (* emacsconf-schedule-validate-live-q-and-a-sessions-buffer 60)))))
+                            (plist-put o :invalid (format "%s live Q&A starts at %s within %d minutes of previous live Q&A at %s"
+                                                          (plist-get o :slug)
+                                                          (format-time-string "%m-%d %-l:%M"
+                                                                              (plist-get o :end-time))
+                                                          emacsconf-validate-live-q-and-a-sessions-buffer
+                                                          (format-time-string "%m-%d %-l:%M"
+                                                                              last-end)))
+                            (plist-get o :invalid))
+                        (setq last-end (plist-get o :end-time))))
+                    (sort 
+                     (seq-filter (lambda (o) (string-match "live" (or (plist-get o :q-and-a) "")))
+                                 schedule)
+                     (lambda (a b)
+                       (time-less-p (plist-get a :end-time) (plist-get b :end-time)))
+                     ))))))
 (defvar emacsconf-schedule-plan nil "Sequence of talks.")
 (provide 'emacsconf-schedule)
 ;;; emacsconf-schedule.el ends here

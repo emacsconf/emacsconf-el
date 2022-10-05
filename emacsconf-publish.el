@@ -43,7 +43,8 @@
 (defun emacsconf-update-talk ()
   "Publish the schedule page and the page for this talk."
   (interactive)
-  (emacsconf-upcoming-insert-or-update)
+  (when (functionp 'emacsconf-upcoming-insert-or-update)
+    (emacsconf-upcoming-insert-or-update))
   (let ((info (emacsconf-get-talk-info-for-subtree)))
     (emacsconf-generate-before-page info)
     (emacsconf-generate-after-page info))
@@ -425,20 +426,19 @@ resources."
                                                        (emacsconf-get-talk-info))))
   (with-temp-file (expand-file-name "schedule-details.md"
                                     (expand-file-name emacsconf-year emacsconf-directory))
+    ;; By track
     (let ((links
            (mapconcat (lambda (track)
                         (concat (cadr track) ": "
                                 (mapconcat (lambda (sec)
                                              (format "<a href=\"#%s-%s\">%s</a>"
                                                      (car track) (car sec) (cadr sec)))
-                                           '(("sat-am" "Sat AM")
-                                             ("sat-pm" "Sat PM")
-                                             ("sun-am" "Sun AM")
-                                             ("sun-pm" "Sun PM"))
+                                           '(("sat" "Saturday")
+                                             ("sun" "Sunday"))
                                            " - ")))
                       '(("gen" "General")
                         ("dev" "Development"))
-                      "  \n")))
+                      " | ")))
       (insert (mapconcat
                (lambda (track)
                  (let* ((id (elt track 0))
@@ -446,8 +446,8 @@ resources."
                         (start (elt track 2))
                         (end (elt track 3))
                         (sequence (emacsconf-schedule-get-subsequence info start end))
-                        (sat (emacsconf-schedule-get-subsequence sequence "Saturday" "Sunday"))
-                        (sun (emacsconf-schedule-get-subsequence sequence "Sunday"))) 
+                        (sat (cdr (emacsconf-schedule-get-subsequence sequence "Saturday" "Sunday")))
+                        (sun (cdr (emacsconf-schedule-get-subsequence sequence "Sunday"))))
                    (format "\n\n<a name=\"%s\"></a>\n## %s\n\n%s\n\n"
                            id
                            label
@@ -463,15 +463,41 @@ resources."
                                         section-label
                                         (emacsconf-format-main-schedule
                                          section-seq))))
-                            `(("sat-am" "Saturday morning - Dec 3" ,(cdr (emacsconf-schedule-get-subsequence sat nil "LUNCH")))
-                              ("sat-pm" "Saturday afternoon - Dec 3" ,(cdr (emacsconf-schedule-get-subsequence sat "LUNCH")))
-                              ("sun-am" "Sunday morning - Dec 4" ,(cdr (emacsconf-schedule-get-subsequence sun nil "LUNCH")))
-                              ("sun-pm" "Sunday afternoon - Dec 4" ,(cdr (emacsconf-schedule-get-subsequence sun "LUNCH"))))
+                            `(("sat" "Saturday, Dec 3" ,sat)
+                              ("sun" "Sunday, Dec 4" ,sun))
                             "\n\n")
                            )))
                '(("gen" "General" "^GEN Sat" "^DEV Sat")
                  ("dev" "Development" "^DEV Sat"))
-               "\n")))))
+               "\n")))
+    (let ((by-day (sort (seq-remove (lambda (s) (string-match "^\\(GEN\\|DEV\\)" (plist-get s :title)))
+                                    info)
+                        #'emacsconf-sort-by-scheduled)))
+      (insert
+       "\n<a name=\"by-day\"></a>\n\n# By day\n\n## Saturday\n"
+       ;; Everything all together
+       (emacsconf-format-main-schedule
+        (emacsconf-schedule-get-subsequence
+         by-day
+         "Saturday opening remarks"
+         "Saturday closing remarks"))
+       "\n\n## Sunday\n"
+       ;; Everything all together
+       (emacsconf-format-main-schedule
+        (emacsconf-schedule-get-subsequence
+         by-day
+         "Sunday opening remarks"
+         "Sunday closing remarks"))
+       ))))
+
+(defun emacsconf-publish-schedule ()
+  (interactive)
+  (emacsconf-generate-main-schedule-with-tracks)
+  (let ((default-directory emacsconf-directory))
+    (magit-status emacsconf-directory)
+    (magit-stage-modified)
+    (magit-commit-create (list "-m" (read-string "Commit message: ")))
+    (call-interactively #'magit-push-current-to-pushremote)))
 
 (defun emacsconf-generate-main-schedule (&optional info)
   (interactive)
@@ -777,7 +803,7 @@ resources."
                        extensions))))
 (defun emacsconf-talks-csv ()
   "Make a CSV of the talks.
-Columns are: slug,title,speakers,talk page url,video url,duration,sha."
+     Columns are: slug,title,speakers,talk page url,video url,duration,sha."
   (interactive)
   (require 'org-table)
   (require 'compile-media)
@@ -842,71 +868,71 @@ Columns are: slug,title,speakers,talk page url,video url,duration,sha."
 
 (defun emacsconf-generate-pad-template (emacsconf-info)
     "Generate a template for copying and pasting into the pad.
-  Writes it to pad-template.html."
+     Writes it to pad-template.html."
     (interactive (list (emacsconf-get-talk-info)))
     (let* ((talks (emacsconf-filter-talks emacsconf-info))
            (text (concat
                 "<p>Conference info, how to watch/participate: https://emacsconf.org/2021/<br />
-  Guidelines for conduct: https://emacsconf.org/conduct/</p>
+     Guidelines for conduct: https://emacsconf.org/conduct/</p>
 
-  <p>Except where otherwise noted, the material on the EmacsConf pad are dual-licensed under the terms of the Creative Commons Attribution-ShareAlike 4.0 International Public License; and the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) an later version.
-  Copies of these two licenses are included in the EmacsConf wiki repository, in the COPYING.GPL and COPYING.CC-BY-SA files (https://emacsconf.org/COPYING/).</p>
+     <p>Except where otherwise noted, the material on the EmacsConf pad are dual-licensed under the terms of the Creative Commons Attribution-ShareAlike 4.0 International Public License ; and the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) an later version.
+     Copies of these two licenses are included in the EmacsConf wiki repository, in the COPYING.GPL and COPYING.CC-BY-SA files (https://emacsconf.org/COPYING/).</p>
 
-  <p>By contributing to this pad, you agree to make your contributions available under the above licenses. You are also promising that you are the author of your changes, or that you copied them from a work in the public domain or a work released under a free license that is compatible with the above two licenses. DO NOT SUBMIT COPYRIGHTED WORK WITHOUT PERMISSION.</p>
+     <p>By contributing to this pad, you agree to make your contributions available under the above licenses. You are also promising that you are the author of your changes, or that you copied them from a work in the public domain or a work released under a free license that is compatible with the above two licenses. DO NOT SUBMIT COPYRIGHTED WORK WITHOUT PERMISSION.</p>
 
-  <p>
-  This pad is here to be curated by everybody and its rough structure is like this:
-  <ol><li>General info and license
-  <li>A section for each talk -> please do add questions and notes
-  <li>A general feedback section
-  </ol>
-  </p>
-    "
+     <p>
+     This pad is here to be curated by everybody and its rough structure is like this:
+     <ol><li>General info and license
+     <li>A section for each talk -> please do add questions and notes
+     <li>A general feedback section
+     </ol>
+     </p>
+     "
          (mapconcat
           (lambda (o)
             (let ((url (format "https://emacsconf.org/%s/talks/%s" emacsconf-year (plist-get o :slug))))
               (format "-------------------------------------------------------------------------------------------------<br/><strong>Talk%s: %s</strong><br />
-  Speaker(s): %s<br />
-  Talk page: <a href=\"%s\">%s</a><br />
-  Actual start of talk EST: &nbsp;&nbsp;&nbsp;  Start of Q&A: &nbsp;&nbsp;  End of Q&A: &nbsp;&nbsp;<br />
-  <strong>Questions:</strong>
-  Speakers may answer in any order or skip questions. As much as possible, put your questions at the top level instead of under another question. If adding an answer, please indicate [speaker] or your nick accordingly. Volunteers, please add new slots as ones get filled.<br />
-  <ul>
-    <li>Q1:&nbsp;<ul><li>A:&nbsp;</li></ul></li>
-    <li>Q2:&nbsp;<ul><li>A:&nbsp;</li></ul></li>
-    <li>Q3:&nbsp;<ul><li>A:&nbsp;</li></ul></li>
-    <li>Q4:&nbsp;<ul><li>A:&nbsp;</li></ul></li>
-  </ul>
+     Speaker(s): %s<br />
+     Talk page: <a href=\"%s\">%s</a><br />
+     Actual start of talk EST: &nbsp ;&nbsp;&nbsp;  Start of Q&A: &nbsp;&nbsp;  End of Q&A: &nbsp;&nbsp;<br />
+     <strong>Questions:</strong>
+     Speakers may answer in any order or skip questions. As much as possible, put your questions at the top level instead of under another question. If adding an answer, please indicate [speaker] or your nick accordingly. Volunteers, please add new slots as ones get filled.<br />
+     <ul>
+     <li>Q1:&nbsp                     ;<ul><li>A:&nbsp;</li></ul></li>
+     <li>Q2:&nbsp                     ;<ul><li>A:&nbsp;</li></ul></li>
+     <li>Q3:&nbsp                     ;<ul><li>A:&nbsp;</li></ul></li>
+     <li>Q4:&nbsp                     ;<ul><li>A:&nbsp;</li></ul></li>
+     </ul>
 
-  <strong>Links and other notes:</strong>
-  <ul>
-    <li>sample text</li>
-    <li>sample text</li>
-    <li>sample text</li>
-    <li>sample text</li>
-  </ul>
-  " (plist-get o :slug) (plist-get o :title) (plist-get o :speakers) url url))) talks "<br/><br/>\n") 
+     <strong>Links and other notes:</strong>
+     <ul>
+     <li>sample text</li>
+     <li>sample text</li>
+     <li>sample text</li>
+     <li>sample text</li>
+     </ul>
+     " (plist-get o :slug) (plist-get o :title) (plist-get o :speakers) url url))) talks "<br/><br/>\n") 
          "<br/><br/>-------------------------------------------------------------------------------------------------<br/>
-  <strong>General Feedback: What went well?</strong><br/><br/>
-  <ul>
-    <li>sample text</li>
-    <li>sample text</li>
-    <li>sample text</li>
-    <li>sample text</li>
-  </ul>
-  <br /><br />
-  -------------------------------------------------------------------------------------------------<br/>
-  <strong>General Feedback: What to improve?</strong><br/><br/>
-  <ul>
-    <li>sample text</li>
-    <li>sample text</li>
-    <li>sample text</li>
-    <li>sample text</li>
-  </ul>
-  <br/><br/>
-  -------------------------------------------------------------------------------------------------<br/>
-  <strong>Colophon:</strong>
-  <ul></ul>")))
+     <strong>General Feedback: What went well?</strong><br/><br/>
+     <ul>
+     <li>sample text</li>
+     <li>sample text</li>
+     <li>sample text</li>
+     <li>sample text</li>
+     </ul>
+     <br /><br />
+     -------------------------------------------------------------------------------------------------<br/>
+     <strong>General Feedback: What to improve?</strong><br/><br/>
+     <ul>
+     <li>sample text</li>
+     <li>sample text</li>
+     <li>sample text</li>
+     <li>sample text</li>
+     </ul>
+     <br/><br/>
+     -------------------------------------------------------------------------------------------------<br/>
+     <strong>Colophon:</strong>
+     <ul></ul>")))
       (with-current-buffer (find-file "pad-template.html")
         (erase-buffer)
         (insert text)
@@ -1027,11 +1053,11 @@ Columns are: slug,title,speakers,talk page url,video url,duration,sha."
       (when (and emacsconf-public-media-directory slug (> (length (string-trim slug)) 0)
                  ;; TODO: make this customizable
                  (shell-command
-                  (format "ssh front -- 'rm /var/www/media.emacsconf.org/%s/%s*; cp -n -l /var/www/media.emacsconf.org/%s/protected/%s* /var/www/media.emacsconf.org/%s/; chmod ugo+r /var/www/media.emacsconf.org/%s/ -R'"
-                          emacsconf-year slug
-                          emacsconf-year slug
-                          emacsconf-year
-                          emacsconf-year)))
+                  (format "ssh front -- 'rm /var/www/media.emacsconf.org/%s/%s* ; cp -n -l /var/www/media.emacsconf.org/%s/protected/%s* /var/www/media.emacsconf.org/%s/; chmod ugo+r /var/www/media.emacsconf.org/%s/ -R'"
+     emacsconf-year slug
+     emacsconf-year slug
+     emacsconf-year
+     emacsconf-year)))
         (when emacsconf-public-media-directory
           (emacsconf-make-public-index (expand-file-name "index.html" emacsconf-public-media-directory))
           (emacsconf-generate-playlist (expand-file-name "index.m3u" emacsconf-public-media-directory)
