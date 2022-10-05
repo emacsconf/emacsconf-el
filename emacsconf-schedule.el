@@ -502,7 +502,7 @@ Both start and end time are tested."
                                             (emacsconf-get-talk-info))))
                       sched-slugs)))
          (dupes (seq-filter (lambda (o) (> (length (cdr o)) 1))
-                           (seq-group-by #'identity sched-slugs))))
+                            (seq-group-by #'identity sched-slugs))))
     (append
      (emacsconf-schedule-validate-time-constraints sched)
      (emacsconf-schedule-validate-live-q-and-a-sessions-are-staggered sched)
