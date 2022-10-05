@@ -158,6 +158,7 @@
 (defun emacsconf-go-to-talk (search)
   (interactive (list (emacsconf-complete-talk)))
   (pop-to-buffer (find-file-noselect emacsconf-org-file))
+  (widen)
   (if (emacsconf-get-slug-from-string search)
       (goto-char (org-find-property "SLUG" (emacsconf-get-slug-from-string search)))
     (catch 'found
@@ -170,7 +171,7 @@
                                       (org-entry-get (point) "NAME") " - "
                                       (org-entry-get (point) "EMAIL"))
                               (point)))
-           (throw 'found)))
+           (throw 'found (point))))
        "SLUG={.}")))
   (org-reveal))
 
@@ -264,9 +265,10 @@
                     (org-timestamp-from-string
                      (org-entry-get (point) "SCHEDULED"))
                     t))))
-     (mapcar 
-      (lambda (o) (list (car o) (org-entry-get (point) (cadr o))))
-      field-props))))
+     (let* ((entry-props (org-entry-properties)))
+       (mapcar 
+        (lambda (o) (list (car o) (assoc-default (cadr o) entry-props)))
+        field-props)))))
 
 (defvar emacsconf-abstract-heading-regexp "abstract" "Regexp matching heading for talk abstract.")
 
@@ -379,16 +381,18 @@
 (defun emacsconf-get-talk-info ()
   (with-current-buffer (find-file-noselect emacsconf-org-file)
     (save-excursion
-      (let (results)
-        (org-map-entries
-         (lambda ()
-           (when (or (org-entry-get (point) "TIME")
-                     (org-entry-get (point) "SLUG")
-                     (org-entry-get (point) "INCLUDE_IN_INFO"))
-             (setq results
-                   (cons (emacsconf-get-talk-info-for-subtree)
-                         results)))))
-        (nreverse results)))))
+      (save-restriction
+        (widen)
+        (let (results)
+          (org-map-entries
+           (lambda ()
+             (when (or (org-entry-get (point) "TIME")
+                       (org-entry-get (point) "SLUG")
+                       (org-entry-get (point) "INCLUDE_IN_INFO"))
+               (setq results
+                     (cons (emacsconf-get-talk-info-for-subtree)
+                           results)))))
+          (nreverse results))))))
 
 (defun emacsconf-filter-talks (list)
   "Return only talk info in LIST."
@@ -745,6 +749,9 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
                           (format-time-string "%H:%M" (plist-get (cadr info) :start-time)))))
     (setq info (cdr info))))
 
+(defun emacsconf-active-talks (list)
+  "Remove CANCELLED talks from the list."
+  (seq-remove (lambda (o) (string= (plist-get o :status) "CANCELLED")) list))
 
 
 (provide 'emacsconf)
