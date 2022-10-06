@@ -384,10 +384,25 @@ resources."
 
 (defun emacsconf-generate-nav-pages (&optional talks)
   (interactive (list
-                (seq-remove (lambda (o) (string= (plist-get o :status) "CANCELLED"))
-                            (sort (emacsconf-filter-talks (emacsconf-get-talk-info)) #'emacsconf-sort-by-scheduled))))
+                (emacsconf-active-talks
+                 (sort (emacsconf-filter-talks (emacsconf-get-talk-info))
+                       (if (eq emacsconf-publishing-phase 'schedule)
+                           #'emacsconf-sort-by-scheduled
+                         (lambda (a b)
+                           ;; Gen,Dev; then by time
+                           (cond
+                            ((string< (plist-get a :track)
+                                      (plist-get b :track)) nil)
+                            ((string< (plist-get a :track)
+                                      (plist-get b :track)) t)
+                            ((time-less-p (plist-get a :start-time)
+                                          (plist-get b :start-time)) t)
+                            (t nil))))))))
   (let* ((next-talks (cdr talks))
-         (prev-talks (cons nil talks)))
+         (prev-talks (cons nil talks))
+         (label (if (eq emacsconf-publishing-phase 'schedule)
+                    "time"
+                  "track")))
     (unless (file-directory-p (expand-file-name "info" (expand-file-name emacsconf-year emacsconf-directory)))
       (mkdir (expand-file-name "info" (expand-file-name emacsconf-year emacsconf-directory))))
     (while talks
@@ -396,12 +411,15 @@ resources."
              (prev-talk (emacsconf-format-talk-link (pop prev-talks))))
         (with-temp-file (expand-file-name (format "%s-nav.md" (plist-get o :slug))
                                           (expand-file-name "info" (expand-file-name emacsconf-year emacsconf-directory)))
-          (insert (concat "Back to the [[talks]]  \n"
-                          (if prev-talk (format "Previous: %s  \n" prev-talk) "")
-                          (if next-talk (format "Next: %s  \n" next-talk) "")
+          (insert (concat "\n<div class=\"talk-nav\">
+Back to the [[talks]]  \n"
+                          (if prev-talk (format "Previous by %s: %s  \n" label prev-talk) "")
+                          (if next-talk (format "Next by %s: %s  \n" label next-talk) "")
                           (if (plist-get o :track) ; tagging doesn't work here because ikiwiki will list the nav page
-                              (format "Track: %s  \n" (plist-get o :track))
-                            ""))))))))
+                              (format "Track: <span class=\"sched-track %s\">%s</span>  \n" (plist-get o :track) (plist-get o :track))
+                            "")
+                          "</div>
+")))))))
 
 (defun emacsconf-generate-info-pages (&optional info)
   (interactive)
@@ -461,8 +479,11 @@ resources."
                         (sequence (emacsconf-schedule-get-subsequence info start end))
                         (sat (cdr (emacsconf-schedule-get-subsequence sequence "Saturday" "Sunday")))
                         (sun (cdr (emacsconf-schedule-get-subsequence sequence "Sunday"))))
-                   (format "\n\n<a name=\"%s\"></a>\n## %s\n\n%s\n\n"
+                   (format "\n\n<a name=\"%s\"></a>\n
+<div class=\"%s\">
+## %s\n\n%s\n</div>\n"
                            id
+                           label
                            label
                            (mapconcat
                             (lambda (section)
@@ -522,10 +543,12 @@ resources."
                                (or info (emacsconf-get-talk-info))))
                              #'emacsconf-sort-by-scheduled)))
            (concat
-            "<a href=\"#development\">Jump to development talks</a>\n<a name=\"general\"></a>\n# General talks\n"
+            "<a href=\"#development\">Jump to development talks</a>\n<a name=\"general\"></a>\n<div class=\"sched-track General\"><h1>General talks</h1></div>\n"
             (emacsconf-format-main-schedule
              (seq-filter (lambda (o) (string= (plist-get o :track) "General")) sorted))
-            "\n<a name=\"development\"></a>\n# Development talks\n"
+            "\n<a name=\"development\"></a>\n<div class=\"sched-track Development\">
+<h1>Development talks</h1>
+</div>\n"
             (emacsconf-format-main-schedule
              (seq-filter (lambda (o) (string= (plist-get o :track) "Development")) sorted))))
        (let* ((by-day (seq-group-by (lambda (o)
@@ -578,9 +601,8 @@ resources."
 
 (defun emacsconf-format-talk-link (talk)
   (and talk (if (plist-get talk :slug)
-                (format "<a href=\"/%s/talks/%s\">%s</a>"
-                        emacsconf-year
-                        (plist-get talk :slug)
+                (format "<a href=\"/%s\">%s</a>"
+                        (plist-get talk :url)
                         (plist-get talk :title))
               (plist-get talk :title))))
 
@@ -606,9 +628,7 @@ resources."
 (defun emacsconf-format-main-schedule (info)
   (let* ((cancelled (seq-filter (lambda (o) (string= (plist-get o :status) "CANCELLED")) info)))
     (concat
-     (format
-      "<div class=\"schedule\" data-start=\"%s\">\n"
-      (format-time-string "%FT%T%z" (plist-get (car info) :start-time) t))
+     "<div class=\"schedule\">\n"
      (mapconcat
       (lambda (o)
         (let* ((status (pcase (plist-get o :status)
@@ -621,9 +641,11 @@ resources."
                   (let ((result "")
                         (attrs (list
                                 :title (plist-get o :title)
-                                :url (plist-get o :url)
+                                :url (concat "/" (plist-get o :url))
                                 :speakers (plist-get o :speakers)
-                                :track (plist-get o :track)
+                                :track (if (eq emacsconf-publishing-phase 'program)
+                                            nil
+                                         (plist-get o :track))
                                 :slug (plist-get o :slug)
                                 :status (if (eq emacsconf-publishing-phase 'program)
                                             nil
