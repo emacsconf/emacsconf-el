@@ -519,7 +519,7 @@ resources."
      (if (eq emacsconf-publishing-phase 'program)
          (let ((sorted (sort (emacsconf-active-talks
                               (emacsconf-filter-talks
-                               (emacsconf-get-talk-info)))
+                               (or info (emacsconf-get-talk-info))))
                              #'emacsconf-sort-by-scheduled)))
            (concat
             "<a href=\"#development\">Jump to development talks</a>\n<a name=\"general\"></a>\n# General talks\n"
@@ -528,8 +528,52 @@ resources."
             "\n<a name=\"development\"></a>\n# Development talks\n"
             (emacsconf-format-main-schedule
              (seq-filter (lambda (o) (string= (plist-get o :track) "Development")) sorted))))
-       (emacsconf-format-main-schedule
-        (emacsconf-get-talk-info)))))
+       (let* ((by-day (seq-group-by (lambda (o)
+                                      (format-time-string "%Y-%m-%d" (plist-get o :start-time) emacsconf-timezone))
+                                    (sort (seq-filter (lambda (o)
+                                                        (or (plist-get o :slug)
+                                                            (plist-get o :include-in-info)))
+                                                      (emacsconf-get-talk-info))
+                                          #'emacsconf-sort-by-scheduled)))
+              (dates (seq-map (lambda (o) (plist-get (cadr o) :start-time))
+                              by-day))
+              (links (mapcar (lambda (o)
+                               (format "<a href=\"#date-%s\">%s</a>"
+                                       (format-time-string "%Y-%m-%d" o emacsconf-timezone)
+                                       (format-time-string "%a %b %-e" o emacsconf-timezone)))
+                             dates)))
+         (mapconcat (lambda (day)
+                      (with-temp-file (expand-file-name (concat emacsconf-year "/talks/"
+                                                                (format-time-string "schedule-%Y-%m-%d.svg" 
+                                                                                    (plist-get (cadr day) :start-time)
+                                                                                    emacsconf-timezone))
+                                                        emacsconf-directory)
+                        (let ((height 200) (width 800))
+                          (svg-print
+                           (emacsconf-schedule-svg-day
+                            (svg-create width height)
+                            (format-time-string "%a" (plist-get (cadr day) :start-time) emacsconf-timezone)
+                            width height
+                            (date-to-time (format-time-string "%Y-%m-%d 9:00" (plist-get (cadr day) :start-time)))
+                            (date-to-time (format-time-string "%Y-%m-%d 17:00" (plist-get (cadr day) :start-time)))
+                            (list (seq-filter (lambda (o) (string= (plist-get o :track) "General")) (cdr day))
+                                  (seq-filter (lambda (o) (string= (plist-get o :track) "Development")) (cdr day)))
+                            ))))
+                      (concat
+                       (if (> (length links) 1) (concat "Jump to: " (string-join links " - ")) "")
+                       (format "<a name=\"date-%s\"></a>\n"
+                               (format-time-string "%Y-%m-%d"
+                                                   (plist-get (cadr day) :start-time)
+                                                   emacsconf-timezone))
+                       (format-time-string "# %A %b %-e, %Y\n" (plist-get (cadr day) :start-time) emacsconf-timezone)
+                       (format "<img src=\"/%s/talks/schedule-%s.svg\" alt=\"Schedule\"/>  \n"
+                               emacsconf-year
+                               (format-time-string "%Y-%m-%d"
+                                                   (plist-get (cadr day) :start-time)
+                                                   emacsconf-timezone))
+                       (emacsconf-format-main-schedule (cdr day))))
+                    by-day
+                    "\n\n")))))
   (magit-status-setup-buffer emacsconf-directory))
 
 (defun emacsconf-format-talk-link (talk)
@@ -558,72 +602,77 @@ resources."
                     (apply '+ (mapcar (lambda (info) (string-to-number (plist-get info :duration)))
                                       received)))))
 
+
 (defun emacsconf-format-main-schedule (info)
   (let* ((cancelled (seq-filter (lambda (o) (string= (plist-get o :status) "CANCELLED")) info)))
-    (format "<table width=\"100%%\">%s%s</table>%s"
-            (pcase emacsconf-publishing-phase
-              ('program "<tr><th>Title</th><th>Speaker(s)</th></tr>")
-              ('schedule "<tr><th>Status</th><th>Start</th><th>Title</th><th>Speaker(s)</th></tr>")
-              ('resources "<tr><th>Title</th><th>Speaker(s)</th><th>Resources</th></tr>"))
-            (mapconcat
-             (lambda (o)
-               (let* ((time-fmt "%l:%M %p")
-                      (timestamp (org-timestamp-from-string (plist-get o :scheduled)))
-                      (start (if timestamp (format-time-string time-fmt (org-timestamp-to-time (org-timestamp-split-range timestamp))) ""))
-                      ;; (end (if timestamp (format-time-string time-fmt (org-timestamp-to-time (org-timestamp-split-range timestamp t))) ""))
-                      (title (plist-get o :title))
-                      (status (pcase (plist-get o :status)
-                                ("CAPTIONED" "captioned")
-                                ("PREREC_RECEIVED" "received")
-                                ("DONE" "done")
-                                ("STARTED" "now playing")
-                                (_ "")))
-                      (speakers (or (plist-get o :speakers) "")))
-                 (pcase emacsconf-publishing-phase
-                   ('program
-                    (if (eq (plist-get o :type) 'headline)
-                        (format "<tr><td colspan=\"3\"><strong>%s<strong></td></tr>"
-                                (if (plist-get o :slug)
-                                    (emacsconf-format-talk-link o)
-                                  title))
-                      (format "<tr><td>%s<td>%s</td></tr>"
-                              (emacsconf-format-talk-link o)
-                              speakers)))
-                   ('schedule
-                    (if (eq (plist-get o :type) 'headline)
-                        (format "<tr><td colspan=\"4\"><strong>%s<strong></td></tr>"
-                                (if (plist-get o :slug)
-                                    (emacsconf-format-talk-link o)
-                                  title))
-                      (format "<tr><td>%s</td><td width=100>~%s</td><td>%s</td><td>%s</td></tr>"
-                              status
-                              start (emacsconf-format-talk-link o) speakers)))
-                   ('resources
-                    (if (eq (plist-get o :type) 'headline)
-                        (format "<tr><td colspan=\"3\"><strong>%s<strong></td></tr>"
-                                (if (plist-get o :slug)
-                                    (emacsconf-format-talk-link o)
-                                  title))
-                      (format "<tr><td>%s</td><td>%s</td><td><ul>%s</ul></td></tr>"
-                              (emacsconf-format-talk-link o) speakers
-                              (mapconcat (lambda (s) (concat "<li>" s "</li>"))
-                                         (emacsconf-link-file-formats-as-list
-                                          (append o
-                                                  (list :base-url (format "%s%s/" emacsconf-media-base-url emacsconf-year)))
-                                          (append emacsconf-main-extensions '("--main.webm")))
-                                         "")))))))
-             (seq-remove (lambda (o) (string= (plist-get o :status) "CANCELLED"))
-                         info)
-             "\n")
-            (if (> (length cancelled) 0)
-                (format "<div class=\"cancelled\">Cancelled:<ul>%s</ul></div>"
-                        (mapconcat (lambda (talk) (format "<li><a href=\"/%s/talks/%s\">%s</a> - %s</li>"
-                                                          emacsconf-year
-                                                          (plist-get talk :slug)
-                                                          (plist-get talk :title)
-                                                          (plist-get talk :speakers)))
-                                   cancelled "\n"))
-              ""))))
+    (concat
+     (format
+      "<div class=\"schedule\" data-start=\"%s\">\n"
+      (format-time-string "%FT%T%z" (plist-get (car info) :start-time) t))
+     (mapconcat
+      (lambda (o)
+        (let* ((status (pcase (plist-get o :status)
+                         ("CAPTIONED" "captioned")
+                         ("PREREC_RECEIVED" "received")
+                         ("DONE" "done")
+                         ("STARTED" "now playing")
+                         (_ nil))))
+          (format "[[!template id=sched%s%s]]"
+                  (let ((result "")
+                        (attrs (list
+                                :title (plist-get o :title)
+                                :url (plist-get o :url)
+                                :speakers (plist-get o :speakers)
+                                :track (plist-get o :track)
+                                :slug (plist-get o :slug)
+                                :status (if (eq emacsconf-publishing-phase 'program)
+                                            nil
+                                          status)
+                                :time (if (eq emacsconf-publishing-phase 'program)
+                                          nil
+                                        (plist-get o :time))
+                                :startutc
+                                (if (eq emacsconf-publishing-phase 'program)
+                                    nil
+                                  (format-time-string "%FT%T%z" (plist-get o :start-time) t))
+                                :start                                
+                                (if (eq emacsconf-publishing-phase 'program)
+                                    nil
+                                  (format-time-string "%-l:%M" (plist-get o :start-time)))
+                                :end
+                                (if (eq emacsconf-publishing-phase 'program)
+                                    nil
+                                  (format-time-string "%-l:%M" (plist-get o :end-time)))
+                                :q-and-a
+                                (plist-get o :q-and-a)
+                                )))
+                    (while attrs
+                      (let ((field (pop attrs))
+                            (val (pop attrs)))
+                        (when val
+                          (setq result (concat result " " (substring (symbol-name field) 1) "=\"" val "\"")))))
+                    result)
+                  (if (eq emacsconf-publishing-phase 'resources)
+                      (format" resources=\"\"\"\n%s\n\"\"\""
+                             (mapconcat (lambda (s) (concat "<li>" s "</li>"))
+                                        (emacsconf-link-file-formats-as-list
+                                         (append o
+                                                 (list :base-url (format "%s%s/" emacsconf-media-base-url emacsconf-year)))
+                                         (append emacsconf-main-extensions '("--main.webm")))
+                                        ""))
+                    ""))))
+      (emacsconf-active-talks info)
+      "\n")
+     "\n</div>\n"
+     (if (> (length cancelled) 0)
+         (format "<div class=\"cancelled\">Cancelled:<ul>%s</ul></div>"
+                 (mapconcat (lambda (talk) (format "<li><a href=\"/%s/talks/%s\">%s</a> - %s</li>"
+                                                   emacsconf-year
+                                                   (plist-get talk :slug)
+                                                   (plist-get talk :title)
+                                                   (plist-get talk :speakers)))
+                            cancelled "\n"))
+       ""))))
 
 (defun emacsconf-timezone-strings (o)
   (let* ((timestamp (org-timestamp-from-string (plist-get o :scheduled)))
