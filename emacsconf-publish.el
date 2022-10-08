@@ -556,8 +556,11 @@ Entries are sorted chronologically, with different tracks interleaved."
          (height 150)
          (width 600))
          (mapconcat (lambda (day)
-                      (let ((day-start (date-to-time (format-time-string "%Y-%m-%d 9:00" (plist-get (cadr day) :start-time))))
-                            (day-end (date-to-time (format-time-string "%Y-%m-%d 17:00" (plist-get (cadr day) :start-time)))))
+                      (let ((day-start (date-to-time
+					(concat (format-time-string "%Y-%m-%dT09:00" (plist-get (cadr day) :start-time))
+						emacsconf-timezone-offset)))
+			    (day-end (date-to-time (concat (format-time-string "%Y-%m-%dT17:00" (plist-get (cadr day) :start-time))
+							   emacsconf-timezone-offset))))
                         ;; (with-temp-file (expand-file-name (concat emacsconf-year "/talks/"
                         ;;                                           (format-time-string "schedule-%Y-%m-%d.svg" 
                         ;;                                                               (plist-get (cadr day) :start-time)
@@ -688,8 +691,8 @@ Entries are sorted chronologically, with different tracks interleaved."
                                    :time (plist-get o :time)
                                    :startutc (format-time-string "%FT%T%z" (plist-get o :start-time) t)
                                    :endutc (format-time-string "%FT%T%z" (plist-get o :end-time) t)
-                                   :start (format-time-string "%-l:%M" (plist-get o :start-time))
-                                   :end (format-time-string "%-l:%M" (plist-get o :end-time)))))))
+                                   :start (format-time-string "%-l:%M" (plist-get o :start-time) emacsconf-timezone)
+                                   :end (format-time-string "%-l:%M" (plist-get o :end-time) emacsconf-timezone))))))
                     (while attrs
                       (let ((field (pop attrs))
                             (val (pop attrs)))

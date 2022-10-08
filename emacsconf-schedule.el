@@ -315,7 +315,7 @@ Each function should take the info and manipulate it as needed, returning the ne
              (y . ,(- height 2 label-margin))
              (font-size . 10)
              (text-anchor . "middle"))
-           (svg--encode-text (format-time-string "%-l" time)))))
+           (svg--encode-text (format-time-string "%-l" time emacsconf-timezone)))))
         (setq time (time-add time (seconds-to-time 3600)))))
     elem))
 

@@ -255,16 +255,24 @@
                        (expand-file-name "captions" (expand-file-name emacsconf-year emacsconf-directory)))
       :conf-year emacsconf-year
       :start-time (when (org-entry-get (point) "SCHEDULED")
-                    (org-timestamp-to-time
-                     (org-timestamp-split-range
-                      (org-timestamp-from-string
-                       (org-entry-get (point) "SCHEDULED")))))
+		    (date-to-time
+		     (concat
+		      (format-time-string "%Y-%m-%dT%H:%M:%S"
+					  (org-timestamp-to-time
+					   (org-timestamp-split-range
+					    (org-timestamp-from-string
+					     (org-entry-get (point) "SCHEDULED")))))
+		      emacsconf-timezone-offset)))
       :end-time (when (org-entry-get (point) "SCHEDULED")
-                  (org-timestamp-to-time
-                   (org-timestamp-split-range
-                    (org-timestamp-from-string
-                     (org-entry-get (point) "SCHEDULED"))
-                    t))))
+		  (date-to-time
+		   (concat
+		    (format-time-string "%Y-%m-%dT%H:%M:%S"
+					(org-timestamp-to-time
+					 (org-timestamp-split-range
+					  (org-timestamp-from-string
+					   (org-entry-get (point) "SCHEDULED"))
+					  t)))
+		    emacsconf-timezone-offset))))
      (let* ((entry-props (org-entry-properties)))
        (mapcar 
         (lambda (o) (list (car o) (assoc-default (cadr o) entry-props)))
@@ -650,6 +658,10 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
 
 ;; Timezones
 (defvar emacsconf-date "2022-12-03" "Starting date of EmacsConf.")
+(defvar emacsconf-timezone-offset
+  (format-time-string "%z" (date-to-time emacsconf-date) emacsconf-timezone)
+  "Timezone offset for `emacsconf-timezone' on `emacsconf-date'.")
+
 (defun emacsconf-convert-from-timezone (timezone time)
   (interactive (list (completing-read "From zone: " tzc-time-zones)
                      (read-string "Time: ")))
