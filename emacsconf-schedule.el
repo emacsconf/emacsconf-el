@@ -224,45 +224,51 @@ Each function should take the info and manipulate it as needed, returning the ne
             (emacsconf-filter-talks info)))))
 
 
-(defun emacsconf-schedule-svg-track (svg base-x base-y width height start-time end-time info &optional vertical)
-  (let ((scale (/ (if vertical height width)
-                  (float-time (time-subtract end-time start-time)))))
+(defun emacsconf-schedule-svg-track (svg base-x base-y width height start-time end-time info &optional modify-func)
+  (let ((scale (/ width (float-time (time-subtract end-time start-time)))))
     (mapc
      (lambda (o)
        (let* ((offset (floor (* scale (float-time (time-subtract (plist-get o :start-time) start-time)))))
               (size (floor (* scale (float-time (time-subtract (plist-get o :end-time) (plist-get o :start-time))))))
-              (x (if vertical base-x (+ base-x offset)))
-              (y (if vertical (+ base-y offset) base-y)))
+              (x (+ base-x offset))
+              (y base-y))
          (dom-append-child
           svg
           (dom-node
            'a
-           `((href . ,(plist-get o :url))
+           `((href . ,(concat "/" (plist-get o :url)))
              (title . ,(plist-get o :title)))
            (dom-node
-            'rect
-             `((x . ,x)
-               (y . ,y)
-               (opacity . "0.8")
-               (width . ,(if vertical width size))
-               (height . ,(1- (if vertical size height)))
-               (stroke . "black")
-               (stroke-dasharray . 
-                                 ,(if (string-match "live" (or (plist-get o :q-and-a) "live"))
-                                      ""
-                                    "5,5,5"
-                                    ))
-               (fill . ,(cond
-                         ((string-match "BREAK\\|LUNCH" (plist-get o :title)) "white")
-                         ((plist-get o :invalid) "red")
-                         ((string-match "EST"
-                                        (or (plist-get o :availability) ""))
-                          "lightgray")
-                         (t "lightgreen")))))
+            'title
+            nil
+            (plist-get o :title))
+           (let ((node (dom-node
+                        'rect
+                        `((x . ,x)
+                          (y . ,y)
+                          (opacity . "0.8")
+                          (width . ,size)
+                          (height . ,(1- height))
+                          (stroke . "black")
+                          (stroke-dasharray . 
+                                            ,(if (string-match "live" (or (plist-get o :q-and-a) "live"))
+                                                 ""
+                                               "5,5,5"
+                                               ))
+                          (fill . ,(cond
+                                    ((string-match "BREAK\\|LUNCH" (plist-get o :title)) "white")
+                                    ((plist-get o :invalid) "red")
+                                    ((string-match "EST"
+                                                   (or (plist-get o :availability) ""))
+                                     "lightgray")
+                                    (t "lightgreen")))))))
+             (if modify-func
+                 (funcall modify-func o node)
+               node))
            (dom-node
             'g
             `((transform . ,(format "translate(%d,%d)"
-                                    (+ x (if vertical width size) -2) (+ y (if vertical size height) -2))))
+                                    (+ x size -2) (+ y height -2))))
             (dom-node
              'text
              '((fill . "black")
@@ -273,7 +279,7 @@ Each function should take the info and manipulate it as needed, returning the ne
              (svg--encode-text (or (plist-get o :slug) (plist-get o :title)))))))))
      info)))
 
-(defun emacsconf-schedule-svg-day (elem label width height start end tracks)
+(defun emacsconf-schedule-svg-day (elem label width height start end tracks &optional modify-func)
   (let* ((label-margin 15)
          (track-height (/ (- height (* 2 label-margin)) (length tracks)))
          (x 0) (y label-margin)
@@ -284,7 +290,7 @@ Each function should take the info and manipulate it as needed, returning the ne
     (mapc (lambda (track)
             (emacsconf-schedule-svg-track
              elem x y width track-height
-             start end track)
+             start end track modify-func)
             (setq y (+ y track-height)))
           tracks)
     ;; draw grid

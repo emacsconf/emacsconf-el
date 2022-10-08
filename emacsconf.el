@@ -101,7 +101,7 @@
 (defun emacsconf-browse-wiki-page (search)
   (interactive (list (emacsconf-complete-talk)))
   (setq search (emacsconf-get-slug-from-string search))
-  (browse-url (concat emacsconf-base-url "/" emacsconf-year "/talks/" search "/")))
+  (browse-url (concat emacsconf-base-url emacsconf-year "/talks/" search "/")))
 
 (defun emacsconf-set-property-from-slug (search prop value)
   (interactive (list (emacsconf-complete-talk) nil nil))
@@ -247,7 +247,7 @@
       :type (if (org-entry-get (point) "SLUG") 'talk 'headline)
       :status (elt heading 2)
       :level (car heading)
-      :url (concat emacsconf-base-url emacsconf-year "/talks/" (org-entry-get (point) "SLUG"))
+      :url (concat emacsconf-year "/talks/" (org-entry-get (point) "SLUG"))
       :schedule-group 
       (org-entry-get-with-inheritance "SCHEDULE_GROUP")
       :wiki-file-path (expand-file-name 
