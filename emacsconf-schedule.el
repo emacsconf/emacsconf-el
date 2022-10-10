@@ -603,7 +603,7 @@ Try to avoid overlapping the start of live Q&A sessions."
                                                           (plist-get o :slug)
                                                           (format-time-string "%m-%d %-l:%M"
                                                                               (plist-get o :end-time))
-                                                          emacsconf-validate-live-q-and-a-sessions-buffer
+                                                          emacsconf-schedule-validate-live-q-and-a-sessions-buffer
                                                           (format-time-string "%m-%d %-l:%M"
                                                                               last-end)))
                             (plist-get o :invalid))
