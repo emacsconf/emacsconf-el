@@ -542,6 +542,71 @@
 
 ;;; Mail merge
 
+(defun emacsconf-mail-complete-email-group (&optional info)
+  "Return (email . (talk talk))."
+  (setq info (emacsconf-filter-talks (or info (emacsconf-get-talk-info))))
+  (save-window-excursion
+    (let* ((grouped (seq-group-by (lambda (o) (plist-get o :email)) info))
+           (slug (emacsconf-get-slug-from-string (emacsconf-complete-talk)))
+           (email (plist-get (seq-find (lambda (o) (string= (plist-get o :slug) slug)) info) :email)))
+      (assoc email grouped))))
+
+(defun emacsconf-mail-prepare (template group attrs)
+  (compose-mail
+   (car group)
+   (emacsconf-replace-plist-in-string attrs (plist-get template :subject))
+   `(("Reply-To" . ,(emacsconf-replace-plist-in-string attrs (plist-get template :reply-to)))
+     ("Mail-Followup-To" . ,(emacsconf-replace-plist-in-string attrs (plist-get template :mail-followup-to)))
+     ("Cc" . ,(plist-get template :cc))))
+  (message-sort-headers)
+  (message-goto-body)
+  (save-excursion (insert (emacsconf-replace-plist-in-string attrs (plist-get template :body)))
+                  (goto-char (point-min))
+                  (emacsconf-mail-merge-wrap)))
+
+(defun emacsconf-mail-template-to-me ()
+  "Might be useful for testing."
+  (interactive)
+  (let* ((template (if (org-entry-get (point) "EMAIL_ID")
+                       (emacsconf-mail-merge-get-template-from-subtree)
+                     (emacsconf-mail-merge-get-template
+                      (completing-read "Template: " (org-property-values "EMAIL_ID")))))
+         (mail-func (plist-get template :function))
+         (group (emacsconf-mail-complete-email-group)))
+    (funcall mail-func (cons user-mail-address (cdr group)) template)))
+
+(defun emacsconf-mail-template-to-group ()
+  "Prompt for a speaker and e-mail current template to them."
+  (interactive)
+  (let* ((template (if (org-entry-get (point) "EMAIL_ID")
+                       (emacsconf-mail-merge-get-template-from-subtree)
+                     (emacsconf-mail-merge-get-template
+                      (completing-read "Template: " (org-property-values "EMAIL_ID")))))
+         (mail-func (plist-get template :function)))
+    (funcall mail-func (emacsconf-mail-complete-email-group) template)))
+
+(defun emacsconf-mail-template-to-all ()
+  "Uses the current template to draft messages to all the speakers."
+  (interactive)
+  (let* ((template (if (org-entry-get (point) "EMAIL_ID")
+                       (emacsconf-mail-merge-get-template-from-subtree)
+                     (emacsconf-mail-merge-get-template
+                      (completing-read "Template: " (org-property-values "EMAIL_ID")))))
+         (info (seq-filter (lambda (o)
+                             (if (plist-get template :slugs)
+                                 (member (plist-get o :slug)
+                                         (split-string (plist-get template :slugs) " "))
+                               t))
+                           (emacsconf-filter-talks (emacsconf-get-talk-info))))
+         (grouped (emacsconf-mail-group-by-email info))
+         (mail-func (plist-get template :function)))
+    (mapc (lambda (group)
+            (funcall mail-func group template))
+          grouped)))
+
+(defun emacsconf-mail-group-by-email (info)
+  (seq-group-by (lambda (o) (plist-get o :email)) info))
+
 (defun emacsconf-mail-speaker (&optional subject body)
   "Compose a message to the speaker of the current talk."
   (interactive)
@@ -587,18 +652,24 @@
         (replace-match "")
         (fill-paragraph)))))
 
+(defun emacsconf-mail-merge-get-template-from-subtree ()
+  (list :subject (org-entry-get-with-inheritance "SUBJECT")
+        :cc (org-entry-get-with-inheritance "CC")
+        :slugs (org-entry-get-with-inheritance "SLUGS")
+        :reply-to (or (org-entry-get-with-inheritance "REPLY_TO") (org-entry-get-with-inheritance "REPLY-TO"))
+        :mail-followup-to (or (org-entry-get-with-inheritance "MAIL_FOLLOWUP_TO")
+                              (org-entry-get-with-inheritance "MAIL-FOLLOWUP-TO"))
+        :body (replace-regexp-in-string "\n *," "\n" (buffer-substring-no-properties
+                                                      (progn (org-end-of-meta-data) (point))
+                                                      (org-end-of-subtree)))
+        :function (when (org-entry-get-with-inheritance "FUNCTION")
+                    (intern (org-entry-get-with-inheritance "FUNCTION")))))
+
 (defun emacsconf-mail-merge-get-template (id)
   "Return the information for the e-mail template with EMAIL_ID set to ID."
   (save-excursion
     (goto-char (org-find-property "EMAIL_ID" id))
-    (list :subject (org-entry-get-with-inheritance "SUBJECT")
-          :cc (org-entry-get-with-inheritance "CC")
-          :reply-to (or (org-entry-get-with-inheritance "REPLY_TO") (org-entry-get-with-inheritance "REPLY-TO"))
-          :mail-followup-to (or (org-entry-get-with-inheritance "MAIL_FOLLOWUP_TO")
-                                (org-entry-get-with-inheritance "MAIL-FOLLOWUP-TO"))
-          :body (replace-regexp-in-string "\n *," "\n" (buffer-substring-no-properties
-                                                        (progn (org-end-of-meta-data) (point))
-                                                        (org-end-of-subtree))))))
+    (emacsconf-mail-merge-get-template-from-subtree)))
 
 (defun emacsconf-mail-merge-fill (string)
   "Fill in the values for STRING using the properties at point.
