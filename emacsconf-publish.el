@@ -721,19 +721,6 @@ Entries are sorted chronologically, with different tracks interleaved."
                             cancelled "\n"))
        ""))))
 
-(defun emacsconf-timezone-strings (o)
-  (let* ((timestamp (org-timestamp-from-string (plist-get o :scheduled)))
-         (start (org-timestamp-to-time (org-timestamp-split-range timestamp)))
-         (end (org-timestamp-to-time (org-timestamp-split-range timestamp t))))
-    (mapcar
-     (lambda (tz)
-       (format "%s - %s"
-               (format-time-string "%A, %b %e %Y, ~%l:%M %p"
-                                   start tz)
-               (format-time-string "%l:%M %p %Z"
-                                   end tz)))
-     emacsconf-timezones)))
-
 (defun emacsconf-make-protected-index (filename)
   (interactive (list (expand-file-name "index.html" emacsconf-protected-media-directory))) 
   (setq emacsconf-info (emacsconf-get-talk-info))

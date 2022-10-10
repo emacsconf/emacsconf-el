@@ -40,11 +40,11 @@
   :type 'directory)
 
 
-(defcustom emacsconf-timezone "America/Toronto" "Main timezone."
+(defcustom emacsconf-timezone "US/Eastern" "Main timezone."
   :group 'emacsconf
   :type 'string)
 
-(defcustom emacsconf-timezones '("America/Toronto" "America/Los_Angeles" "UTC" "Europe/Paris" "Europe/Athens" "Asia/Kolkata" "Asia/Singapore" "Asia/Tokyo") "List of timezones."
+(defcustom emacsconf-timezones '("US/Eastern" "US/Central" "US/Mountain" "US/Pacific" "UTC" "Europe/Paris" "Europe/Athens" "Asia/Kolkata" "Asia/Singapore" "Asia/Tokyo") "List of timezones."
   :group 'emacsconf
   :type '(repeat string))
 
@@ -210,6 +210,7 @@
                        (:email "EMAIL")
                        (:caption-note "CAPTION_NOTE")
                        (:availability "AVAILABILITY")
+                       (:timezone "TIMEZONE")
                        (:q-and-a "Q_AND_A")
                        (:bbb-room "ROOM")
                        (:irc "IRC")
@@ -661,6 +662,26 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
 (defvar emacsconf-timezone-offset
   (format-time-string "%z" (date-to-time emacsconf-date) emacsconf-timezone)
   "Timezone offset for `emacsconf-timezone' on `emacsconf-date'.")
+
+(defun emacsconf-timezone-strings (o)
+  (let* ((timestamp (org-timestamp-from-string (plist-get o :scheduled)))
+         (start (org-timestamp-to-time (org-timestamp-split-range timestamp)))
+         (end (org-timestamp-to-time (org-timestamp-split-range timestamp t))))
+    (mapcar
+     (lambda (tz)
+       (if (string= tz "UTC")
+           (format "%s - %s "
+                   (format-time-string "%A, %b %-e %Y, ~%-l:%M %p"
+                                       start tz)
+                   (format-time-string "%-l:%M %p %Z"
+                                       end tz))
+         (format "%s - %s (%s)"
+                 (format-time-string "%A, %b %-e %Y, ~%-l:%M %p"
+                                     start tz)
+                 (format-time-string "%-l:%M %p %Z"
+                                     end tz)
+                 tz)))
+     emacsconf-timezones)))
 
 (defun emacsconf-convert-from-timezone (timezone time)
   (interactive (list (completing-read "From zone: " tzc-time-zones)
