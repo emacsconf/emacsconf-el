@@ -38,7 +38,10 @@
   "Directory where the wiki files are."
   :group 'emacsconf
   :type 'directory)
-
+(defcustom emacsconf-ansible-directory nil
+  "Directory where the Ansible repository is."
+  :group 'emacsconf
+  :type 'directory)
 
 (defcustom emacsconf-timezone "US/Eastern" "Main timezone."
   :group 'emacsconf
@@ -869,5 +872,20 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
           (message "Missing %s"  (mapconcat #'symbol-name missing ", "))
         (format "Missing %s"  (mapconcat #'symbol-name missing ", "))))))
 
+;;; Ansible support
+(defun emacsconf-ansible-export-talks ()
+  (interactive)
+  (when emacsconf-ansible-directory
+    (with-temp-file (expand-file-name "talks.json" emacsconf-ansible-directory)
+      (insert (json-encode (list :talks
+                                 (mapcar (lambda (o)
+                                           (apply 'list
+                                                  (cons :start-time (format-time-string "%FT%T%z" (plist-get o :start-time) t))
+                                                  (cons :end-time (format-time-string "%FT%T%z" (plist-get o :end-time) t))
+                                                  (mapcar (lambda (field)
+                                                            (cons field (plist-get o field)))
+                                                          '(:slug :title :speakers :pronouns :pronunciation :url :track)))
+                                           )
+                                         (emacsconf-filter-talks (emacsconf-get-talk-info)))))))))
 (provide 'emacsconf)
 ;;; emacsconf.el ends here
