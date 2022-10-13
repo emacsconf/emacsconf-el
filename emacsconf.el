@@ -152,6 +152,9 @@
            '(metadata (category . emacsconf))
          (complete-with-action action choices string predicate))))))
 
+(defun emacsconf-complete-talk-info (&optional info)
+  (emacsconf-search-talk-info (emacsconf-complete-talk info) info))
+
 (defun emacsconf-get-slug-from-string (search)
   (if (listp search) (setq search (car search)))
   (if (and search (string-match "\\(.*?\\) - " search))
@@ -433,6 +436,14 @@
     (goto-char (org-find-property "ID" "talks"))
     (emacsconf-get-talk-info 'wiki)))
 
+(defun emacsconf-include-next-talks (info number)
+  (let* ((info (sort (emacsconf-active-talks (emacsconf-filter-talks (or info (emacsconf-get-talk-info))))
+                     #'emacsconf-sort-by-scheduled))
+         (cur-list info))
+    ;; add links to the next talks
+    (while cur-list
+      (plist-put (pop cur-list) :next-talks (seq-take cur-list number)))
+    info))
 
 (defun emacsconf-find-talk-info (filter &optional info)
   (setq info (or info (emacsconf-filter-talks (emacsconf-get-talk-info))))
@@ -887,5 +898,18 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
                                                           '(:slug :title :speakers :pronouns :pronunciation :url :track)))
                                            )
                                          (emacsconf-filter-talks (emacsconf-get-talk-info)))))))))
+
+(defun emacsconf-ansible-load-vars (file)
+  (interactive (list (read-file-name "File: " emacsconf-ansible-directory)))
+  (with-temp-buffer
+    (insert-file-contents file)
+    (let ((vars
+           (yaml-parse-string (buffer-string))))
+      (mapc (lambda (var)
+              (set (car var) (gethash (cdr var) vars))
+              )
+            '((emacsconf-pad-api-key . etherpad_api_key)
+              (emacsconf-pad-base . etherpad_url))))))
+;; (emacsconf-ansible-load-vars (expand-file-name "prod-vars.yml" emacsconf-ansible-directory))
 (provide 'emacsconf)
 ;;; emacsconf.el ends here
