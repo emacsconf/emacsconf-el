@@ -126,14 +126,8 @@ You can find it in $ETHERPAD_PATH/APIKEY.txt"
 
 (defvar emacsconf-pad-number-of-next-talks 3 "Integer limiting the number of next talks to link to from the pad.")
 
-(defun emacsconf-pad-prepopulate-talk-pad (o)
-  (interactive (list (let ((info (emacsconf-include-next-talks (emacsconf-get-talk-info) emacsconf-pad-number-of-next-talks)))
-                       (emacsconf-complete-talk-info info))))
-  (let ((pad-id (emacsconf-pad-id o)))
-    (emacsconf-pad-create-pad pad-id)
-    (emacsconf-pad-set-html
-     pad-id
-     (emacsconf-replace-plist-in-string
+(defun emacsconf-pad-initial-content (o)
+  (emacsconf-replace-plist-in-string
       (append (list :base-url emacsconf-base-url
                     :channel (concat "emacsconf-" (downcase (plist-get o :track)))
                     :bbb-info
@@ -175,11 +169,37 @@ ${next-talk-list}
 <div>This pad will be archived at ${base-url}${url} after the conference.</div>
 <div>Except where otherwise noted, the material on the EmacsConf pad are dual-licensed under the terms of the Creative Commons Attribution-ShareAlike 4.0 International Public License; and the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) an later version. Copies of these two licenses are included in the EmacsConf wiki repository, in the COPYING.GPL and COPYING.CC-BY-SA files (https://emacsconf.org/COPYING/)</div>
 
-<div>By contributing to this pad, you agree to make your contributions available under the above licenses. You are also promising that you are the author of your changes, or that you copied them from a work in the public domain or a work released under a free license that is compatible with the above two licenses. DO NOT SUBMIT COPYRIGHTED WORK WITHOUT PERMISSION.</div></div>"))))
+<div>By contributing to this pad, you agree to make your contributions available under the above licenses. You are also promising that you are the author of your changes, or that you copied them from a work in the public domain or a work released under a free license that is compatible with the above two licenses. DO NOT SUBMIT COPYRIGHTED WORK WITHOUT PERMISSION.</div></div>"))
+
+(defun emacsconf-pad-prepopulate-talk-pad (o)
+  (interactive (list (let ((info (emacsconf-include-next-talks (emacsconf-get-talk-info) emacsconf-pad-number-of-next-talks)))
+                       (emacsconf-complete-talk-info info))))
+  (let ((pad-id (emacsconf-pad-id o)))
+    (emacsconf-pad-create-pad pad-id)
+    (emacsconf-pad-set-html
+     pad-id
+     (emacsconf-pad-initial-content o))))
 
 (defun emacsconf-pad-prepopulate-all-talks (&optional info)
   (interactive)
   (mapc #'emacsconf-pad-prepopulate-talk-pad (emacsconf-include-next-talks (or info (emacsconf-get-talk-info)) emacsconf-pad-number-of-next-talks)))
+
+(defun emacsconf-pad-export-initial-content (o file)
+  (interactive
+   (list (let ((info (emacsconf-include-next-talks (emacsconf-get-talk-info) emacsconf-pad-number-of-next-talks)))
+           (emacsconf-complete-talk-info info))
+         (read-file-name "Output file: ")))
+  (when (file-directory-p file) (setq file (expand-file-name (concat (plist-get o :slug) ".html") file)))
+  (with-temp-file file
+    (insert (emacsconf-pad-initial-content o))))
+
+(defun emacsconf-pad-export-initial-content-for-all-talks (dir &optional info)
+  (interactive (list (read-file-name "Output directory: " nil nil nil nil 'file-directory-p)))
+  (setq info (emacsconf-include-next-talks (or info (emacsconf-get-talk-info))
+                                           emacsconf-pad-number-of-next-talks))
+  (mapcar (lambda (o)
+            (emacsconf-pad-export-initial-content o dir))
+          (emacsconf-active-talks (emacsconf-filter-talks info))))
 
 (provide 'emacsconf-pad)
 ;;; emacsconf-pad.el ends here
