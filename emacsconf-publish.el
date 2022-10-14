@@ -544,8 +544,6 @@ Entries are sorted chronologically, with different tracks interleaved."
                                                        (plist-get o :include-in-info)))
                                                  (or info (emacsconf-get-talk-info)))
                                      #'emacsconf-sort-by-scheduled)))
-         (track-colors '(("General" . "#ffdab9")
-                         ("Development" . "#87CEEB")))
          (dates (seq-map (lambda (o) (plist-get (cadr o) :start-time))
                          by-day))
          (links (mapcar (lambda (o)
@@ -555,61 +553,37 @@ Entries are sorted chronologically, with different tracks interleaved."
                         dates))
          (height 150)
          (width 600))
-         (mapconcat (lambda (day)
-                      (let ((day-start (date-to-time
-					(concat (format-time-string "%Y-%m-%dT09:00" (plist-get (cadr day) :start-time))
-						emacsconf-timezone-offset)))
-			    (day-end (date-to-time (concat (format-time-string "%Y-%m-%dT17:00" (plist-get (cadr day) :start-time))
-							   emacsconf-timezone-offset))))
-                        ;; (with-temp-file (expand-file-name (concat emacsconf-year "/talks/"
-                        ;;                                           (format-time-string "schedule-%Y-%m-%d.svg" 
-                        ;;                                                               (plist-get (cadr day) :start-time)
-                        ;;                                                               emacsconf-timezone))
-                        ;;                                   emacsconf-directory)
-                        ;;   (let ((height 200) (width 800))
-                        ;;(svg-print
-                        ;;      (emacsconf-schedule-svg-day
-                        ;;       (svg-create width height)
-                        ;;       (format-time-string "%a" (plist-get (cadr day) :start-time) emacsconf-timezone)
-                        ;;       width height
-                        ;;       day-start
-                        ;;       day-end
-                        ;;       (list (seq-filter (lambda (o) (string= (plist-get o :track) "General")) (cdr day))
-                        ;;             (seq-filter (lambda (o) (string= (plist-get o :track) "Development")) (cdr day)))
-                        ;;       ))))
-                        (concat
-                         (svg-print
-                          (emacsconf-schedule-svg-day
-                           (svg-create width height)
-                           (format-time-string "%a" (plist-get (cadr day) :start-time) emacsconf-timezone)
-                           width height
-                           day-start
-                           day-end
-                           (list (seq-filter (lambda (o) (string= (plist-get o :track) "General")) (cdr day))
-                                 (seq-filter (lambda (o) (string= (plist-get o :track) "Development")) (cdr day)))
-                           (lambda (o node)
-                             (when (assoc-default (plist-get o :track) track-colors)
-                               (dom-set-attribute node 'fill (assoc-default (plist-get o :track) track-colors)))
-                             node)))
-                         "\n\n"
-                         (if (> (length links) 1) (concat "Jump to: " (string-join links " - ")) "")
-                         (format "<a name=\"date-%s\"></a>\n"
-                                 (format-time-string "%Y-%m-%d"
-                                                     (plist-get (cadr day) :start-time)
-                                                     emacsconf-timezone))
-                         (format-time-string "# %A %b %-e, %Y\n" (plist-get (cadr day) :start-time) emacsconf-timezone)
-                         ;; (format "<img src=\"/%s/talks/schedule-%s.svg\" alt=\"Schedule\"/>  \n"
-                         ;;         emacsconf-year
-                         ;;         (format-time-string "%Y-%m-%d"
-                         ;;                             (plist-get (cadr day) :start-time)
-                         ;;                             emacsconf-timezone))
-                         (format "<div class=\"schedule\" data-start=\"%s\" data-end=\"%s\" data-tracks=\"General,Development\">\n"
-                                 (format-time-string "%FT%T%z" day-start t)
-                                 (format-time-string "%FT%T%z" day-end t))
-                         (emacsconf-format-main-schedule (cdr day))
-                         "</div>")))
-                    by-day
-                    "\n\n")))
+    (mapconcat (lambda (day)
+                 (let ((day-start (date-to-time
+					                         (concat (format-time-string "%Y-%m-%dT09:00" (plist-get (cadr day) :start-time))
+						                               emacsconf-timezone-offset)))
+			                 (day-end (date-to-time (concat (format-time-string "%Y-%m-%dT17:00" (plist-get (cadr day) :start-time))
+							                                        emacsconf-timezone-offset))))
+                   (concat
+                    (with-temp-buffer
+                      (svg-print
+                       (emacsconf-schedule-svg-day
+                        (svg-create width height)
+                        (format-time-string "%a" (plist-get (cadr day) :start-time) emacsconf-timezone)
+                        width height
+                        day-start
+                        day-end
+                        (emacsconf-by-tracks (cdr day))))
+                      (buffer-string))
+                    "\n\n"
+                    (if (> (length links) 1) (concat "Jump to: " (string-join links " - ")) "")
+                    (format "<a name=\"date-%s\"></a>\n"
+                            (format-time-string "%Y-%m-%d"
+                                                (plist-get (cadr day) :start-time)
+                                                emacsconf-timezone))
+                    (format-time-string "# %A %b %-e, %Y\n" (plist-get (cadr day) :start-time) emacsconf-timezone)
+                    (format "<div class=\"schedule\" data-start=\"%s\" data-end=\"%s\" data-tracks=\"General,Development\">\n"
+                            (format-time-string "%FT%T%z" day-start t)
+                            (format-time-string "%FT%T%z" day-end t))
+                    (emacsconf-format-main-schedule (cdr day))
+                    "</div>")))
+               by-day
+               "\n\n")))
 
 (defun emacsconf-generate-main-schedule (&optional info)
   (interactive)
@@ -663,19 +637,8 @@ Entries are sorted chronologically, with different tracks interleaved."
                     (apply '+ (mapcar (lambda (info) (string-to-number (plist-get info :duration)))
                                       received)))))
 
-
-(defun emacsconf-format-main-schedule (info)
-  (let* ((cancelled (seq-filter (lambda (o) (string= (plist-get o :status) "CANCELLED")) info)))
-    (concat
-     (mapconcat
-      (lambda (o)
-        (let* ((status (pcase (plist-get o :status)
-                         ("CAPTIONED" "captioned")
-                         ("PREREC_RECEIVED" "received")
-                         ("DONE" "done")
-                         ("STARTED" "now playing")
-                         (_ nil))))
-          (format "[[!template id=sched%s%s]]"
+(defun emacsconf-publish-sched-directive (o)
+  (format "[[!template id=sched%s%s]]"
                   (let ((result "")
                         (attrs (append
                                 (list
@@ -687,7 +650,12 @@ Entries are sorted chronologically, with different tracks interleaved."
                                   (list
                                    :track (plist-get o :track)
                                    :slug (plist-get o :slug)
-                                   :status status
+                                   :status (pcase (plist-get o :status)
+                                             ("CAPTIONED" "captioned")
+                                             ("PREREC_RECEIVED" "received")
+                                             ("DONE" "done")
+                                             ("STARTED" "now playing")
+                                             (_ nil))
                                    :time (plist-get o :time)
                                    :startutc (format-time-string "%FT%T%z" (plist-get o :start-time) t)
                                    :endutc (format-time-string "%FT%T%z" (plist-get o :end-time) t)
@@ -707,9 +675,12 @@ Entries are sorted chronologically, with different tracks interleaved."
                                                  (list :base-url (format "%s%s/" emacsconf-media-base-url emacsconf-year)))
                                          (append emacsconf-main-extensions '("--main.webm")))
                                         ""))
-                    ""))))
-      (emacsconf-active-talks info)
-      "\n")
+                    "")))
+
+(defun emacsconf-format-main-schedule (info)
+  (let* ((cancelled (seq-filter (lambda (o) (string= (plist-get o :status) "CANCELLED")) info)))
+    (concat
+     (mapconcat #'emacsconf-publish-sched-directive o (emacsconf-active-talks info) "\n")
      "\n"
      (if (> (length cancelled) 0)
          (format "<div class=\"cancelled\">Cancelled:<ul>%s</ul></div>"
@@ -1184,5 +1155,94 @@ Entries are sorted chronologically, with different tracks interleaved."
     ))
 
 
+(defmacro emacsconf-publish-with-wiki-change (&rest body)
+  (declare (indent 0) (debug t))
+  `(progn
+     ,@body
+     (let ((default-directory emacsconf-directory))
+       (magit-stage-modified)
+       (magit-status-setup-buffer))))
+
+(defun emacsconf-publish-watch-pages ()
+  "Update /year/watch pages."
+  (interactive)
+  (emacsconf-publish-with-wiki-change
+    (mapc (lambda (track)
+            (plist-put track :year emacsconf-year)
+            (plist-put track :stream (concat emacsconf-stream-base (plist-get track :id) ".webm"))
+            (plist-put track :480p (concat emacsconf-stream-base (plist-get track :id) "-480p.webm"))
+            (plist-put track :webchat (concat emacsconf-chat-base "?join=emacsconf-" (plist-get track :id)))
+            (plist-put track :channel (concat "#emacsconf-" (plist-get track :id))))
+          emacsconf-tracks)
+    (let* ((info (sort (emacsconf-get-talk-info) #'emacsconf-sort-by-scheduled))
+           (emacsconf-publishing-phase 'schedule)
+           (sched (with-temp-buffer (svg-print (emacsconf-schedule-svg 800 300 (emacsconf-get-talk-info)))
+                                    (buffer-string))))
+      (unless (file-directory-p (expand-file-name "watch" (expand-file-name emacsconf-year emacsconf-directory)))
+        (make-directory (expand-file-name "watch" (expand-file-name emacsconf-year emacsconf-directory))))
+      (with-temp-file (expand-file-name "watch/info.md" (expand-file-name emacsconf-year emacsconf-directory))
+        (insert
+         "<!-- Automatically generated by emacsconf-publish-watch-pages -->\n[[!sidebar content=\"\"]]
+# Tracks\n\n"
+         "<table width=\"100%\"><tr><th>Watch page</th><th>IRC channel (libera.chat)</th><th>Alternative for streaming player</th><th>Low res</th></tr>\n"
+         (mapconcat (lambda (track)
+                      (emacsconf-replace-plist-in-string
+                       track
+                       "<tr><td><a href=\"/${year}/watch/${id}\">${name}</a></td><td><a href=\"${webchat}\">${channel}</a></td><td><a href=\"${stream}\">${stream}</a></td><td><a href=\"${480p}\">${id}-480p.webm</a></tr>"))
+                    emacsconf-tracks
+                    "\n")
+         "</table>\n\n" sched))
+      
+      (mapc (lambda (track)
+              (with-temp-file (expand-file-name (format "%s/watch/%s.md"
+                                                        emacsconf-year
+                                                        (plist-get track :id))
+                                                emacsconf-directory)
+                (insert
+                 (emacsconf-replace-plist-in-string
+                  (append
+                   (list :links (concat
+                                 "<a href=\"#watch\">Watch</a> - <a href=\"#chat\">Chat</a> - <a href=\"#sched\">View schedule</a> - \nStreams: "
+                                 (mapconcat (lambda (tr)
+                                              (if (string= (plist-get tr :name) (plist-get track :name))
+                                                  (format "**%s**" (plist-get track :name))
+                                                (format "<a href=\"/%s/watch/%s/\">%s</a>"
+                                                        emacsconf-year
+                                                        (plist-get tr :id)
+                                                        (plist-get tr :name))))
+                                            emacsconf-tracks
+                                            " - "))
+                         :sched sched
+                         :talks (mapconcat #'emacsconf-publish-sched-directive
+                                             (seq-filter (lambda (o) (string= (plist-get o :track)
+                                                                              (plist-get track :name)))
+                                                         info)
+                                             "\n"))
+                   track)
+                  "<!-- Automatically generated by emacsconf-publish-watch-pages -->
+[[!inline pages=\"internal(2022/info/watch-announce)\" raw=\"yes\"]]
+[[!meta title=\"${name} stream\"]]
+[[!sidebar content=\"\"]]
+
+<a name=\"watch\"></a>
+${links}
+\n<video controls><source src=\"${stream}\" type=\"video/webm\" /></video>
+Alternatively, load <${stream}> or <${480p}> (low-res) in a streaming media player such as MPV.
+
+<a name=\"chat\"></a>
+${links}
+
+Chat: [${channel} on libera.chat](${webchat})
+
+<div class=\"chat-iframe\" data-track=\"${id}\"></div>
+
+<a name=\"sched\"></a>
+${links}
+
+${sched}\n
+
+${talks}
+"))))
+            emacsconf-tracks))))
 
 (provide 'emacsconf-publish)

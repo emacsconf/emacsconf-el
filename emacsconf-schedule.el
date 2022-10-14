@@ -223,8 +223,8 @@ Each function should take the info and manipulate it as needed, returning the ne
               (org-entry-put (point) "TIME" (plist-get talk :time)))
             (emacsconf-filter-talks info)))))
 
-
-(defun emacsconf-schedule-svg-track (svg base-x base-y width height start-time end-time info &optional modify-func)
+(defvar emacsconf-schedule-svg-modify-functions '(emacsconf-schedule-svg-color-by-track) "Functions to run to modify the display of each item.")
+(defun emacsconf-schedule-svg-track (svg base-x base-y width height start-time end-time info)
   (let ((scale (/ width (float-time (time-subtract end-time start-time)))))
     (mapc
      (lambda (o)
@@ -238,10 +238,7 @@ Each function should take the info and manipulate it as needed, returning the ne
            'a
            `((href . ,(concat "/" (plist-get o :url)))
              (title . ,(plist-get o :title)))
-           (dom-node
-            'title
-            nil
-            (plist-get o :title))
+           (dom-node 'title nil (plist-get o :title))
            (let ((node (dom-node
                         'rect
                         `((x . ,x)
@@ -262,24 +259,25 @@ Each function should take the info and manipulate it as needed, returning the ne
                                                    (or (plist-get o :availability) ""))
                                      "lightgray")
                                     (t "lightgreen")))))))
-             (if modify-func
-                 (funcall modify-func o node)
-               node))
+             (run-hook-with-args
+              'emacsconf-schedule-svg-modify-functions
+              o node)
+             node)
            (dom-node
             'g
-            `((transform . ,(format "translate(%d,%d)"
-                                    (+ x size -2) (+ y height -2))))
-            (dom-node
-             'text
-             '((fill . "black")
-               (x . 0)
-               (y . 0)
-               (font-size . 10)
-               (transform . "rotate(-90)"))
-             (svg--encode-text (or (plist-get o :slug) (plist-get o :title)))))))))
-     info)))
+             `((transform . ,(format "translate(%d,%d)"
+                                     (+ x size -2) (+ y height -2))))
+             (dom-node
+              'text
+               '((fill . "black")
+                 (x . 0)
+                 (y . 0)
+                 (font-size . 10)
+                 (transform . "rotate(-90)"))
+                (svg--encode-text (or (plist-get o :slug) (plist-get o :title)))))))))
+    info)))
 
-(defun emacsconf-schedule-svg-day (elem label width height start end tracks &optional modify-func)
+(defun emacsconf-schedule-svg-day (elem label width height start end tracks)
   (let* ((label-margin 15)
          (track-height (/ (- height (* 2 label-margin)) (length tracks)))
          (x 0) (y label-margin)
@@ -290,7 +288,7 @@ Each function should take the info and manipulate it as needed, returning the ne
     (mapc (lambda (track)
             (emacsconf-schedule-svg-track
              elem x y width track-height
-             start end track modify-func)
+             start end track)
             (setq y (+ y track-height)))
           tracks)
     ;; draw grid
@@ -319,7 +317,45 @@ Each function should take the info and manipulate it as needed, returning the ne
         (setq time (time-add time (seconds-to-time 3600)))))
     elem))
 
-(defun emacsconf-schedule-svg (width height days)
+(defun emacsconf-by-tracks (info)
+  (mapcar (lambda (track)
+            (seq-filter
+             (lambda (talk)
+               (string= (plist-get talk :track) (plist-get track :name)))
+             info))
+          emacsconf-tracks))
+
+(defun emacsconf-schedule-svg-color-by-track (o node)
+  (let ((track (emacsconf-get-track (plist-get o :track))))
+    (when track
+      (dom-set-attribute node 'fill (plist-get track :color)))))
+
+(defun emacsconf-schedule-svg (width height &optional info)
+  (setq info (or info (emacsconf-get-talk-info)))
+  (let ((days (seq-group-by (lambda (o)
+                              (format-time-string "%Y-%m-%d" (plist-get o :start-time) emacsconf-timezone))
+                            (sort (seq-filter (lambda (o)
+                                                (or (plist-get o :slug)
+                                                    (plist-get o :include-in-info)))
+                                              info)
+                                  #'emacsconf-sort-by-scheduled))))
+    (emacsconf-schedule-svg-days
+     width height
+     (mapcar (lambda (o)
+               (let ((start (concat (car o) "T09:00:00" emacsconf-timezone-offset))
+                     (end (concat (car o) "T17:00:00" emacsconf-timezone-offset)))
+                 (list :label (format-time-string "%A" (date-to-time (car o)))
+                       :start start
+                       :end end
+                       :tracks (mapcar (lambda (track)
+                                         (seq-filter
+                                          (lambda (talk)
+                                            (string= (plist-get talk :track) (plist-get track :name)))
+                                          (cdr o)))
+                                       emacsconf-tracks))))
+             days))))
+
+(defun emacsconf-schedule-svg-days (width height days)
   (let ((svg (svg-create width height :background "white"))
         (day-height (/ height (length days)))
         (y 0))

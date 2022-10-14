@@ -23,7 +23,8 @@
 ;; Prepopulate the Etherpad
 
 (defcustom emacsconf-pad-base "http://pad.emacsconf.org/"
-  "Base URL for the Etherpad. Include trailing slash."
+  "Base URL for the Etherpad. Include trailing slash.
+Use \"wikimedia\" to use etherpad.wikimedia.org instead."
   :group 'emacsconf
   :type 'string)
 
@@ -122,50 +123,69 @@ You can find it in $ETHERPAD_PATH/APIKEY.txt"
   (concat emacsconf-pad-slug-base "-" (plist-get o :slug)))
 
 (defun emacsconf-pad-url (o)
-  (concat emacsconf-pad-base emacsconf-pad-directory (emacsconf-pad-id o)))
+  (if (string= emacsconf-pad-base "wikimedia")
+      (format "https://etherpad.wikimedia.org/p/emacsconf-%s-%s"
+              emacsconf-year
+              (plist-get o :slug))
+    (concat emacsconf-pad-base emacsconf-pad-directory (emacsconf-pad-id o))))
 
 (defvar emacsconf-pad-number-of-next-talks 3 "Integer limiting the number of next talks to link to from the pad.")
 
 (defun emacsconf-pad-initial-content (o)
   (emacsconf-replace-plist-in-string
-      (append (list :base-url emacsconf-base-url
-                    :channel (concat "emacsconf-" (downcase (plist-get o :track)))
-                    :bbb-info
-                    (if (plist-get o :bbb-room)
-                        (concat "<div>Q&amp;A room: ${bbb-room}</div>")
-                      "")
-                    :next-talk-list
-                    (if (plist-get o :next-talks)
-                        (concat "<div>Next talks:\n<ul>"
-                                (mapconcat
-                                 (lambda (o)
-                                   (format "<li>%s: %s %s</li>"
-                                           (plist-get o :track)
-                                           (emacsconf-pad-url o)
-                                           (plist-get o :title)))
-                                 (plist-get o :next-talks)
-                                 "\n")
-                                "</ul></div>")
-                      "")
-                    :irc-nick-details
-                    (if (plist-get o :irc)
-                        (concat "Speaker nick: " (plist-get o :irc) " - ")
-                      "")
-                    :irc-url (concat "https://chat.emacsconf.org/#/connect?join=emacsconf-" (downcase (plist-get o :track))))
-              o)
-      "<div>
+   (append (list :base-url emacsconf-base-url
+                 :channel (concat "emacsconf-" (plist-get (emacsconf-get-track (plist-get o :track)) :id))
+                 :bbb-info
+                 (if (plist-get o :bbb-room)
+                     (concat "<div>Q&amp;A room: ${bbb-room}</div>")
+                   "")
+                 :next-talk-list
+                 (if (plist-get o :next-talks)
+                     (concat "<div>Next talks:\n<ul>"
+                             (mapconcat
+                              (lambda (o)
+                                (format "<li>%s: %s %s</li>"
+                                        (plist-get o :track)
+                                        (plist-get o :title)
+                                        (emacsconf-pad-url o)))
+                              (plist-get o :next-talks)
+                              "\n")
+                             "</ul></div>")
+                   "")
+                 :track-id
+                 (plist-get (emacsconf-get-track (plist-get o :track)) :id)
+                 :watch
+                 (concat emacsconf-base-url emacsconf-year "/watch/" (plist-get (emacsconf-get-track (plist-get o :track)) :id) "/")
+                 :talks
+                 (concat emacsconf-base-url emacsconf-year "/talks/")
+                 :notes
+                 (string-join (make-list 6 "<li></li>"))
+                 :questions
+                 (string-join (make-list 6 "<li>Q: <ul><li>A: </li></ul></li>"))
+                 :irc-nick-details
+                 (if (plist-get o :irc)
+                     (concat "Speaker nick: " (plist-get o :irc) " - ")
+                   "")
+                 :irc-url (concat "" ))
+           o)
+   "<div>
+<div>All talks: ${talks}</div>
 <div><strong>${title}</strong></div>
 <div>${base-url}${url} - ${speakers} - Track: ${track}</div>
 ${bbb-info}
-<div>IRC: ${irc-nick-details}<a href=\"${irc-url}\">${irc-url}</a> or #${channel} on libera.chat network</div>
-<div>How to watch/participate: ${base-url}${year}</div>
+<div>Watch/participate: ${watch}</div>
+<div>IRC: ${irc-nick-details} https://chat.emacsconf.org/#/connect?join=emacsconf-${track-id} or #emacsconf-${track-id} on libera.chat network</div>
 <div>Guidelines for conduct: ${base-url}conduct</div>
 <div>See end of file for license (CC Attribution-ShareAlike 4.0 + GPLv3 or later)</div>
 <div>----------------------------------------------------------------</div>
+<div>Notes and links:</div>
+<ul>${notes}</ul>
+<div>----------------------------------------------------------------</div>
 <div>Questions and discussion go here:</div>
-<ul><li>Q1. </li><li>Q2. </li><li>Q3. </li><li>Q4. </li><li>Q5. </li><li>Q6. </li><li></li><li></li><li></li></ul>
+<ul>${questions}</ul>
 <div>----------------------------------------------------------------</div>
 ${next-talk-list}
+<div>----------------------------------------------------------------</div>
 <div>This pad will be archived at ${base-url}${url} after the conference.</div>
 <div>Except where otherwise noted, the material on the EmacsConf pad are dual-licensed under the terms of the Creative Commons Attribution-ShareAlike 4.0 International Public License; and the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) an later version. Copies of these two licenses are included in the EmacsConf wiki repository, in the COPYING.GPL and COPYING.CC-BY-SA files (https://emacsconf.org/COPYING/)</div>
 

@@ -75,6 +75,9 @@
   :type 'file
   :group 'emacsconf)
 
+(defvar emacsconf-stream-base "https://live0.emacsconf.org/")
+(defvar emacsconf-chat-base "https://chat.emacsconf.org/")
+
 (defcustom emacsconf-download-directory "~/Downloads"
   "Directory to check for downloaded files."
   :type 'directory
@@ -911,5 +914,14 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
             '((emacsconf-pad-api-key . etherpad_api_key)
               (emacsconf-pad-base . etherpad_url))))))
 ;; (emacsconf-ansible-load-vars (expand-file-name "prod-vars.yml" emacsconf-ansible-directory))
+;;; Tracks
+(defvar emacsconf-tracks '((:name "General" :color "peachpuff" :id "gen")
+                           (:name "Development" :color "skyblue" :id "dev")))
+
+(defun emacsconf-get-track (name)
+  (seq-find (lambda (track) (string= name (plist-get track :name))) emacsconf-tracks))
+
+
+
 (provide 'emacsconf)
 ;;; emacsconf.el ends here
