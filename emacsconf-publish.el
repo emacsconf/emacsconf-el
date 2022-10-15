@@ -681,7 +681,7 @@ Entries are sorted chronologically, with different tracks interleaved."
 (defun emacsconf-format-main-schedule (info)
   (let* ((cancelled (seq-filter (lambda (o) (string= (plist-get o :status) "CANCELLED")) info)))
     (concat
-     (mapconcat #'emacsconf-publish-sched-directive o (emacsconf-active-talks info) "\n")
+     (mapconcat #'emacsconf-publish-sched-directive (emacsconf-active-talks info) "\n")
      "\n"
      (if (> (length cancelled) 0)
          (format "<div class=\"cancelled\">Cancelled:<ul>%s</ul></div>"
