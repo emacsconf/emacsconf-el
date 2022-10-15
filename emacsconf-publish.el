@@ -610,6 +610,7 @@ Entries are sorted chronologically, with different tracks interleaved."
        "This is a *DRAFT* schedule.\n"
        (let ((emacsconf-publishing-phase 'schedule))
          (emacsconf-publish-format-interleaved-schedule info)))))
+  (emacsconf-publish-watch-pages)
   (magit-status-setup-buffer emacsconf-directory))
 
 (defun emacsconf-format-talk-link (talk)
@@ -684,9 +685,7 @@ Entries are sorted chronologically, with different tracks interleaved."
      "\n"
      (if (> (length cancelled) 0)
          (format "<div class=\"cancelled\">Cancelled:<ul>%s</ul></div>"
-                 (mapconcat (lambda (talk) (format "<li><a href=\"/%s/talks/%s\">%s</a> - %s</li>"
-                                                   emacsconf-year
-                                                   (plist-get talk :slug)
+                 (mapconcat (lambda (talk) (format "<li>%s - %s</li>"
                                                    (plist-get talk :title)
                                                    (plist-get talk :speakers)))
                             cancelled "\n"))
