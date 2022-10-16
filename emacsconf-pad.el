@@ -22,7 +22,7 @@
 
 ;; Prepopulate the Etherpad
 
-(defcustom emacsconf-pad-base "http://pad.emacsconf.org/"
+(defcustom emacsconf-pad-base "https://pad.emacsconf.org/"
   "Base URL for the Etherpad. Include trailing slash.
 Use \"wikimedia\" to use etherpad.wikimedia.org instead."
   :group 'emacsconf
