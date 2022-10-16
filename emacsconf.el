@@ -130,7 +130,7 @@
       (`ascii (format "%s (%s)" desc path))
       (`markdown
        (format "[[%s|%s/talks/%s]]" desc emacsconf-year link))
-      (t path))))
+      (_ path))))
 
 (with-eval-after-load 'org
   (org-link-set-parameters
@@ -194,9 +194,8 @@
      (emacsconf-go-to-talk ,search)
      ,@body))
 
-(defun emacsconf-status-types ()
-  ;; TODO
-  )
+(defvar emacsconf-status-types
+  '(("WAITING_FOR_PREREC" . "Waiting for video from speaker")))
 
 (defun emacsconf-get-talk-categories (o)
   (org-narrow-to-subtree)
@@ -356,7 +355,7 @@
 (defun emacsconf-add-talk-status (o)
   (plist-put o :status-label
              (assoc-default (plist-get o :status) 
-                            (emacsconf-status-types) 'string= "")))
+                            emacsconf-status-types 'string= "")))
 
 (defvar emacsconf-talk-info-functions
   '(emacsconf-get-talk-info-from-properties
@@ -751,25 +750,24 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
   (format-time-string "%z" (date-to-time emacsconf-date) emacsconf-timezone)
   "Timezone offset for `emacsconf-timezone' on `emacsconf-date'.")
 
-(defun emacsconf-timezone-strings (o)
+(defun emacsconf-timezone-string (o tz)
   (let* ((timestamp (org-timestamp-from-string (plist-get o :scheduled)))
          (start (org-timestamp-to-time (org-timestamp-split-range timestamp)))
          (end (org-timestamp-to-time (org-timestamp-split-range timestamp t))))
-    (mapcar
-     (lambda (tz)
-       (if (string= tz "UTC")
-           (format "%s - %s "
-                   (format-time-string "%A, %b %-e %Y, ~%-l:%M %p"
-                                       start tz)
-                   (format-time-string "%-l:%M %p %Z"
-                                       end tz))
-         (format "%s - %s (%s)"
-                 (format-time-string "%A, %b %-e %Y, ~%-l:%M %p"
-                                     start tz)
-                 (format-time-string "%-l:%M %p %Z"
-                                     end tz)
-                 tz)))
-     emacsconf-timezones)))
+    (if (string= tz "UTC")
+        (format "%s - %s "
+                (format-time-string "%A, %b %-e %Y, ~%-l:%M %p"
+                                    start tz)
+                (format-time-string "%-l:%M %p %Z"
+                                    end tz))
+      (format "%s - %s (%s)"
+              (format-time-string "%A, %b %-e %Y, ~%-l:%M %p"
+                                  start tz)
+              (format-time-string "%-l:%M %p %Z"
+                                  end tz)
+              tz))))
+(defun emacsconf-timezone-strings (o &optional timezones)
+  (mapcar (lambda (tz) (emacsconf-timezone-string o tz)) (or timezones emacsconf-timezones)))
 
 (defun emacsconf-convert-from-timezone (timezone time)
   (interactive (list (completing-read "From zone: " tzc-time-zones)
@@ -921,7 +919,22 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
 (defun emacsconf-get-track (name)
   (seq-find (lambda (track) (string= name (plist-get track :name))) emacsconf-tracks))
 
+(defun emacsconf-by-track (info)
+  (mapcar (lambda (track)
+            (seq-filter
+             (lambda (talk)
+               (string= (plist-get talk :track) (plist-get track :name)))
+             info))
+          emacsconf-tracks))
 
+(defun emacsconf-by-day (info)
+  (seq-group-by (lambda (o)
+                  (format-time-string "%Y-%m-%d" (plist-get o :start-time) emacsconf-timezone))
+                (sort (seq-filter (lambda (o)
+                                    (or (plist-get o :slug)
+                                        (plist-get o :include-in-info)))
+                                  info)
+                      #'emacsconf-sort-by-scheduled)))
 
 (provide 'emacsconf)
 ;;; emacsconf.el ends here

@@ -43,12 +43,14 @@ Each function should take the info and manipulate it as needed, returning the ne
 
 (defvar emacsconf-schedule-break-time 10 "Number of minutes for break.")
 (defvar emacsconf-schedule-lunch-time 45 "Number of minutes for lunch.")
+(defvar emacsconf-schedule-start-time "09:00:00")
+(defvar emacsconf-schedule-end-time "17:30:00")
 
 (defun emacsconf-schedule-override-breaks (info)
   (mapcar (lambda (o)
-            (when (string-match "BREAK" (plist-get o :title))
+            (when (string-match "BREAK" (or (plist-get o :title) ""))
               (plist-put o :time (number-to-string emacsconf-schedule-break-time)))
-            (when (string-match "LUNCH" (plist-get o :title))
+            (when (string-match "LUNCH" (or (plist-get o :title) ""))
               (plist-put o :time (number-to-string emacsconf-schedule-lunch-time)))
             o)
           info))
@@ -231,51 +233,55 @@ Each function should take the info and manipulate it as needed, returning the ne
        (let* ((offset (floor (* scale (float-time (time-subtract (plist-get o :start-time) start-time)))))
               (size (floor (* scale (float-time (time-subtract (plist-get o :end-time) (plist-get o :start-time))))))
               (x (+ base-x offset))
-              (y base-y))
+              (y base-y)
+              (node (dom-node
+                     'rect
+                     `((x . ,x)
+                       (y . ,y)
+                       (opacity . "0.8")
+                       (width . ,size)
+                       (height . ,(1- height))
+                       (stroke . "black")
+                       (stroke-dasharray . 
+                                         ,(if (string-match "live" (or (plist-get o :q-and-a) "live"))
+                                              ""
+                                            "5,5,5"
+                                            ))
+                       (fill . ,(cond
+                                 ((string-match "BREAK\\|LUNCH" (plist-get o :title)) "white")
+                                 ((plist-get o :invalid) "red")
+                                 ((string-match "EST"
+                                                (or (plist-get o :availability) ""))
+                                  "lightgray")
+                                 (t "lightgreen"))))))
+              (parent (dom-node
+                       'a
+                       `((href . ,(concat "/" (plist-get o :url)))
+                         (title . ,(plist-get o :title)))
+                       (dom-node 'title nil
+                                  (concat (format-time-string "%l:%M-" (plist-get o :start-time) emacsconf-timezone)
+                                          (format-time-string "%l:%M " (plist-get o :end-time) emacsconf-timezone)
+                                          (plist-get o :title)))
+                       node
+                       (dom-node
+                        'g
+                        `((transform . ,(format "translate(%d,%d)"
+                                                (+ x size -2) (+ y height -2))))
+                        (dom-node
+                         'text
+                         '((fill . "black")
+                           (x . 0)
+                           (y . 0)
+                           (font-size . 10)
+                           (transform . "rotate(-90)"))
+                         (svg--encode-text (or (plist-get o :slug) (plist-get o :title))))))))
+         (run-hook-with-args
+          'emacsconf-schedule-svg-modify-functions
+          o node parent)
          (dom-append-child
           svg
-          (dom-node
-           'a
-           `((href . ,(concat "/" (plist-get o :url)))
-             (title . ,(plist-get o :title)))
-           (dom-node 'title nil (plist-get o :title))
-           (let ((node (dom-node
-                        'rect
-                        `((x . ,x)
-                          (y . ,y)
-                          (opacity . "0.8")
-                          (width . ,size)
-                          (height . ,(1- height))
-                          (stroke . "black")
-                          (stroke-dasharray . 
-                                            ,(if (string-match "live" (or (plist-get o :q-and-a) "live"))
-                                                 ""
-                                               "5,5,5"
-                                               ))
-                          (fill . ,(cond
-                                    ((string-match "BREAK\\|LUNCH" (plist-get o :title)) "white")
-                                    ((plist-get o :invalid) "red")
-                                    ((string-match "EST"
-                                                   (or (plist-get o :availability) ""))
-                                     "lightgray")
-                                    (t "lightgreen")))))))
-             (run-hook-with-args
-              'emacsconf-schedule-svg-modify-functions
-              o node)
-             node)
-           (dom-node
-            'g
-             `((transform . ,(format "translate(%d,%d)"
-                                     (+ x size -2) (+ y height -2))))
-             (dom-node
-              'text
-               '((fill . "black")
-                 (x . 0)
-                 (y . 0)
-                 (font-size . 10)
-                 (transform . "rotate(-90)"))
-                (svg--encode-text (or (plist-get o :slug) (plist-get o :title)))))))))
-    info)))
+          parent)))
+     info)))
 
 (defun emacsconf-schedule-svg-day (elem label width height start end tracks)
   (let* ((label-margin 15)
@@ -317,15 +323,7 @@ Each function should take the info and manipulate it as needed, returning the ne
         (setq time (time-add time (seconds-to-time 3600)))))
     elem))
 
-(defun emacsconf-by-tracks (info)
-  (mapcar (lambda (track)
-            (seq-filter
-             (lambda (talk)
-               (string= (plist-get talk :track) (plist-get track :name)))
-             info))
-          emacsconf-tracks))
-
-(defun emacsconf-schedule-svg-color-by-track (o node)
+(defun emacsconf-schedule-svg-color-by-track (o node &optional parent)
   (let ((track (emacsconf-get-track (plist-get o :track))))
     (when track
       (dom-set-attribute node 'fill (plist-get track :color)))))
@@ -342,17 +340,12 @@ Each function should take the info and manipulate it as needed, returning the ne
     (emacsconf-schedule-svg-days
      width height
      (mapcar (lambda (o)
-               (let ((start (concat (car o) "T09:00:00" emacsconf-timezone-offset))
-                     (end (concat (car o) "T17:00:00" emacsconf-timezone-offset)))
+               (let ((start (concat (car o) "T" emacsconf-schedule-start-time emacsconf-timezone-offset))
+                     (end (concat (car o) "T" emacsconf-schedule-end-time emacsconf-timezone-offset)))
                  (list :label (format-time-string "%A" (date-to-time (car o)))
                        :start start
                        :end end
-                       :tracks (mapcar (lambda (track)
-                                         (seq-filter
-                                          (lambda (talk)
-                                            (string= (plist-get talk :track) (plist-get track :name)))
-                                          (cdr o)))
-                                       emacsconf-tracks))))
+                       :tracks (emacsconf-by-track (cdr o)))))
              days))))
 
 (defun emacsconf-schedule-svg-days (width height days)
@@ -410,11 +403,12 @@ Each function should take the info and manipulate it as needed, returning the ne
 (defun emacsconf-schedule-allocate-buffer-time (info)
   (mapcar (lambda (o)
             (when (plist-get o :slug)
-              (plist-put o :buffer
-                         (number-to-string 
-                          (if (string-match "live" (plist-get o :q-and-a))
-                              emacsconf-schedule-default-buffer-minutes-for-live-q-and-a
-                            emacsconf-schedule-default-buffer-minutes))))
+              (unless (plist-get o :buffer)
+                (plist-put o :buffer
+                           (number-to-string 
+                            (if (string-match "live" (plist-get o :q-and-a))
+                                emacsconf-schedule-default-buffer-minutes-for-live-q-and-a
+                              emacsconf-schedule-default-buffer-minutes)))))
             o)
           info))
 
@@ -565,7 +559,7 @@ Both start and end time are tested."
                                                         track))
                                    schedule)
                      ;; start and end regexp
-                     (apply #'emacsconf-schedule-get-subsequence schedule track)))
+                     (apply #'emacsconf-schedule-get-subsequence schedule (plist-get track :start) (plist-get track :end))))
                  (plist-get day :tracks)))
      day)
    tracks))

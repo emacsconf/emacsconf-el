@@ -87,10 +87,14 @@
       (magit-status emacsconf-directory))))
 
 (defun emacsconf-update-schedules-in-wiki ()
-  (emacsconf-generate-info-pages)
-  (emacsconf-generate-main-schedule)
-  (emacsconf-generate-ical)
-  (emacsconf-pentabarf-generate))
+  (interactive)
+  (emacsconf-publish-with-wiki-change
+    (emacsconf-generate-info-pages)
+    (emacsconf-generate-main-schedule)
+    (emacsconf-generate-ical)
+    (emacsconf-publish-watch-pages)
+    (when (functionp 'emacsconf-pentabarf-generate)
+      (emacsconf-pentabarf-generate))))
 
 (defun emacsconf-update-and-publish ()
   (interactive)
@@ -389,8 +393,8 @@ resources."
      (format "<div class=\"schedule-in-context schedule-svg-container\" data-slug=\"%s\">\n" (plist-get talk :slug))
      (let* ((width 800) (height 150)
             (talk-date (format-time-string "%Y-%m-%d" (plist-get talk :start-time) emacsconf-timezone))
-            (start (date-to-time (concat talk-date "T09:00:00" emacsconf-timezone-offset)))
-            (end (date-to-time (concat talk-date "T17:00:00" emacsconf-timezone-offset)))
+            (start (date-to-time (concat talk-date "T" emacsconf-schedule-start-time emacsconf-timezone-offset)))
+            (end (date-to-time (concat talk-date "T" emacsconf-schedule-end-time emacsconf-timezone-offset)))
             (emacsconf-schedule-svg-modify-functions
              (append
               emacsconf-schedule-svg-modify-functions  
@@ -578,9 +582,11 @@ Entries are sorted chronologically, with different tracks interleaved."
          (width 600))
     (mapconcat (lambda (day)
                  (let ((day-start (date-to-time
-					                         (concat (format-time-string "%Y-%m-%dT09:00" (plist-get (cadr day) :start-time))
+					                         (concat (format-time-string "%Y-%m-%dT" (plist-get (cadr day) :start-time) emacsconf-timezone)
+                                           emacsconf-schedule-start-time
 						                               emacsconf-timezone-offset)))
-			                 (day-end (date-to-time (concat (format-time-string "%Y-%m-%dT17:00" (plist-get (cadr day) :start-time))
+			                 (day-end (date-to-time (concat (format-time-string "%Y-%m-%dT" (plist-get (cadr day) :start-time) emacsconf-timezone)
+                                                      emacsconf-schedule-end-time
 							                                        emacsconf-timezone-offset))))
                    (concat
                     (if (> (length links) 1) (concat "Jump to: " (string-join links " - ")) "")
@@ -1190,8 +1196,8 @@ Entries are sorted chronologically, with different tracks interleaved."
         (svg-print (emacsconf-schedule-svg 800 300 (emacsconf-get-talk-info)))
         (insert "</div>"))
       (mapc (lambda (day)
-              (let ((start (date-to-time (concat (car day) "T09:00:00" emacsconf-timezone-offset)))
-                    (end (date-to-time (concat (car day) "T17:00:00" emacsconf-timezone-offset))))
+              (let ((start (date-to-time (concat (car day) "T" emacsconf-schedule-start-time emacsconf-timezone-offset)))
+                    (end (date-to-time (concat (car day) "T" emacsconf-schedule-end-time emacsconf-timezone-offset))))
                 (with-temp-file (expand-file-name (concat "schedule-" (car day) ".md") year-dir)
                   (insert "<div class=\"schedule-svg-container\">")
                   (svg-print (emacsconf-schedule-svg-day
