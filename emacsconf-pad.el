@@ -136,9 +136,14 @@ You can find it in $ETHERPAD_PATH/APIKEY.txt"
    (append (list :base-url emacsconf-base-url
                  :channel (concat "emacsconf-" (plist-get (emacsconf-get-track (plist-get o :track)) :id))
                  :bbb-info
-                 (if (plist-get o :bbb-room)
-                     (concat "<div>Q&amp;A room: ${bbb-room}</div>")
-                   "")
+                 (cond
+                  ((plist-get o :bbb-room)
+                   (concat "<div>Q&amp;A room: ${bbb-room}</div>"))
+                  ((null (plist-get o :q-and-a))
+                   "<div>Q&amp;A: none</div>")
+                  ((string-match "live" (plist-get o :q-and-a))
+                   "<div>Q&amp;A room: to be announced</div>")
+                  (t "<div>Q&amp;A: IRC</div>"))
                  :next-talk-list
                  (if (plist-get o :next-talks)
                      (concat "<div>Next talks:\n<ul>"
@@ -162,6 +167,8 @@ You can find it in $ETHERPAD_PATH/APIKEY.txt"
                  (string-join (make-list 6 "<li></li>"))
                  :questions
                  (string-join (make-list 6 "<li>Q: <ul><li>A: </li></ul></li>"))
+                 :conf-pad-url
+                 (concat "https://pad.emacsconf.org/" emacsconf-year)
                  :irc-nick-details
                  (if (plist-get o :irc)
                      (concat "Speaker nick: " (plist-get o :irc) " - ")
@@ -174,23 +181,54 @@ You can find it in $ETHERPAD_PATH/APIKEY.txt"
 <div>${base-url}${url} - ${speakers} - Track: ${track}</div>
 ${bbb-info}
 <div>Watch/participate: ${watch}</div>
-<div>IRC: ${irc-nick-details} https://chat.emacsconf.org/#/connect?join=emacsconf-${track-id} or #emacsconf-${track-id} on libera.chat network</div>
+<div>IRC: ${irc-nick-details} https://chat.emacsconf.org/#/connect?join=emacsconf,emacsconf-${track-id} or #emacsconf-${track-id} on libera.chat network</div>
 <div>Guidelines for conduct: ${base-url}conduct</div>
 <div>See end of file for license (CC Attribution-ShareAlike 4.0 + GPLv3 or later)</div>
 <div>----------------------------------------------------------------</div>
-<div>Notes and links:</div>
+<div>Notes, discussions, links, feedback:</div>
 <ul>${notes}</ul>
 <div>----------------------------------------------------------------</div>
-<div>Questions and discussion go here:</div>
+<div>Questions and answers go here:</div>
 <ul>${questions}</ul>
 <div>----------------------------------------------------------------</div>
 ${next-talk-list}
+<div>Questions/comments related to EmacsConf ${year} as a whole? ${conf-pad-url}
 <div>----------------------------------------------------------------</div>
 <div>This pad will be archived at ${base-url}${url} after the conference.</div>
 <div>Except where otherwise noted, the material on the EmacsConf pad are dual-licensed under the terms of the Creative Commons Attribution-ShareAlike 4.0 International Public License; and the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) an later version. Copies of these two licenses are included in the EmacsConf wiki repository, in the COPYING.GPL and COPYING.CC-BY-SA files (https://emacsconf.org/COPYING/)</div>
 
 <div>By contributing to this pad, you agree to make your contributions available under the above licenses. You are also promising that you are the author of your changes, or that you copied them from a work in the public domain or a work released under a free license that is compatible with the above two licenses. DO NOT SUBMIT COPYRIGHTED WORK WITHOUT PERMISSION.</div></div>"))
 
+(defun emacsconf-pad-prepopulate-main-pad ()
+  (interactive)
+  (let ((pad-id emacsconf-year))
+    (emacsconf-pad-create-pad pad-id)
+    (emacsconf-pad-set-html
+     pad-id
+     (emacsconf-replace-plist-in-string
+      (list
+       :base-url emacsconf-base-url
+       :notes (string-join (make-list 6 "<li></li>"))
+       :questions
+       (string-join (make-list 6 "<li>Q: <ul><li>A: </li></ul></li>"))
+       :year emacsconf-year)
+      "<div><strong>EmacsConf ${year}</strong> - this pad is for general conference-related questions and feedback</div>
+<div>All talks: ${base-url}${year}/talks - see specific talk pages for links to their Etherpads</div>
+<div>Conference hallway IRC channel: https://chat.emacsconf.org/#/connect?join=emacsconf or #emacsconf on libera.chat network</div>
+<div>Organizers channel: https://chat.emacsconf.org/#/connect?join=emacsconf,emacsconf-org or #emacsconf-org on libera.chat network</div>
+<div>Guidelines for conduct: ${base-url}conduct</div>
+<div>See end of file for license (CC Attribution-ShareAlike 4.0 + GPLv3 or later)</div>
+<div>----------------------------------------------------------------</div>
+<div>Notes, discussions, links, feedback: </div>
+<ul>${notes}</ul>
+<div>----------------------------------------------------------------</div>
+<div>Questions and answers go here:</div>
+<ul>${questions}</ul>
+<div>----------------------------------------------------------------</div>
+<div>This pad will be archived at ${base-url}${url} after the conference.</div>
+<div>Except where otherwise noted, the material on the EmacsConf pad are dual-licensed under the terms of the Creative Commons Attribution-ShareAlike 4.0 International Public License; and the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) an later version. Copies of these two licenses are included in the EmacsConf wiki repository, in the COPYING.GPL and COPYING.CC-BY-SA files (https://emacsconf.org/COPYING/)</div>
+
+<div>By contributing to this pad, you agree to make your contributions available under the above licenses. You are also promising that you are the author of your changes, or that you copied them from a work in the public domain or a work released under a free license that is compatible with the above two licenses. DO NOT SUBMIT COPYRIGHTED WORK WITHOUT PERMISSION.</div></div>"))))
 (defun emacsconf-pad-prepopulate-talk-pad (o)
   (interactive (list (let ((info (emacsconf-include-next-talks (emacsconf-get-talk-info) emacsconf-pad-number-of-next-talks)))
                        (emacsconf-complete-talk-info info))))
