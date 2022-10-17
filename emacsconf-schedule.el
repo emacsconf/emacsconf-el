@@ -236,32 +236,35 @@ Each function should take the info and manipulate it as needed, returning the ne
               (y base-y)
               (node (dom-node
                      'rect
-                     `((x . ,x)
-                       (y . ,y)
-                       (opacity . "0.8")
-                       (width . ,size)
-                       (height . ,(1- height))
-                       (stroke . "black")
-                       (stroke-dasharray . 
-                                         ,(if (string-match "live" (or (plist-get o :q-and-a) "live"))
-                                              ""
-                                            "5,5,5"
-                                            ))
-                       (fill . ,(cond
-                                 ((string-match "BREAK\\|LUNCH" (plist-get o :title)) "white")
-                                 ((plist-get o :invalid) "red")
-                                 ((string-match "EST"
-                                                (or (plist-get o :availability) ""))
-                                  "lightgray")
-                                 (t "lightgreen"))))))
+                     (list
+                      (cons 'x x)
+                      (cons 'y y)
+                      (cons 'opacity "0.8")
+                      (cons 'width size)
+                      (cons 'height (1- height))
+                      (cons 'stroke "black")
+                      (cons 'stroke-dasharray
+                            (if (string-match "live" (or (plist-get o :q-and-a) "live"))
+                                ""
+                              "5,5,5"))
+                      (cons 'fill
+                            (cond
+                             ((string-match "BREAK\\|LUNCH" (plist-get o :title)) "white")
+                             ((plist-get o :invalid) "red")
+                             ((string-match "EST"
+                                            (or (plist-get o :availability) ""))
+                              "lightgray")
+                             (t "lightgreen"))))))
               (parent (dom-node
                        'a
-                       `((href . ,(concat "/" (plist-get o :url)))
-                         (title . ,(plist-get o :title)))
+                       (list
+                        (cons 'href (concat "/" (plist-get o :url)))
+                        (cons 'title (plist-get o :title))
+                        (cons 'data-slug (plist-get o :slug)))
                        (dom-node 'title nil
-                                  (concat (format-time-string "%l:%M-" (plist-get o :start-time) emacsconf-timezone)
-                                          (format-time-string "%l:%M " (plist-get o :end-time) emacsconf-timezone)
-                                          (plist-get o :title)))
+                                 (concat (format-time-string "%l:%M-" (plist-get o :start-time) emacsconf-timezone)
+                                         (format-time-string "%l:%M " (plist-get o :end-time) emacsconf-timezone)
+                                         (plist-get o :title)))
                        node
                        (dom-node
                         'g
@@ -269,11 +272,12 @@ Each function should take the info and manipulate it as needed, returning the ne
                                                 (+ x size -2) (+ y height -2))))
                         (dom-node
                          'text
-                         '((fill . "black")
-                           (x . 0)
-                           (y . 0)
-                           (font-size . 10)
-                           (transform . "rotate(-90)"))
+                         (list
+                          (cons 'fill "black")
+                          (cons 'x 0)
+                          (cons 'y 0)
+                          (cons 'font-size 10)
+                          (cons 'transform "rotate(-90)"))
                          (svg--encode-text (or (plist-get o :slug) (plist-get o :title))))))))
          (run-hook-with-args
           'emacsconf-schedule-svg-modify-functions
