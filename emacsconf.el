@@ -195,7 +195,20 @@
      ,@body))
 
 (defvar emacsconf-status-types
-  '(("WAITING_FOR_PREREC" . "Waiting for video from speaker")))
+  '(("WAITING_FOR_PREREC" . "Waiting for video from speaker")
+    ("TO_PROCESS" . "Processing uploaded video")
+    ("TO_AUTOCAP" . "Processing uploaded video")
+    ("TO_ASSIGN" . "Waiting for a caption volunteer")
+    ("TO_CAPTION" . "Processing uploaded video")
+    ("TO_STREAM" . "Talk captioned")
+    ("PLAYING" . "Now playing on the conference livestream")
+    ("CLOSED_Q" . "Q&A starting (not yet open for joining)")
+    ("OPEN_Q" . "Q&A open for participation")
+    ("UNSTREAMED_Q" . "Q&A continues off the stream")
+    ("TO_ARCHIVE" . "Q&A finished, IRC and pad will be archived on this page")
+    ("TO_EXTRACT" . "Q&A to be extracted from the room recordings")
+    ("DONE" . "All done")
+    ("CANCELLED" . "Talk cancelled")))
 
 (defun emacsconf-get-talk-categories (o)
   (org-narrow-to-subtree)
@@ -211,8 +224,7 @@
                        (:track "TRACK")
                        (:slug "SLUG")
                        (:video-slug "VIDEO_SLUG")
-                       (:public "PUBLIC")
-                       (:qa-public "QA_PUBLIC")
+                       (:qa-public "QA_PUBLIC") ; now tracked by the OPEN_Q and UNSTREAMED_Q status
                        (:scheduled "SCHEDULED")
                        (:uuid "UUID")
                        (:email "EMAIL")
@@ -223,6 +235,7 @@
                        (:bbb-room "ROOM")
                        (:irc "IRC")
                        (:intro-note "INTRO_NOTE")
+                       (:public "PUBLIC")
                        (:check-in "CHECK_IN")
                        (:contact "CONTACT")
                        (:captioner "CAPTIONER")
@@ -232,6 +245,7 @@
                        (:qa-toobnix "QA_TOOBNIX")
                        (:pronunciation "PRONUNCIATION")
                        (:pronouns "PRONOUNS")
+                       (:prerec-info "PREREC_INFO")
                        (:public-email "PUBLIC_EMAIL")
                        (:buffer "BUFFER")
                        (:duration "TIME")
@@ -263,25 +277,27 @@
                        (concat (org-entry-get (point) "SLUG") ".md")
                        (expand-file-name "captions" (expand-file-name emacsconf-year emacsconf-directory)))
       :conf-year emacsconf-year
+      :bbb-redirect (format "https://emacsconf.org/current/%s/room/" (org-entry-get (point) "SLUG"))
+      :pad-url (format "https://pad.emacsconf.org/%s-%s" emacsconf-year (org-entry-get (point) "SLUG"))
       :start-time (when (org-entry-get (point) "SCHEDULED")
-		    (date-to-time
-		     (concat
-		      (format-time-string "%Y-%m-%dT%H:%M:%S"
-					  (org-timestamp-to-time
-					   (org-timestamp-split-range
-					    (org-timestamp-from-string
-					     (org-entry-get (point) "SCHEDULED")))))
-		      emacsconf-timezone-offset)))
+		                (date-to-time
+		                 (concat
+		                  (format-time-string "%Y-%m-%dT%H:%M:%S"
+					                                (org-timestamp-to-time
+					                                 (org-timestamp-split-range
+					                                  (org-timestamp-from-string
+					                                   (org-entry-get (point) "SCHEDULED")))))
+		                  emacsconf-timezone-offset)))
       :end-time (when (org-entry-get (point) "SCHEDULED")
-		  (date-to-time
-		   (concat
-		    (format-time-string "%Y-%m-%dT%H:%M:%S"
-					(org-timestamp-to-time
-					 (org-timestamp-split-range
-					  (org-timestamp-from-string
-					   (org-entry-get (point) "SCHEDULED"))
-					  t)))
-		    emacsconf-timezone-offset))))
+		              (date-to-time
+		               (concat
+		                (format-time-string "%Y-%m-%dT%H:%M:%S"
+					                              (org-timestamp-to-time
+					                               (org-timestamp-split-range
+					                                (org-timestamp-from-string
+					                                 (org-entry-get (point) "SCHEDULED"))
+					                                t)))
+		                emacsconf-timezone-offset))))
      (let* ((entry-props (org-entry-properties)))
        (mapcar 
         (lambda (o) (list (car o) (assoc-default (cadr o) entry-props)))
@@ -354,8 +370,29 @@
 
 (defun emacsconf-add-talk-status (o)
   (plist-put o :status-label
-             (assoc-default (plist-get o :status) 
-                            emacsconf-status-types 'string= "")))
+             (or (assoc-default (plist-get o :status) 
+                                emacsconf-status-types 'string= "")
+                 (plist-get o :status)))
+  (if (member (plist-get o :status)
+              (split-string "PLAYING CLOSED_Q OPEN_Q UNSTREAMED_Q TO_ARCHIVE TO_EXTRACT TO_FOLLOW_UP"))
+      (plist-put o :public t))
+  o)
+
+(defun emacsconf-test-public-states ()
+  (let ((states (split-string (replace-regexp-in-string "(.*?)" "" "TODO(t) TO_REVIEW TO_ACCEPT TO_CONFIRM WAITING_FOR_PREREC(w) TO_PROCESS(p) TO_AUTOCAP(y) TO_ASSIGN(a) TO_CAPTION(c) TO_STREAM(s) PLAYING(m) CLOSED_Q(q) OPEN_Q(o) UNSTREAMED_Q(u) TO_ARCHIVE TO_EXTRACT TO_FOLLOW_UP"))))
+    (mapc (lambda (state) (assert (null (plist-get (emacsconf-add-talk-status
+                                                    (list :status state))
+                                                   :public))))
+          (subseq states
+                  0
+                  (seq-position
+                   states "PLAYING")))
+    (mapc (lambda (state) (assert (plist-get (emacsconf-add-talk-status (list
+                                                                         :status
+                                                                         state))
+                                             :public)))
+          (subseq states (seq-position
+                          states "PLAYING")))))
 
 (defvar emacsconf-talk-info-functions
   '(emacsconf-get-talk-info-from-properties
@@ -556,182 +593,6 @@
     ("RET" emacsconf-go-to-talk))
   (add-to-list 'embark-keymap-alist '(emacsconf . embark-emacsconf-actions)))
 
-;;; Mail merge
-
-(defun emacsconf-mail-complete-email-group (&optional info)
-  "Return (email . (talk talk))."
-  (setq info (emacsconf-filter-talks (or info (emacsconf-get-talk-info))))
-  (save-window-excursion
-    (let* ((grouped (seq-group-by (lambda (o) (plist-get o :email)) info))
-           (slug (emacsconf-get-slug-from-string (emacsconf-complete-talk)))
-           (email (plist-get (seq-find (lambda (o) (string= (plist-get o :slug) slug)) info) :email)))
-      (assoc email grouped))))
-
-(defun emacsconf-mail-prepare (template group attrs)
-  (compose-mail
-   (car group)
-   (emacsconf-replace-plist-in-string attrs (plist-get template :subject))
-   `(("Reply-To" . ,(emacsconf-replace-plist-in-string attrs (plist-get template :reply-to)))
-     ("Mail-Followup-To" . ,(emacsconf-replace-plist-in-string attrs (plist-get template :mail-followup-to)))
-     ("Cc" . ,(plist-get template :cc))))
-  (message-sort-headers)
-  (message-goto-body)
-  (save-excursion (insert (emacsconf-replace-plist-in-string attrs (plist-get template :body)))
-                  (goto-char (point-min))
-                  (emacsconf-mail-merge-wrap)))
-
-(defun emacsconf-mail-template-to-me ()
-  "Might be useful for testing."
-  (interactive)
-  (let* ((template (if (org-entry-get (point) "EMAIL_ID")
-                       (emacsconf-mail-merge-get-template-from-subtree)
-                     (emacsconf-mail-merge-get-template
-                      (completing-read "Template: " (org-property-values "EMAIL_ID")))))
-         (mail-func (plist-get template :function))
-         (group (emacsconf-mail-complete-email-group)))
-    (funcall mail-func (cons user-mail-address (cdr group)) template)))
-
-(defun emacsconf-mail-template-to-group ()
-  "Prompt for a speaker and e-mail current template to them."
-  (interactive)
-  (let* ((template (if (org-entry-get (point) "EMAIL_ID")
-                       (emacsconf-mail-merge-get-template-from-subtree)
-                     (emacsconf-mail-merge-get-template
-                      (completing-read "Template: " (org-property-values "EMAIL_ID")))))
-         (mail-func (plist-get template :function)))
-    (funcall mail-func (emacsconf-mail-complete-email-group) template)))
-
-(defun emacsconf-mail-template-to-all ()
-  "Uses the current template to draft messages to all the speakers."
-  (interactive)
-  (let* ((template (if (org-entry-get (point) "EMAIL_ID")
-                       (emacsconf-mail-merge-get-template-from-subtree)
-                     (emacsconf-mail-merge-get-template
-                      (completing-read "Template: " (org-property-values "EMAIL_ID")))))
-         (info (seq-filter (lambda (o)
-                             (if (plist-get template :slugs)
-                                 (member (plist-get o :slug)
-                                         (split-string (plist-get template :slugs) " "))
-                               t))
-                           (emacsconf-filter-talks (emacsconf-get-talk-info))))
-         (grouped (emacsconf-mail-group-by-email info))
-         (mail-func (plist-get template :function)))
-    (mapc (lambda (group)
-            (funcall mail-func group template))
-          grouped)))
-
-(defun emacsconf-mail-group-by-email (info)
-  (seq-group-by (lambda (o) (plist-get o :email)) info))
-
-(defun emacsconf-mail-speaker (&optional subject body)
-  "Compose a message to the speaker of the current talk."
-  (interactive)
-  (compose-mail (format "%s <%s>" (org-entry-get (point) "NAME") (org-entry-get (point) "EMAIL")) subject)
-  (when body (message-goto-body) (insert body)))
-
-(defun emacsconf-mail-speaker-schedule (&optional subject body)
-  (interactive (list (read-string "Subject: ") nil))
-  (let ((info (emacsconf-get-talk-info-for-subtree)))
-    (emacsconf-mail-speaker subject body)
-    (when body (message-goto-body) (insert body))
-    (goto-char (point-max))
-    (insert (string-join (emacsconf-timezone-strings info) "\n"))))
-
-(defvar emacsconf-submit-email "emacsconf-submit@gnu.org" "E-mail address for submissions.")
-
-(defun emacsconf-mail-speaker-cc-submit (&optional subject body)
-  "Compose a message to the speaker of the current talk."
-  (interactive)
-  (compose-mail (format "%s <%s>" (org-entry-get (point) "NAME") (org-entry-get (point) "EMAIL"))
-                subject '(("Reply-To" . emacsconf-submit-email) ("Cc" . emacsconf-submit-email)))
-  (message-goto-body)
-  (when body (insert body))
-  (save-excursion (insert "Please keep " emacsconf-submit-email " in the To: or Cc: when replying. Thank you!")))
-
-(defun emacsconf-show-talk-info-for-mail ()
-  (interactive)
-  (let ((email (or (mail-fetch-field "reply-to") (mail-fetch-field "from"))))
-    (when (string-match "<\\(\\(\\sw\\|\\s_\\|\\s.\\)+@\\(\\sw\\|\\s_\\|\\s.\\)+\\)>" email)
-      (setq email (match-string 1 email)))
-    (pop-to-buffer (find-file-noselect emacsconf-org-file))
-    (goto-char (point-min))
-    (goto-char
-     (or (org-find-property "EMAIL" email)
-         (org-find-property "NAME"
-                            (completing-read "Name: " (delq nil (org-map-entries (lambda () (org-entry-get "NAME"))))))))))
-
-(defun emacsconf-mail-merge-wrap ()
-  (interactive)
-  (with-undo-amalgamate 
-    (save-excursion
-      (while (re-search-forward " *${wrap}" nil t)
-        (replace-match "")
-        (fill-paragraph)))))
-
-(defun emacsconf-mail-merge-get-template-from-subtree ()
-  (list :subject (org-entry-get-with-inheritance "SUBJECT")
-        :cc (org-entry-get-with-inheritance "CC")
-        :slugs (org-entry-get-with-inheritance "SLUGS")
-        :reply-to (or (org-entry-get-with-inheritance "REPLY_TO") (org-entry-get-with-inheritance "REPLY-TO"))
-        :mail-followup-to (or (org-entry-get-with-inheritance "MAIL_FOLLOWUP_TO")
-                              (org-entry-get-with-inheritance "MAIL-FOLLOWUP-TO"))
-        :body (replace-regexp-in-string "\n *," "\n" (buffer-substring-no-properties
-                                                      (progn (org-end-of-meta-data) (point))
-                                                      (org-end-of-subtree)))
-        :function (when (org-entry-get-with-inheritance "FUNCTION")
-                    (intern (org-entry-get-with-inheritance "FUNCTION")))))
-
-(defun emacsconf-mail-merge-get-template (id)
-  "Return the information for the e-mail template with EMAIL_ID set to ID."
-  (save-excursion
-    (goto-char (org-find-property "EMAIL_ID" id))
-    (emacsconf-mail-merge-get-template-from-subtree)))
-
-(defun emacsconf-mail-merge-fill (string)
-  "Fill in the values for STRING using the properties at point.
-Include some other things, too, such as emacsconf-year, title, name, email, url, and duration."
-  (let (start (values `(("year" . ,emacsconf-year)
-                  ("title" . ,(org-entry-get (point) "ITEM"))
-                  ("name" . ,(org-entry-get (point) "NAME"))
-                  ("email" . ,(org-entry-get (point) "EMAIL"))
-                  ("url" . ,(format "%s%s/talks/%s" emacsconf-base-url emacsconf-year (org-entry-get (point) "SLUG")))
-                  ("duration" . ,(org-entry-get (point) "TIME")))))
-    (while (string-match "\\${\\([-a-zA-Z_]+?\\)}" string start)
-      (if (assoc-default (match-string 1 string) values)
-          (setq string (replace-match (assoc-default (match-string 1 string) values) t t string))
-        (setq string (replace-match (save-match-data (org-entry-get (point) (match-string 1 string))) t t string)))
-      (setq start (1+ (match-beginning 0))))
-    string))
-
-(defun emacsconf-mail-merge-format-email-address-for-subtree ()
-  (if (string-match  "," (org-entry-get (point) "EMAIL"))
-      (org-entry-get (point) "EMAIL")
-    (format "%s <%s>" (org-entry-get (point) "NAME") (org-entry-get (point) "EMAIL"))))
-
-(defun emacsconf-mail-merge-for-subtree (id note-field)
-  (let* ((template (emacsconf-mail-merge-get-template id))
-         (body (emacsconf-mail-merge-fill (plist-get template :body)))
-         (subject (emacsconf-mail-merge-fill (plist-get template :subject)))
-         (note (org-entry-get (point) note-field)))
-    (compose-mail (emacsconf-mail-merge-format-email-address-for-subtree)
-                  subject
-                  `(("Reply-To" . ,(plist-get template :reply-to))
-                    ("Mail-Followup-To" . ,(plist-get template :mail-followup-to))
-                    ("Cc" . ,(plist-get template :cc))))
-    (message-goto-body)
-    (save-excursion 
-      (when note (insert "#+NOTE: " note "\n======== Delete above before sending =============\n\n"))
-      (insert body))))
-
-(defun emacsconf-cancel-mail-merge ()
-  (interactive)
-  (mapc (lambda (buffer)
-          (when (string-match "unsent" (buffer-name buffer))
-            (let ((kill-buffer-query-functions nil)
-                  (buffer-modified-p nil))
-              (kill-buffer buffer))))
-        (buffer-list)))
-
 ;;; Status updates
 
 (defun emacsconf-status-update ()
@@ -917,7 +778,9 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
                            (:name "Development" :color "skyblue" :id "dev")))
 
 (defun emacsconf-get-track (name)
-  (seq-find (lambda (track) (string= name (plist-get track :name))) emacsconf-tracks))
+  (seq-find (lambda (track) (or (string= name (plist-get track :name))
+                                (string= name (plist-get track :id))))
+            emacsconf-tracks))
 
 (defun emacsconf-by-track (info)
   (mapcar (lambda (track)
@@ -935,6 +798,93 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
                                         (plist-get o :include-in-info)))
                                   info)
                       #'emacsconf-sort-by-scheduled)))
+
+(defun emacsconf-filter-talks-by-track (track info)
+  (when (stringp track) (setq track (emacsconf-get-track track)))
+  (seq-filter (lambda (o) (string= (plist-get o :track) (plist-get track :name))) info))
+
+(defvar emacsconf-shifts
+  `((:id "sat-am"
+         :label "Sat Dec 3 morning"
+         :start ,(concat "2022-12-03T09:00:00" emacsconf-timezone-offset)
+         :end ,(concat "2022-12-03T12:00:00" emacsconf-timezone-offset))
+    (:id "sat-pm"
+         :label "Sat Dec 3 afternoon"
+         :start ,(concat "2022-12-03T13:00:00" emacsconf-timezone-offset)
+         :end ,(concat "2022-12-03T17:30:00" emacsconf-timezone-offset))
+    (:id "sun-am"
+         :label "Sun Dec 4 morning"
+         :start ,(concat "2022-12-04T09:00:00" emacsconf-timezone-offset)
+         :end ,(concat "2022-12-04T12:00:00" emacsconf-timezone-offset))
+    (:id "sun-pm"
+         :label "Sun Dec 4 afternoon"
+         :start ,(concat "2022-12-04T13:00:00" emacsconf-timezone-offset)
+         :end ,(concat "2022-12-04T17:30:00" emacsconf-timezone-offset))))
+
+(defun emacsconf-filter-talks-by-time (start-time end-time info)
+  "Return talks that are between START-TIME and END-TIME (inclusive) in INFO."
+  (when (stringp start-time) (setq start-time (date-to-time start-time)))
+  (when (stringp end-time) (setq end-time (date-to-time end-time)))
+  (seq-filter (lambda (o)
+                (and (not (time-less-p (plist-get o :start-time) end-time)) 
+                     (not (time-less-p start-time (plist-get o :end-time)))))
+              info))
+
+(defun emacsconf-get-shift (time)
+  "Return the shift that TIME is in."
+  (unless (stringp time)
+    (setq time (format-time-string "%Y-%m-%dT%H:%M:%S%z" time emacsconf-timezone)))
+  (seq-find (lambda (shift)
+              (and (not (string> time (plist-get shift :end)))
+                   (not (string> (plist-get shift :start) time))))
+            emacsconf-shifts))
+
+(defun emacsconf-filter-talks-by-shift (time track info)
+  "Return a list of talks that are in the shift specified by TIME.
+Filter by TRACK if given.  Use INFO as the list of talks."
+  (let* ((shift (emacsconf-get-shift time))
+         (list (emacsconf-filter-talks-by-time (plist-get shift :start) (plist-get shift :end) info)))
+    (if track
+        (emacsconf-filter-talks-by-track track info)
+      list)))
+
+(defun emacsconf-talk-all-done-p (talk)
+  (member (plist-get talk :status) (split-string "TO_ARCHIVE TO_EXTRACT TO_FOLLOW_UP DONE")))
+
+(defun emacsconf-bbb-status (talk)
+  (let ((states
+         '((open . "OPEN_Q UNSTREAMED_Q")
+           (before . "TODO TO_REVIEW TO_ACCEPT WAITING_FOR_PREREC TO_PROCESS TO_AUTOCAP TO_ASSIGN TO_CAPTION TO_STREAM PLAYING CLOSED_Q")
+           (after . "TO_ARCHIVE TO_EXTRACT TO_FOLLOW_UP DONE"))))
+    (if (string-match "live" (or (plist-get talk :q-and-a) ""))
+        (or (car (seq-find (lambda (state)
+                             (member (plist-get talk :status) (split-string (cdr state))))
+                           states))
+            (throw 'error "Unknown talk BBB state"))
+      'irc)))
+
+(defvar emacsconf-bbb-base-url "https://bbb.emacsverse.org/" "Include trailing slash.")
+(defun emacsconf-bbb-room-title-list (&optional info)
+  (delq nil
+        (mapcar
+         (lambda (o)
+           (when (car o)
+             (concat "ec" (substring emacsconf-year 2)
+                     "-" (plist-get (emacsconf-get-shift (plist-get (cadr o) :start-time)) :id)
+                     "-" (plist-get (emacsconf-get-track (plist-get (cadr o) :track)) :id)
+                     " " (car o)
+                     " ("
+                     (mapconcat (lambda (talk) (plist-get talk :slug)) (cdr o) ", ")
+                     ")")))
+         (seq-group-by (lambda (o) (plist-get o :speakers))
+                       (or info (emacsconf-active-talks (emacsconf-filter-talks (emacsconf-get-talk-info))))))))
+
+(defun emacsconf-surround (before text after alternative)
+  "Concat BEFORE, TEXT, and AFTER if TEXT is specified, or return ALTERNATIVE."
+  (if (and text (not (string= text "")))
+      (concat (or before "") text (or after ""))
+    alternative))
+;;
 
 (provide 'emacsconf)
 ;;; emacsconf.el ends here

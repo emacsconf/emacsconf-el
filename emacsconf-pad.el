@@ -119,6 +119,14 @@ You can find it in $ETHERPAD_PATH/APIKEY.txt"
 ;; (emacsconf-pad-get-html "emacsconf-2022-journalism")
 ;; (emacsconf-pad-set-html "emacsconf-2022-journalism" "<div><strong>Hello</strong> world</div>")
 
+(defun emacsconf-pad-get-last-edited (pad-id)
+  (interactive "MPad ID: ")
+  (emacsconf-pad-json-request (format "%sapi/1/getLastEdited?apikey=%s&padID=%s"
+                                      emacsconf-pad-base
+                                      (url-hexify-string emacsconf-pad-api-key)
+                                      (url-hexify-string pad-id))
+                              (called-interactively-p 'any)))
+
 (defun emacsconf-pad-id (o)
   (concat emacsconf-pad-slug-base "-" (plist-get o :slug)))
 
@@ -137,12 +145,10 @@ You can find it in $ETHERPAD_PATH/APIKEY.txt"
                  :channel (concat "emacsconf-" (plist-get (emacsconf-get-track (plist-get o :track)) :id))
                  :bbb-info
                  (cond
-                  ((plist-get o :bbb-room)
-                   (concat "<div>Q&amp;A room: ${bbb-room}</div>"))
                   ((null (plist-get o :q-and-a))
                    "<div>Q&amp;A: none</div>")
                   ((string-match "live" (plist-get o :q-and-a))
-                   "<div>Q&amp;A room: to be announced</div>")
+                   (format "<div>Q&amp;A room: %s</div>" (plist-get o :bbb-redirect)))
                   (t "<div>Q&amp;A: IRC</div>"))
                  :next-talk-list
                  (if (plist-get o :next-talks)
@@ -179,8 +185,8 @@ You can find it in $ETHERPAD_PATH/APIKEY.txt"
 <div>All talks: ${talks}</div>
 <div><strong>${title}</strong></div>
 <div>${base-url}${url} - ${speakers} - Track: ${track}</div>
-${bbb-info}
 <div>Watch/participate: ${watch}</div>
+${bbb-info}
 <div>IRC: ${irc-nick-details} https://chat.emacsconf.org/#/connect?join=emacsconf,emacsconf-${track-id} or #emacsconf-${track-id} on libera.chat network</div>
 <div>Guidelines for conduct: ${base-url}conduct</div>
 <div>See end of file for license (CC Attribution-ShareAlike 4.0 + GPLv3 or later)</div>
@@ -229,18 +235,30 @@ ${next-talk-list}
 <div>Except where otherwise noted, the material on the EmacsConf pad are dual-licensed under the terms of the Creative Commons Attribution-ShareAlike 4.0 International Public License; and the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) an later version. Copies of these two licenses are included in the EmacsConf wiki repository, in the COPYING.GPL and COPYING.CC-BY-SA files (https://emacsconf.org/COPYING/)</div>
 
 <div>By contributing to this pad, you agree to make your contributions available under the above licenses. You are also promising that you are the author of your changes, or that you copied them from a work in the public domain or a work released under a free license that is compatible with the above two licenses. DO NOT SUBMIT COPYRIGHTED WORK WITHOUT PERMISSION.</div></div>"))))
+
+(defvar emacsconf-pad-force-all nil "Set to t to clear everything.")
 (defun emacsconf-pad-prepopulate-talk-pad (o)
   (interactive (list (let ((info (emacsconf-include-next-talks (emacsconf-get-talk-info) emacsconf-pad-number-of-next-talks)))
                        (emacsconf-complete-talk-info info))))
   (let ((pad-id (emacsconf-pad-id o)))
     (emacsconf-pad-create-pad pad-id)
-    (emacsconf-pad-set-html
-     pad-id
-     (emacsconf-pad-initial-content o))))
+    (when (or emacsconf-pad-force-all
+              (not (emacsconf-pad-modified-p pad-id))
+              (progn
+                (browse-url (emacsconf-pad-url o))
+                (y-or-n-p (format "%s might have been modified. Reset? " (plist-get o :slug)))))
+      (emacsconf-pad-set-html
+       pad-id
+       (emacsconf-pad-initial-content o))
+      (save-window-excursion
+        (emacsconf-with-talk-heading (plist-get o :slug)
+          (let-alist (emacsconf-pad-get-last-edited pad-id)
+            (org-entry-put (point) "PAD_RESET" (number-to-string .data.lastEdited))))))))
 
 (defun emacsconf-pad-prepopulate-all-talks (&optional info)
   (interactive)
-  (mapc #'emacsconf-pad-prepopulate-talk-pad (emacsconf-include-next-talks (or info (emacsconf-get-talk-info)) emacsconf-pad-number-of-next-talks)))
+  (mapc #'emacsconf-pad-prepopulate-talk-pad
+          (emacsconf-include-next-talks (or info (emacsconf-get-talk-info)) emacsconf-pad-number-of-next-talks)))
 
 (defun emacsconf-pad-export-initial-content (o file)
   (interactive
@@ -258,6 +276,25 @@ ${next-talk-list}
   (mapcar (lambda (o)
             (emacsconf-pad-export-initial-content o dir))
           (emacsconf-active-talks (emacsconf-filter-talks info))))
+
+(defmacro emacsconf-pad-with-heading (pad-id &rest body)
+  (declare (indent 1) (debug t))
+  `(progn
+     (with-current-buffer (find-file emacsconf-org-file)
+       (goto-char (org-find-property "CUSTOM_ID"
+                                     (if (string-match "^[0-9]+-\\(.*\\)$" ,pad-id)
+                                         (match-string 1 ,pad-id)
+                                       "meta")))
+       ,@body)))
+
+(defun emacsconf-pad-modified-p (pad-id)
+  (save-window-excursion
+    (save-excursion
+      (let ((cached-last-modified (emacsconf-pad-with-heading pad-id (org-entry-get (point) "PAD_RESET")))
+            (result (emacsconf-pad-get-last-edited pad-id)))
+        (let-alist result
+          (not (string= cached-last-modified
+                        (number-to-string .data.lastEdited))))))))
 
 (provide 'emacsconf-pad)
 ;;; emacsconf-pad.el ends here

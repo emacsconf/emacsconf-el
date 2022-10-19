@@ -54,7 +54,7 @@
   "Add the current talk to the wiki."
   (interactive)
   (emacsconf-update-talk)
-  (emacsconf-generate-info-pages)
+  (emacsconf-publish-info-pages)
   (emacsconf-generate-main-schedule)
   (magit-status-setup-buffer emacsconf-directory))
 
@@ -82,7 +82,7 @@
   (when
     (let ((info (emacsconf-get-talk-info))
           (force (or force (yes-or-no-p "Overwrite existing talk pages? "))))
-      (emacsconf-generate-info-pages info)
+      (emacsconf-publish-info-pages info)
       (emacsconf-generate-main-schedule info)
       (emacsconf-generate-talk-pages info force)
       (magit-status emacsconf-directory))))
@@ -90,9 +90,9 @@
 (defun emacsconf-update-schedules-in-wiki ()
   (interactive)
   (emacsconf-publish-with-wiki-change
-    (emacsconf-generate-info-pages)
+    (emacsconf-publish-info-pages)
     (emacsconf-generate-main-schedule)
-    (emacsconf-generate-ical)
+    (emacsconf-ical-generate-all)
     (emacsconf-publish-watch-pages)
     (when (functionp 'emacsconf-pentabarf-generate)
       (emacsconf-pentabarf-generate))))
@@ -322,41 +322,65 @@ resources."
                                      (list "--answers.vtt" "--answers--chapters.vtt" "--answers--compressed32.webm")))
      "")))
 
+(defun emacsconf-publish-webchat-link (o)
+  (let ((track (emacsconf-get-track (plist-get o :track))))
+    (format "<a href=\"%s?join=emacsconf,emacsconf-%s\">#emacsconf-%s</a>"
+            emacsconf-chat-base
+            (plist-get track :id)
+            (plist-get track :id))))
 
+(defvar emacsconf-publish-include-pads nil "When non-nil, include Etherpad info.")
 
 (defun emacsconf-format-talk-schedule-info (o)
   (let ((friendly (concat "/" emacsconf-year "/talks/" (plist-get o :slug) ))
         (timestamp (org-timestamp-from-string (plist-get o :scheduled))))
-    (concat
-     "[[!toc  ]]\n"
-     "Duration: " (or (plist-get o :video-duration)
-                      (concat (plist-get o :duration) " minutes"))
-     "  \n"
-     (if (plist-get o :q-and-a) (format "Q&A: %s  \n" (plist-get o :q-and-a)) "")
-     (if (member emacsconf-publishing-phase '(program schedule)) (concat "Status: " (plist-get o :status-label) "  \n") "")
-     (if (and (member emacsconf-publishing-phase '(program schedule))
-              (not (member (plist-get o :status) '("DONE" "CANCELLED" "STARTED"))))
-         (let ((start (org-timestamp-to-time (org-timestamp-split-range timestamp)))
-               (end (org-timestamp-to-time (org-timestamp-split-range timestamp t))))
-           (format
-            "<div>Times in different timezones:</div><div class=\"times\" start=\"%s\" end=\"%s\"><div class=\"conf-time\">%s</div><div class=\"others\">%s</div></div><div><a href=\"/%s/watch/%s/\">Find out how to watch and participate</a></div>"
-            (format-time-string "%Y-%m-%dT%H:%M:%SZ" start t)
-            (format-time-string "%Y-%m-%dT%H:%M:%SZ" end t)
-            (emacsconf-timezone-string o emacsconf-timezone)
-            (string-join (emacsconf-timezone-strings
-                          o
-                          (seq-filter (lambda (zone) (string= emacsconf-timezone zone))
-                                      emacsconf-timezones)) "<br />")
-            emacsconf-year
-            (plist-get (emacsconf-get-track (plist-get o :track)) :id)))
-       "") 
-     "\n"
-     (if (plist-get o :alternate-apac)
-         (format "[[!inline pages=\"internal(%s/inline-alternate)\" raw=\"yes\"]]  \n" emacsconf-year)
-       "")
-     "\n"
-     (if (plist-get o :public) (emacsconf-wiki-talk-resources o) "")
-     "\n# Description\n\n")))
+    (emacsconf-replace-plist-in-string
+     (append o
+             (list :format
+                   (concat (or (plist-get o :video-duration)
+                               (concat (plist-get o :duration) "-min talk"))
+                           (if (plist-get o :q-and-a)
+                               (format " followed by %s Q&A (%s)  "
+                                       (plist-get o :q-and-a)
+                                       (if (string-match "live" (plist-get o :q-and-a))
+                                           (if (eq 'after (emacsconf-bbb-status o))
+                                               "done"
+                                             (format "<https://emacsconf.org/current/%s/room>" (plist-get o :slug)))
+                                         (emacsconf-publish-webchat-link o)))
+                             ""))
+                   :pad-info
+                   (if emacsconf-publish-include-pads
+                       (format "Pad: <https://pad.emacsconf.org/%s-%s>  \n" emacsconf-year (plist-get o :slug))
+                     "")
+                   :status-info
+                   (if (member emacsconf-publishing-phase '(program schedule)) (format "Status: %s  \n" (plist-get o :status-label)) "")     
+                   :schedule-info
+                   (if (and (member emacsconf-publishing-phase '(program schedule))
+                            (not (emacsconf-talk-all-done-p o)))
+                       (let ((start (org-timestamp-to-time (org-timestamp-split-range timestamp)))
+                             (end (org-timestamp-to-time (org-timestamp-split-range timestamp t))))
+                         (format
+                          "<div>Times in different timezones:</div><div class=\"times\" start=\"%s\" end=\"%s\"><div class=\"conf-time\">%s</div><div class=\"others\">%s</div></div><div><a href=\"/%s/watch/%s/\">Find out how to watch and participate</a></div>"
+                          (format-time-string "%Y-%m-%dT%H:%M:%SZ" start t)
+                          (format-time-string "%Y-%m-%dT%H:%M:%SZ" end t)
+                          (emacsconf-timezone-string o emacsconf-timezone)
+                          (string-join (emacsconf-timezone-strings
+                                        o
+                                        (seq-filter (lambda (zone) (string= emacsconf-timezone zone))
+                                                    emacsconf-timezones)) "<br />")
+                          emacsconf-year
+                          (plist-get (emacsconf-get-track (plist-get o :track)) :id)))
+                     "")))
+     (concat
+      "[[!toc  ]]
+Format: ${format}
+${pad-info}${status-info}${schedule-info}\n" 
+      (if (plist-get o :alternate-apac)
+          (format "[[!inline pages=\"internal(%s/inline-alternate)\" raw=\"yes\"]]  \n" emacsconf-year)
+        "")
+      "\n"
+      (if (plist-get o :public) (emacsconf-wiki-talk-resources o) "")
+      "\n# Description\n\n"))))
 
 (defun emacsconf-format-email-questions-and-comments (talk)
   (format "Questions or comments? Please e-mail %s"
@@ -463,7 +487,7 @@ Back to the [[talks]]  \n"
                           "</div>
 ")))))))
 
-(defun emacsconf-generate-info-pages (&optional info)
+(defun emacsconf-publish-info-pages (&optional info)
   "Populate year/info/*-nav, -before, and -after files."
   (interactive)
   (setq info (or info (emacsconf-get-talk-info)))
@@ -1303,5 +1327,48 @@ ${sched}\n
 ${talks}
 "))))
             emacsconf-tracks))))
+
+(defvar emacsconf-publish-current-dir "/ssh:media:/var/www/media.emacsconf.org/2022/current"
+  "Directory to publish BBB redirects and current information to.")
+
+
+;; (assert (eq (emacsconf-get-bbb-state '(:status "OPEN_Q")) 'open))
+;; (assert (eq (emacsconf-get-bbb-state '(:status "TO_ARCHIVE")) 'after))
+
+(defun emacsconf-publish-bbb-redirect (talk)
+  (interactive (list (emacsconf-complete-talk-info)))
+  (let ((bbb-filename (expand-file-name (format "bbb-%s.html" (plist-get talk :slug))
+                                        emacsconf-publish-current-dir))
+        (bbb-redirect-url (concat "https://media.emacsconf.org/" emacsconf-year "/current/bbb-" (plist-get talk :slug) ".html"))
+        (status (emacsconf-bbb-status talk)))
+    (with-temp-file bbb-filename
+      (insert
+       (emacsconf-replace-plist-in-string
+        (append talk (list :base-url emacsconf-base-url :bbb-redirect-url bbb-redirect-url))
+        (pcase status
+          ('open
+           "<html><head><meta http-equiv=\"refresh\" content=\"0; URL=${bbb-room}\"></head><body>
+The live Q&A room for ${title} is now open. You should be redirected to <a href=\"${bbb-room}\">${bbb-room}</a> automatically, but if not, please visit the URL manually to join the Q&A.</body></html>")
+          ('before
+           "<html><head><meta http-equiv=\"refresh\" content=\"5; URL=${bbb-redirect-url}\"></head><body>
+The Q&A room for ${title} is not yet open. This page will refresh every 5 seconds until the BBB room is marked as open, or you can refresh it manually.</body></html>")
+          ('after
+           "<html><head><body>
+The Q&A room for ${title} has finished. You can find more information about the talk at <a href=\"${base-url}${url}\">${base-url}${url}</a>.</body></html>")
+          (_
+           "<html><head><body>
+There is no live Q&A room for ${title}. You can find more information about the talk at <a href=\"${base-url}${url}\">${base-url}${url}</a>.</body></html>"
+           )
+          ))))))
+(defun emacsconf-publish-bbb-redirect-all ()
+  (interactive)
+  (unless (file-directory-p emacsconf-publish-current-dir)
+    (make-directory emacsconf-publish-current-dir))
+  (mapc #'emacsconf-publish-bbb-redirect (emacsconf-filter-talks (emacsconf-get-talk-info))))
+;; (emacsconf-publish-bbb-redirect '(:slug "test" :status "TO_STREAM" :bbb-room "https://bbb.emacsverse.org/b/sac-fwh-pnz-ogz" :title "Test room" :q-and-a "live" :url "2022/talks/test"))
+;; (emacsconf-publish-bbb-redirect '(:slug "test" :status "CLOSED_Q" :bbb-room "https://bbb.emacsverse.org/b/sac-fwh-pnz-ogz" :title "Test room" :q-and-a "live" :url "2022/talks/test"))
+;; (emacsconf-publish-bbb-redirect '(:slug "test" :status "OPEN_Q" :bbb-room "https://bbb.emacsverse.org/b/sac-fwh-pnz-ogz" :title "Test room" :q-and-a "live" :url "2022/talks/test"))
+;; (emacsconf-publish-bbb-redirect '(:slug "test" :status "UNSTREAMED_Q" :bbb-room "https://bbb.emacsverse.org/b/sac-fwh-pnz-ogz" :title "Test room" :q-and-a "live" :url "2022/talks/test"))
+;; (emacsconf-publish-bbb-redirect '(:slug "test" :status "TO_ARCHIVE" :bbb-room "https://bbb.emacsverse.org/b/sac-fwh-pnz-ogz" :title "Test room" :q-and-a "live" :url "2022/talks/test"))
 
 (provide 'emacsconf-publish)

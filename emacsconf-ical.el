@@ -24,6 +24,9 @@
 
 ;;; Code:
 
+(defvar emacsconf-ical-public-directory (concat "/ssh:media:/var/www/media.emacsconf.org/" emacsconf-year)
+  "Directory to post ics files to.")
+
 (defun emacsconf-ical-send-via-email ()
   (interactive)
   (let ((ical-file (expand-file-name
@@ -31,7 +34,7 @@
                     (expand-file-name "ics" (file-name-directory emacsconf-org-file))))
         (ical-entry (emacsconf-ical-convert-entry-to-string (format-time-string "%Y%m%dT%H%M%SZ" nil t))))
     (with-temp-file ical-file
-        (insert ical-entry))
+      (insert ical-entry))
     (emacsconf-mail-speaker "Calendar entry")
     (mml-attach-file ical-file)))
 
@@ -69,18 +72,14 @@
      (concat "DTSTART:" (format-time-string "%Y%m%dT%H%M%SZ" (plist-get o :start-time) t))
      (concat "DTEND:" (format-time-string "%Y%m%dT%H%M%SZ" (plist-get o :end-time) t))
      (if updated (concat "DTSTAMP:" updated))
-     (if (plist-get o :speakers)
-         (mapconcat
-          (lambda (s)
-            (format "ATTENDEE;ROLE=REQ-PARTICIPANT;CUTYPE=INDIVIDUAL;CN=\"%s\":invalid:nomail" s))
-          (split-string (plist-get o :speakers) ", +")
-          "\r\n")
-       nil)
      (string-trim
       (org-icalendar-fold-string
        (org-icalendar-cleanup-string
         (concat "DESCRIPTION: Times are approximate and will probably change.\n"
                 "https://emacsconf.org/" emacsconf-year "/talks/" (plist-get o :slug) "\n"
+                (emacsconf-surround (if (length= (plist-get o :speakers) 1) "Speaker: " "Speakers: ")
+                                    (plist-get o :speakers)
+                                    "\n" "")
                 (plist-get o :markdown)))))
      "END:VEVENT"))
    "\r\n"))
@@ -104,7 +103,26 @@
       "END:VCALENDAR")
      "\r\n")))
 
-(defun emacsconf-generate-ical ()
-  (unless (file-directory-p emacsconf-directory) (error "Please specify the wiki directory in the emacsconf-directory variable."))
-  (with-temp-file (expand-file-name "emacsconf.ics" (expand-file-name emacsconf-year emacsconf-directory))
-    (insert (emacsconf-format-as-ical (emacsconf-get-talk-info)))))
+(defun emacsconf-ical-generate-all ()
+  (interactive)
+  (let* ((emacsconf-talk-info-functions (append emacsconf-talk-info-functions (list 'emacsconf-get-abstract-from-wiki)))
+         (info (emacsconf-get-talk-info)))
+    (emacsconf-ical-generate-main info)
+    (emacsconf-ical-generate-tracks info)))
+
+(defun emacsconf-ical-generate-main (&optional info)
+  (with-temp-file (expand-file-name "emacsconf.ics"
+                                    (or emacsconf-ical-public-directory
+                                        (expand-file-name emacsconf-year emacsconf-directory)))
+    (insert (emacsconf-format-as-ical (or info (emacsconf-get-talk-info))))))
+
+(defun emacsconf-ical-generate-tracks (&optional info)
+  (interactive)
+  (mapc (lambda (entry)
+          (let ((track (emacsconf-get-track (car entry))))
+            (when track
+              (with-temp-file (expand-file-name (format "emacsconf-%s.ics" (plist-get track :id))
+                                                (or emacsconf-ical-public-directory
+                                                    (expand-file-name emacsconf-year emacsconf-directory)))
+                (insert (emacsconf-format-as-ical (cdr entry)))))))
+        (seq-group-by (lambda (o) (plist-get o :track)) (or info (emacsconf-get-talk-info)))))
