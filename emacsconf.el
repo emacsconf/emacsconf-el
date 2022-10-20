@@ -58,7 +58,7 @@
   "Controls what information to include.
 'program - don't include times
 'schedule - include times; use this leading up to the emacsconference
-'resources - after the emacsconference, don't need status"
+'resources - after EmacsConf, don't need status"
   :group 'emacsconf
   :type '(choice
           (const :tag "Program: Don't include times" program)
@@ -168,20 +168,25 @@
   (interactive (list (emacsconf-complete-talk)))
   (pop-to-buffer (find-file-noselect emacsconf-org-file))
   (widen)
-  (if (emacsconf-get-slug-from-string search)
-      (goto-char (org-find-property "SLUG" (emacsconf-get-slug-from-string search)))
-    (catch 'found
-      (org-map-entries
-       (lambda ()
-         (when (string-match search
-                             (cons
-                              (concat (org-entry-get (point) "SLUG") " - "
-                                      (org-entry-get (point) "ITEM") " - "
-                                      (org-entry-get (point) "NAME") " - "
-                                      (org-entry-get (point) "EMAIL"))
-                              (point)))
-           (throw 'found (point))))
-       "SLUG={.}")))
+  (cond
+   ((plist-get search :slug)
+    (goto-char (org-find-property "SLUG" (plist-get search :slug))))
+   ((emacsconf-get-slug-from-string search)
+    (goto-char (org-find-property "SLUG" (emacsconf-get-slug-from-string search))))
+   (t
+    (goto-char
+     (catch 'found
+       (org-map-entries
+        (lambda ()
+          (when (string-match search
+                              (cons
+                               (concat (org-entry-get (point) "SLUG") " - "
+                                       (org-entry-get (point) "ITEM") " - "
+                                       (org-entry-get (point) "NAME") " - "
+                                       (org-entry-get (point) "EMAIL"))
+                               (point)))
+            (throw 'found (point))))
+        "SLUG={.}")))))
   (org-reveal))
 
 (defmacro emacsconf-for-each-talk (&rest body)
@@ -219,75 +224,85 @@
 
 (defun emacsconf-get-talk-info-from-properties (o)
   (let ((heading (org-heading-components))
-        (field-props '((:title "ITEM")
-                       (:talk-id "TALK_ID")
+        (field-props '(                 
+                       ;; Initial creation
+                       (:title "ITEM")
                        (:track "TRACK")
                        (:slug "SLUG")
-                       (:video-slug "VIDEO_SLUG")
-                       (:qa-public "QA_PUBLIC") ; now tracked by the OPEN_Q and UNSTREAMED_Q status
-                       (:scheduled "SCHEDULED")
-                       (:uuid "UUID")
+                       (:speakers "NAME")                       
+                       (:speakers-short "NAME_SHORT")
                        (:email "EMAIL")
-                       (:caption-note "CAPTION_NOTE")
-                       (:availability "AVAILABILITY")
-                       (:timezone "TIMEZONE")
-                       (:q-and-a "Q_AND_A")
-                       (:bbb-room "ROOM")
-                       (:irc "IRC")
-                       (:intro-note "INTRO_NOTE")
-                       (:public "PUBLIC")
-                       (:check-in "CHECK_IN")
-                       (:contact "CONTACT")
-                       (:captioner "CAPTIONER")
-                       (:youtube-url "YOUTUBE_URL")
-                       (:toobnix-url "TOOBNIX_URL")
-                       (:qa-youtube "QA_YOUTUBE")
-                       (:qa-toobnix "QA_TOOBNIX")
-                       (:pronunciation "PRONUNCIATION")
-                       (:pronouns "PRONOUNS")
-                       (:prerec-info "PREREC_INFO")
                        (:public-email "PUBLIC_EMAIL")
+                       (:emergency "EMERGENCY")
                        (:buffer "BUFFER")
                        (:duration "TIME")
-                       (:time "TIME")
                        (:min-time "MIN_TIME")
                        (:max-time "MAX_TIME")
+                       (:availability "AVAILABILITY")
+                       (:q-and-a "Q_AND_A")
+                       (:timezone "TIMEZONE")
+                       (:irc "IRC")
+                       (:pronunciation "PRONUNCIATION")                       
+                       (:pronouns "PRONOUNS") 
+                       ;; Scheduling
+                       (:scheduled "SCHEDULED")
+                       (:time "TIME")
                        (:fixed-time "FIXED_TIME")
-                       (:present "PRESENT")
-                       (:speakers "NAME")
-                       (:speakers-short "NAME_SHORT")
-                       (:video-file "VIDEO_FILE")
-                       (:video-file-size "VIDEO_FILE_SIZE")
+                       ;; Coordination
+                       (:prerec-info "PREREC_INFO")
+                       ;; Prep
+                       (:bbb-room "ROOM")                       
+                       ;; Processing
+                       (:video-slug "VIDEO_SLUG")
+                       (:video-file "VIDEO_FILE")                       
+                       (:video-file-size "VIDEO_FILE_SIZE")                       
                        (:video-duration "VIDEO_DURATION")
-                       (:alternate-apac "ALTERNATE_APAC")
-                       (:extra-live-time "EXTRA_LIVE_TIME"))))
+                       (:youtube-url "YOUTUBE_URL")                       
+                       (:toobnix-url "TOOBNIX_URL")
+                       ;; Captioning
+                       (:captioner "CAPTIONER")
+                       (:caption-note "CAPTION_NOTE")
+                       (:intro-note "INTRO_NOTE")
+                       ;; Conference
+                       (:check-in "CHECK_IN")
+                       (:public "PUBLIC")
+                       ;; Extraction
+                       (:qa-youtube "QA_YOUTUBE")
+                       (:qa-toobnix "QA_TOOBNIX")
+                       ;; Old
+                       (:alternate-apac "ALTERNATE_APAC")                       
+                       (:extra-live-time "EXTRA_LIVE_TIME")
+                       (:present "PRESENT")
+                       (:talk-id "TALK_ID") ; use slug instead
+                       (:qa-public "QA_PUBLIC") ; now tracked by the OPEN_Q and UNSTREAMED_Q status
+                       (:uuid "UUID")           ; Pentabarf export
+                       )))
     (apply
      'append
      o
      (list
       :point (point)
       :year emacsconf-year
+      :conf-year emacsconf-year
       :type (if (org-entry-get (point) "SLUG") 'talk 'headline)
       :status (elt heading 2)
       :level (car heading)
       :url (concat emacsconf-year "/talks/" (org-entry-get (point) "SLUG"))
-      :schedule-group 
-      (org-entry-get-with-inheritance "SCHEDULE_GROUP")
-      :wiki-file-path (expand-file-name 
-                       (concat (org-entry-get (point) "SLUG") ".md")
-                       (expand-file-name "captions" (expand-file-name emacsconf-year emacsconf-directory)))
-      :conf-year emacsconf-year
-      :bbb-redirect (format "https://emacsconf.org/current/%s/room/" (org-entry-get (point) "SLUG"))
-      :pad-url (format "https://pad.emacsconf.org/%s-%s" emacsconf-year (org-entry-get (point) "SLUG"))
-      :start-time (when (org-entry-get (point) "SCHEDULED")
-		                (date-to-time
-		                 (concat
-		                  (format-time-string "%Y-%m-%dT%H:%M:%S"
-					                                (org-timestamp-to-time
-					                                 (org-timestamp-split-range
-					                                  (org-timestamp-from-string
-					                                   (org-entry-get (point) "SCHEDULED")))))
-		                  emacsconf-timezone-offset)))
+      :schedule-group (org-entry-get-with-inheritance "SCHEDULE_GROUP")
+      :wiki-file-path
+      (expand-file-name 
+       (concat (org-entry-get (point) "SLUG") ".md")
+       (expand-file-name "captions" (expand-file-name emacsconf-year emacsconf-directory)))
+      :start-time
+      (when (org-entry-get (point) "SCHEDULED")
+		    (date-to-time
+		     (concat
+		      (format-time-string "%Y-%m-%dT%H:%M:%S"
+					                    (org-timestamp-to-time
+					                     (org-timestamp-split-range
+					                      (org-timestamp-from-string
+					                       (org-entry-get (point) "SCHEDULED")))))
+		      emacsconf-timezone-offset)))
       :end-time (when (org-entry-get (point) "SCHEDULED")
 		              (date-to-time
 		               (concat
@@ -399,23 +414,40 @@
     emacsconf-get-talk-categories
     emacsconf-get-talk-abstract-from-subtree
     emacsconf-add-talk-status
-    emacsconf-add-timezone-conversions))
+    emacsconf-add-timezone-conversions
+    emacsconf-add-live-info))
+
+(defun emacsconf-add-live-info (o)
+  (let ((track (emacsconf-get-track (plist-get o :track))))
+    (when track
+      (plist-put o :watch-url (concat emacsconf-base-url emacsconf-year "/watch/" (plist-get track :id))))
+    (plist-put o :channel (plist-get track :channel))
+    (cond
+     ((string-match "live" (or (plist-get o :q-and-a) ""))
+      (plist-put o :bbb-redirect (format "https://emacsconf.org/current/%s/room/" (plist-get o :slug)))
+      (plist-put o :qa-info (plist-get o :bbb-redirect)))
+     ((string-match "IRC" (or (plist-get o :q-and-a) ""))
+      (plist-put o :qa-info (concat (emacsconf-surround "nick: " (plist-get o :irc) ", " "")
+                                    (plist-get o :channel))))
+     (t (plist-put o :qa-info "none")))
+    (plist-put o :pad-url (format "https://pad.emacsconf.org/%s-%s" emacsconf-year (plist-get o :slug)))
+    o))
 
 (defun emacsconf-search-talk-info (search &optional info)
   (setq info (or info (emacsconf-get-talk-info)))
   (or
    (seq-find (lambda (o) (string= (plist-get o :slug)
-                                   (emacsconf-get-slug-from-string search)))
-              info)
+                                  (emacsconf-get-slug-from-string search)))
+             info)
    (seq-find (lambda (o)
-                (string-match
-                 search
-                 (format "%s - %s - %s - %s"
-                         (plist-get o :slug)
-                         (plist-get o :title)
-                         (plist-get o :speakers)
-                         (plist-get o :email))))
-              info)))
+               (string-match
+                search
+                (format "%s - %s - %s - %s"
+                        (plist-get o :slug)
+                        (plist-get o :title)
+                        (plist-get o :speakers)
+                        (plist-get o :email))))
+             info)))
 
 (defun emacsconf-get-talk-info-for-subtree ()
   (seq-reduce (lambda (prev val) (save-excursion (save-restriction (funcall val prev))))
@@ -774,8 +806,8 @@
               (emacsconf-pad-base . etherpad_url))))))
 ;; (emacsconf-ansible-load-vars (expand-file-name "prod-vars.yml" emacsconf-ansible-directory))
 ;;; Tracks
-(defvar emacsconf-tracks '((:name "General" :color "peachpuff" :id "gen")
-                           (:name "Development" :color "skyblue" :id "dev")))
+(defvar emacsconf-tracks '((:name "General" :color "peachpuff" :id "gen" :channel "emacsconf-gen")
+                           (:name "Development" :color "skyblue" :id "dev" :channel "emacsconf-dev")))
 
 (defun emacsconf-get-track (name)
   (seq-find (lambda (track) (or (string= name (plist-get track :name))

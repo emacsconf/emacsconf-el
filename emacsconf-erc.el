@@ -19,13 +19,34 @@
 ;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
+;;
+;; Goals:
+;; - Announce talks and Q&A sessions
+;; - Change talk status and trigger hooks
+;;
+;; Commands:
+;;
+;; announcements only
+;; - /nowplaying slug
+;; - /nowclosedq slug
+;; - /nowopenq slug
+;; - /nowunstreamedq slug
+;; - /nowdone slug
 
-;; - /announce slug
+;; use M-x emacsconf-erc-add-to-todo-hook in conf.org to have the announcements triggered by todo state changes
+;; 
+;; updating task status
+;; - /markplaying slug
+;; - /markclosedq slug
+;; - /markopenq slug
+;; - /markunstreamedq slug
+;; - /markdone slug
+;;
+;; general
 ;; - /broadcast message
 ;; - /conftopic message
-;; - /checkin ROOM nick
-;; - /ready ROOM slug
-
+;; - /checkin nick
+;; 
 ;;; Code:
 
 (defcustom emacsconf-collaborative-pad
@@ -38,8 +59,13 @@
   :group 'emacsconf
   :type 'string)
 
+(defcustom emacsconf-erc-hallway "#emacsconf" "Channel for hallway conversations")
+(defcustom emacsconf-erc-org "#emacsconf-org" "Channel for organizers")
+
 (defcustom emacsconf-topic-templates
-  '(("#emacsconf" "EmacsConf 2022 | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
+  '(("#emacsconf" "${emacsconf-name} ${year} | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
+    ("#emacsconf-gen" "General track | https://emacsconf.org/2022/watch/gen/ | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
+    ("#emacsconf-dev" "Development track | https://emacsconf.org/2022/watch/dev/ | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
     ("#emacsconf-accessible" "EmacsConf 2022 accessibility - help by describing what's happening | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
     ("#emacsconf-org" "EmacsConf 2022 | Dedicated channel for EmacsConf organizers and speakers | this is intended as an internal, low-traffic channel; for main discussion around EmacsConf, please join #emacsconf | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
     ("#emacsconf-questions" "EmacsConf 2022 | Low-traffic channel for questions if speakers prefer IRC and need help focusing; for main discussion around EmacsConf, please join #emacsconf | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates"))
@@ -50,125 +76,230 @@
 
 ;; For testing: (setq emacsconf-topic-templates '(("#emacsconf-test" "EmacsConf 2022 | Dedicated channel for EmacsConf organizers and speakers | this is intended as an internal, low-traffic channel; for main discussion around EmacsConf, please join #emacsconf | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")))
 
-(defcustom emacsconf-rooms
-  '(("A" "http://example.org?room=a")
-    ("B" "http://example.org?room=b")
-    ("C" "http://example.org?room=c"))
-  "Room IDs and URLs."
-  :group 'emacsconf
-  :type '(repeat (list (string :tag "ID")
-                       (string :tag "URL"))))
-
 (defmacro emacsconf-erc-with-channels (channel-list &rest forms)
   (declare (indent 1) (debug (form form body)))
   `(mapcar (lambda (channel)
+             (unless (erc-get-buffer channel)
+               (erc-join-channel channel))
              (with-current-buffer (erc-get-buffer channel)
                ,@forms))
            ,channel-list))
 
-(defun emacsconf-get-room (room)
-  (cadr (assoc (upcase room) emacsconf-rooms)))
-
 (defun erc-cmd-CONFTOPIC (&rest message)
   "Set the topic to MESSAGE | template in the EmacsConf channels.
-    If MESSAGE is not specified, reset the topic to the template."
+If MESSAGE is not specified, reset the topic to the template."
   (mapc (lambda (template) 
           (with-current-buffer (erc-get-buffer (car template))
             (erc-cmd-TOPIC (if message (concat (if (stringp message) message (s-join " " message)) " | " (cadr template))
                              (cadr template)))))
         emacsconf-topic-templates))
 
-(defun erc-cmd-CHECKIN (nick &optional q-and-a)
-  (let ((talk (emacsconf-complete-talk))
-        info)
+(defun erc-cmd-CHECKIN (nick)
+  (let* ((talk (emacsconf-complete-talk-info))
+         (q-and-a (plist-get talk :q-and-a) ""))
     (save-excursion
-      (emacsconf-with-talk-heading talk
+      (emacsconf-with-talk-heading (plist-get talk :slug)
         (org-entry-put (point) "IRC" nick)
-        (org-entry-put (point) "CHECK_IN" (format-time-string "%H:%M"))
-        (setq info (emacsconf-get-talk-info-for-subtree))))
-    (setq q-and-a (or q-and-a (plist-get info :q-and-a) ""))
+        (org-entry-put (point) "CHECK_IN" (format-time-string "%H:%M"))))
     (cond
      ((string-match "live" q-and-a)
       (erc-send-message (format "%s: Thanks for checking in! I'll send you some private messages with instructions, so please check there. Let me know if you don't get them." nick))
-      (erc-cmd-BBB (completing-read "Room: " emacsconf-rooms) nick talk))
+      (erc-cmd-ROOM nick talk))
      ((string-match "pad" q-and-a)
-      (erc-send-message (format "%s: Thanks for checking in! The collaborative pad we'll be using for questions is at %s . We'll collect questions from #emacsconf and put them there. If you'd like to jump to your part of the document, you might be able to keep an eye on questions. Please let us know if you need help, or if you want to switch to live Q&A." nick emacsconf-collaborative-pad)))
+      (erc-send-message (format "%s: Thanks for checking in! The collaborative pad we'll be using for questions is at %s . We'll collect questions and put them there. If you'd like to open it, you can keep  an eye on questions. Please let us know if you need help, or if you want to switch to live Q&A." nick (plist-get talk :pad-url))))
      ((string-match "IRC" q-and-a)
-      (erc-send-message (format "%s: Thanks for checking in! Feel free to keep an eye on #emacsconf for questions and discussion, and we'll copy things from the pad to there. If the volume gets overwhelming, let us know and we can forward questions to #emacsconf-questions for you. If you'd like to try Q&A over live video or the collaborative pad instead, or if you need help, please let us know." nick emacsconf-collaborative-pad)))
-     (t (erc-send-message (format "%s: Thanks for checking in! How would you like to handle Q&A today - live video, the collaborative Etherpad at %s , or IRC (like this)?" nick emacsconf-collaborative-pad))))
-    (emacsconf-with-talk-heading talk
-      (emacsconf-upcoming-insert-or-update nil t))))
+      (erc-send-message (format "%s: Thanks for checking in! Feel free to keep an eye on %s for questions and discussion, and we'll copy things from the pad to there. If the volume gets overwhelming, let us know and we can /msg you questions or add them to the pad. If you'd like to try Q&A over live video or the collaborative pad instead, or if you need help, please let us know." nick
+                                (plist-get (emacsconf-get-track (plist-get talk :track)) :channel))))
+     (t (erc-send-message (format "%s: Thanks for checking in! How would you like to handle Q&A today - live video, the collaborative Etherpad at %s , or IRC (like this)?" nick (plist-get) emacsconf-collaborative-pad))))
+    (when (functionp 'emacsconf-upcoming-insert-or-update)
+      (emacsconf-with-talk-heading (plist-get talk :slug)
+        (emacsconf-upcoming-insert-or-update nil t)))))
 
-(defun erc-cmd-BBB (room nick &optional talk)
-  "Send instructions for ROOM and `conf-collaborative-pad' to NICK."
-  (let ((room-url (emacsconf-get-room room)))
-    (unless room-url (error "Please specify nick and room name"))
-    (erc-message "PRIVMSG" (format "%s You can use this BBB room: %s . I'll join you there shortly to set up the room and do the last-minute tech check." nick room-url))
-    (erc-message "PRIVMSG" (format "%s The collaborative pad we'll be using for questions is at %s . We'll collect questions from #emacsconf and put them there. If you'd like to jump to your part of the document, you might be able to keep an eye on questions. Alternatively, we can read questions to you." nick emacsconf-collaborative-pad))
-    (erc-message "PRIVMSG" (format "%s The host will join and give you the go-ahead when it's time to present. See you in the BBB room!" nick))
-    (setq talk (or talk (emacsconf-complete-talk)))
-    (emacsconf-with-talk-heading talk
-      (let ((talk-info (emacsconf-get-talk-info-for-subtree)))
-        (org-entry-put (point) "BBB_ROOM" room-url)
-        (when emacsconf-tasks-file
-          (with-current-buffer (find-file-noselect emacsconf-tasks-file)
-            (goto-char (point-min))
-            (insert (emacsconf-replace-plist-in-string
-                     (append info (list :current-time (format-time-string "[%Y-%m-%d %a %H:%M]")))
-                     "* WAITING [#A] Check in ${nick} (${speakers}) for %s at %s
-:PROPERTIES:
-:CREATED: ${current-time}
-:END:
-[[file:~/vendor/emacsconf-wiki/playbook.org::#check-in][file:~/vendor/emacsconf-wiki/playbook.org::#check-in]]
+(defun erc-cmd-BBB (nick &optional talk)
+  "Send live Q&A instructions to NICK."
+  (setq talk (or talk (emacsconf-complete-talk-info)))
+  (erc-message "PRIVMSG" (format "%s You can use this BBB room: %s . We'll join you there shortly to set up the room and do the last-minute tech check." nick (plist-get talk :bbb-room)))
+  (erc-message "PRIVMSG" (format "%s The collaborative pad we'll be using for questions is at %s . We'll collect questions from #emacsconf and put them there. If you'd like to jump to your part of the document, you might be able to keep an eye on questions. Alternatively, we can read questions to you." nick (plist-get talk :pad-url)))
+  (erc-message "PRIVMSG" (format "%s The host will join and give you the go-ahead when you go on air. See you in the BBB room!" nick)))
 
-"))))))))
-
-(defun erc-cmd-READY (code &rest filter)
-  "Notify #emacsconf-org and `conf-streaming-nick' that CODE is ready for the talk specified by FILTER.
-FILTER can be the talk ID or strings to match against the title or speaker names."
-  (let ((room-url (emacsconf-get-room code))
-        (talk (emacsconf-find-talk-info filter))
+(defun erc-cmd-READY (&rest filter)
+  "Notify #emacsconf-org and `emacsconf-streaming-nick' that the speaker is ready."
+  (let ((talk (emacsconf-find-talk-info filter))
         pronouns pronunciation)
-    (unless room-url (error "Could not find room"))
     (unless talk (error "Could not find talk"))
-    (emacsconf-with-talk-heading (plist-get talk :slug)
-      (setq pronouns (org-entry-get (point) "PRONOUNS")
-            pronunciation (org-entry-get (point) "PRONUNCIATION")))
-    (with-current-buffer (erc-get-buffer "#emacsconf-org")
-      (erc-send-message (format "Ready in Room %s: %s (%s)"
-                                (upcase code)
-                                (plist-get talk :title)
-                                (plist-get talk :speakers))))
+    (setq pronouns (plist-get talk :pronouns)
+          pronunciation (plist-get talk :pronunciation))
+    (emacsconf-erc-with-channels (list emacsconf-erc-org)
+      (erc-send-message (format "Ready: %s (%s)" (plist-get talk :title) (plist-get talk :speakers))))
     (mapc (lambda (nick)
             (erc-message "PRIVMSG" 
-                         (format "%s Ready in Room %s ( %s ): %s (%s) %s %s"
+                         (format "%s ready in %s: %s (%s) %s %s"
                                  emacsconf-nick
-                                 (upcase code)
-                                 room-url
+                                 (plist-get talk :bbb-room)
                                  (plist-get talk :title)
                                  (plist-get talk :speakers)
                                  (or pronouns "")                                    
                                  (or pronunciation ""))))
           (if (listp emacsconf-streaming-nick) emacsconf-streaming-nick (list emacsconf-streaming-nick)))))
 
+;;; Announcements
 
-(defun erc-cmd-ANNOUNCE (filter)
-  "Set the channel topics to announce the talk specified by FILTER.
-    FILTER can be the talk ID or strings to match against the title or speaker names."
-  (let ((info
-         (if (listp filter)
-             (car filter)
-           (emacsconf-find-talk-info filter))))
-    (unless info (error "Could not find talk."))
-    (erc-cmd-CONFTOPIC (format "%s: %s (%s)"
-                               (plist-get info :slug)
-                               (plist-get info :title)
-                               (plist-get info :speakers)))
-    (erc-cmd-BROADCAST (format "---- %s (%s, https://emacsconf.org/%s/talks/%s) ----"
-                               (plist-get info :title)
-                               (plist-get info :speakers)
-                               emacsconf-year
-                               (plist-get info :slug)))))
+(defun erc-cmd-NOWPLAYING (talk)
+  "Set the channel topics to announce TALK."
+  (interactive (list (emacsconf-complete-talk-info)))
+  (when (stringp talk) (setq talk (or (emacsconf-find-talk-info talk) (error "Could not find talk %s" talk))))
+  ;; Announce it in the track's channel
+  (when (plist-get talk :track)
+    (emacsconf-erc-with-channels (list (plist-get talk :channel))
+      (erc-cmd-TOPIC (format "%s: %s (%s) pad: %s Q&A: %s | %s"
+                             (plist-get talk :slug)
+                             (plist-get talk :title)                               
+                             (plist-get talk :speakers)
+                             (plist-get talk :pad-url)
+                             (plist-get talk :qa-info)
+                             (car (assoc-default (plist-get talk :channel) emacsconf-topic-templates))))
+      (erc-send-message (format "---- %s: %s (%s) ----"
+                                (plist-get talk :slug)
+                                (plist-get talk :title)
+                                (string-join
+                                 (delq nil
+                                       (list (plist-get talk :speakers)
+                                             (plist-get talk :pronouns)))
+                                 "; ")))
+      (erc-send-message (concat "Add your notes/questions to the pad: " (plist-get talk :pad-url)))
+      (cond
+       ((string-match "live" (or (plist-get talk :q-and-a) ""))
+        (erc-send-message (concat "Live Q&A: " (plist-get talk :bbb-redirect))))
+       ((plist-get talk :irc)
+        (erc-send-message "or discuss the talk on IRC (nick: %s)")))))
+  ;; Short announcement in #emacsconf
+  (emacsconf-erc-with-channels (list emacsconf-erc-hallway emacsconf-erc-org)
+    (erc-send-message (format "-- %s track: %s: %s (watch: %s, pad: %s, channel: %s)"
+                              (plist-get talk :track)
+                              (plist-get talk :slug)
+                              (plist-get talk :title)                               
+                              (plist-get talk :watch-url)
+                              (plist-get talk :pad-url)
+                              (plist-get talk :channel)))))
+
+(defun erc-cmd-NOWCLOSEDQ (talk)
+  "Announce TALK has started Q&A, but the host has not yet opened it up."
+  (interactive (list (emacsconf-complete-talk-info)))
+  (when (stringp talk) (setq talk (or (emacsconf-find-talk-info talk) (error "Could not find talk %s" talk))))
+  (emacsconf-erc-with-channels (list (plist-get talk :channel))
+    (erc-send-message (format "-- Q&A beginning for \"%s\" (%s) Watch: %s Add notes/questions: %s"
+                              (plist-get talk :title)
+                              (plist-get talk :qa-info)
+                              (plist-get talk :watch-url)
+                              (plist-get talk :pad-url))))  
+  (emacsconf-erc-with-channels (list emacsconf-erc-hallway emacsconf-erc-org)
+    (erc-send-message (format "-- Q&A beginning for \"%s\" in the %s track (%s) Watch: %s Add notes/questions: %s . Chat: %s"
+                         (plist-get talk :title)
+                         (plist-get talk :track)
+                         (plist-get talk :qa-info)
+                         (plist-get talk :watch-url)
+                         (plist-get talk :pad-url)
+                         (plist-get talk :channel)))))
+
+(defun erc-cmd-NOWOPENQ (talk)
+  (interactive (list (emacsconf-complete-talk-info)))
+  (when (stringp talk) (setq talk (or (emacsconf-find-talk-info talk) (error "Could not find talk %s" talk))))
+  (emacsconf-erc-with-channels (list (plist-get talk :channel))
+    (erc-send-message (format "-- Q&A now open for \"%s\" (%s). Watch: %s Add notes/questions: %s ."
+                         (plist-get talk :title)
+                         (plist-get talk :qa-info)
+                         (plist-get talk :watch-url)
+                         (plist-get talk :pad-url))))  
+  (emacsconf-erc-with-channels (list emacsconf-erc-hallway emacsconf-erc-org)
+    (erc-send-message (format "-- Q&A now open for \"%s\" in the %s track (%s). Watch: %s Add notes/questions: %s IRC: %s"
+                         (plist-get talk :title)
+                         (plist-get talk :track)
+                         (plist-get talk :qa-info)
+                         (plist-get talk :watch-url)
+                         (plist-get talk :pad-url)
+                         (plist-get talk :channel)))))
+
+(defun erc-cmd-NOWUNSTREAMEDQ (talk)
+  (interactive (list (emacsconf-complete-talk-info)))
+  (when (stringp talk) (setq talk (or (emacsconf-find-talk-info talk) (error "Could not find talk %s" talk))))
+  (emacsconf-erc-with-channels (list (plist-get talk :channel))
+    (erc-send-message (format "-- Q&A continues off-stream for \"%s\" (%s) Add notes/questions: %s ."
+                              (plist-get talk :title)
+                              (plist-get talk :qa-info)
+                              (plist-get talk :pad-url))))  
+  (emacsconf-erc-with-channels (list emacsconf-erc-hallway emacsconf-erc-org)
+    (erc-send-message (format "-- Q&A continues off-stream for \"%s\" in the %s track (%s) Add notes/questions: %s IRC: %s"
+                              (plist-get talk :title)
+                              (plist-get talk :track)
+                              (plist-get talk :qa-info)
+                              (plist-get talk :pad-url)
+                              (plist-get talk :channel)))))
+
+(defun erc-cmd-NOWDONE (talk)
+  (interactive (list (emacsconf-complete-talk-info)))
+  (when (stringp talk) (setq talk (or (emacsconf-find-talk-info talk) (error "Could not find talk %s" talk))))
+  (emacsconf-erc-with-channels (list (plist-get talk :channel))
+    (erc-send-message (format "-- Q&A finished for \"%s\". Add notes/questions: %s %s"
+                              (plist-get talk :title)
+                              (plist-get talk :pad-url)
+                              (emacsconf-surround " Speaker IRC nick: " (plist-get talk :irc) "" ""))))  
+  (emacsconf-erc-with-channels (list emacsconf-erc-hallway emacsconf-erc-org)
+    (erc-send-message (format "-- Q&A finished for \"%s\" in the %s track. Add notes/questions: %s %s"
+                              (plist-get talk :title)
+                              (plist-get talk :track)
+                              (plist-get talk :pad-url)
+                              (emacsconf-surround " Speaker IRC nick: " (plist-get talk :irc) "" "")))))
+
+;;; For todo hooks
+
+(defun emacsconf-erc-add-to-todo-hook ()
+  (interactive)
+  (add-hook 'org-after-todo-state-change-hook #'emacsconf-erc-org-after-todo-state-change nil t))
+(defun emacsconf-erc-remove-from-todo-hook ()
+  (interactive)
+  (remove-hook 'org-after-todo-state-change-hook #'emacsconf-erc-org-after-todo-state-change t))
+
+(defun emacsconf-erc-org-after-todo-state-change ()
+  (let ((func
+         (pcase org-state
+           ("PLAYING" #'erc-cmd-NOWPLAYING)
+           ("CLOSED_Q" #'erc-cmd-NOWCLOSEDQ)
+           ("OPEN_Q" #'erc-cmd-NOWOPENQ)
+           ("UNSTREAMED_Q" #'erc-cmd-NOWUNSTREAMEDQ)
+           ("TO_ARCHIVE" #'erc-cmd-NOWDONE))))
+    (when func
+      (funcall func (emacsconf-get-talk-info-for-subtree)))))
+
+;;; Change TODO states
+(defun erc-cmd-MARKPLAYING (talk)
+  "Mark TALK as starting streaming."
+  (interactive (list (emacsconf-complete-talk-info)))
+  (when (stringp talk) (setq talk (emacsconf-find-talk-info talk)))
+  (save-window-excursion
+    (emacsconf-with-talk-heading talk (org-todo "PLAYING"))))
+
+(defun erc-cmd-MARKCLOSEDQ (talk)
+  "Mark TALK as starting closed Q&A."
+  (interactive (list (emacsconf-complete-talk-info)))
+  (when (stringp talk) (setq talk (emacsconf-find-talk-info talk)))
+  (save-window-excursion
+    (emacsconf-with-talk-heading talk (org-todo "CLOSED_Q"))))
+
+(defun erc-cmd-MARKOPENQ (talk)
+  "Mark TALK as starting open Q&A."
+  (interactive (list (emacsconf-complete-talk-info)))
+  (when (stringp talk) (setq talk (emacsconf-find-talk-info talk)))
+  (save-window-excursion
+    (emacsconf-with-talk-heading talk (org-todo "OPEN_Q"))))
+
+(defun erc-cmd-MARKDONE (talk)
+  "Mark TALK as done with the streaming and Q&A"
+  (interactive (list (emacsconf-complete-talk-info)))
+  (when (stringp talk) (setq talk (emacsconf-find-talk-info talk)))
+  (save-window-excursion
+    (emacsconf-with-talk-heading talk (org-todo "TO_ARCHIVE"))))
+
+;;; Other commands
 
 (defun erc-cmd-OPALL ()
   (emacsconf-erc-with-channels (mapcar 'car emacsconf-topic-templates)
