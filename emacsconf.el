@@ -80,10 +80,10 @@
 (defvar emacsconf-backstage-dir "/ssh:media:/var/www/media.emacsconf.org/2022/backstage")
 (defvar emacsconf-upload-dir "/ssh:media:/srv/upload")
 
-(defun emacsconf-upload-open-dir ()
+(defun emacsconf-upload-dired ()
   (interactive)
   (dired emacsconf-upload-dir "-tl"))
-(defun emacsconf-backstage-open-dir ()
+(defun emacsconf-backstage-dired ()
   (interactive)
   (dired emacsconf-backstage-dir "-tl"))
 (defun emacsconf-slugify (s)
