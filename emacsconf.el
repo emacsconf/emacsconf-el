@@ -77,6 +77,60 @@
 
 (defvar emacsconf-stream-base "https://live0.emacsconf.org:9001/emacsconf/")
 (defvar emacsconf-chat-base "https://chat.emacsconf.org/")
+(defvar emacsconf-backstage-dir "/ssh:media:/var/www/media.emacsconf.org/2022/backstage")
+(defvar emacsconf-upload-dir "/ssh:media:/srv/upload")
+
+(defun emacsconf-upload-open-dir ()
+  (interactive)
+  (dired emacsconf-upload-dir "-tl"))
+(defun emacsconf-backstage-open-dir ()
+  (interactive)
+  (dired emacsconf-backstage-dir "-tl"))
+(defun emacsconf-slugify (s)
+  (replace-regexp-in-string " +" "-" (replace-regexp-in-string "[^a-z0-9 ]" "" (downcase s))))
+
+(defun emacsconf-video-slug (talk)
+  (concat "emacsconf-" emacsconf-year "-" (plist-get talk :slug) "--"
+          (emacsconf-slugify (plist-get talk :title))
+          (if (plist-get talk :speakers)
+              (concat"--"
+                     (emacsconf-slugify (plist-get talk :speakers)))
+            "")))
+
+(defun emacsconf-set-video-slug-if-needed (o)
+  (interactive (list (emacsconf-complete-talk-info)))
+  (unless (plist-get o :video-slug)
+    (let ((video-slug
+           (read-string "Set video slug: " (emacsconf-video-slug o))))
+      (save-window-excursion
+        (emacsconf-with-talk-heading (plist-get o :slug)
+          (org-entry-put (point) "VIDEO_SLUG" video-slug)))
+      (plist-put o :video-slug video-slug)))
+  (plist-get o :video-slug))
+
+(defun emacsconf-set-video-slugs ()
+  (interactive)
+  (org-map-entries
+   (lambda ()
+     (org-entry-put (point) "VIDEO_SLUG" (emacsconf-video-slug (emacsconf-get-talk-info-for-subtree))))
+   "SLUG={.}-VIDEO_SLUG={.}"))
+
+(defun emacsconf-upload-copy-from-json (talk key filename)
+  (interactive (let-alist (json-parse-string (buffer-string) :object-type 'alist)
+                 (list (emacsconf-complete-talk-info)
+                       .key
+                       (read-string (format "Filename (%s): "
+                                            (file-name-base .metadata.name))
+                                    nil nil
+                                    (file-name-base .metadata.name)))))
+  (copy-file key
+             (expand-file-name (concat (plist-get talk :video-slug)
+                                       "--"
+                                       filename
+                                       "."
+                                       (let-alist (json-parse-string (buffer-string) :object-type 'alist)
+                                         (file-name-extension .metadata.name)))
+                               emacsconf-backstage-dir)))
 
 (defcustom emacsconf-download-directory "~/Downloads"
   "Directory to check for downloaded files."
