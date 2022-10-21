@@ -29,16 +29,15 @@
   :type 'string
   :group 'emacsconf)
 
-(defcustom emacsconf-main-extensions '(".org" ".odp" ".pdf" ".el" "--compressed56.webm" "--main.vtt" "--main_fr.vtt" "--main_ja.vtt" "--chapters.vtt" "--main--chapters.vtt")
+(defcustom emacsconf-main-extensions '(".org" ".odp" ".pdf" ".el" "--compressed56.webm" "--main.vtt" "--main_fr.vtt" "--main_ja.vtt" "--chapters.vtt" "--main--chapters.vtt" "--script.fountain")
   "Extensions to list on public pages."
   :type '(repeat string)
   :group 'emacsconf)
 
-(defcustom emacsconf-protected-extensions '(".en.srv2" ".srt")
+(defcustom emacsconf-backstage-extensions '(".en.srv2" ".srt")
   "Extensions to list in the staging area."
   :group 'emacsconf)
 (defcustom emacsconf-public-media-directory nil "Can be over TRAMP" :type 'string :group 'emacsconf)
-(defcustom emacsconf-protected-media-directory nil "Can be over TRAMP" :type 'string :group 'emacsconf)
 
 (defun emacsconf-update-talk (talk)
   "Publish the schedule page and the page for this talk."
@@ -112,14 +111,15 @@
   (when emacsconf-public-media-directory
     (emacsconf-make-public-index (expand-file-name "index.html" emacsconf-public-media-directory))
     (emacsconf-generate-playlist (expand-file-name "index.m3u" emacsconf-public-media-directory)
-                                 "EmacsConf2021"
+                                 (concat emacsconf-name emacsconf-year)
                                  (emacsconf-public-talks emacsconf-info)
                                  (format "https://media.emacsconf.org/%s/" emacsconf-year)))
-  (when emacsconf-protected-media-directory
-    (emacsconf-make-protected-index (expand-file-name "index.html" emacsconf-protected-media-directory)))
-  (emacsconf-generate-playlist (expand-file-name "index.m3u" emacsconf-protected-media-directory)
-                               "EmacsConf2021" (emacsconf-filter-talks emacsconf-info)
-                               (format "https://media.emacsconf.org/%s/protected/" emacsconf-year)))
+  (when emacsconf-backstage-dir
+    (emacsconf-make-backstage-index (expand-file-name "index.html" emacsconf-backstage-dir)))
+  (emacsconf-generate-playlist (expand-file-name "index.m3u" emacsconf-backstage-dir)
+                               (concat emacsconf-name emacsconf-year)
+                               (emacsconf-filter-talks emacsconf-info)
+                               (format "https://media.emacsconf.org/%s/backstage/" emacsconf-year)))
 
 (defun emacsconf-index-card (talk &optional extensions)
   "Format an HTML card for TALK, linking the files  in EXTENSIONS."
@@ -142,17 +142,12 @@
        talk
        "<div class=\"vid\">${video-html}${resources}${extra}${chapter-list}</div>"))))
 
-(defun emacsconf-index-card-video (video-id video-file talk extensions)
-  (let* ((wiki-caption-dir (expand-file-name
-                            "captions"
-                            (expand-file-name 
-                             (plist-get talk :conf-year)
-                             emacsconf-directory)))
-         (chapter-info (and video-file
+(defun emacsconf-index-card-video (video-id video-file talk extensions &optional backstage)
+  (let* ((chapter-info (and video-file
                             (emacsconf-make-chapter-strings
                              (expand-file-name
                               (concat (file-name-base video-file) "--chapters.vtt")
-                              wiki-caption-dir)
+                              emacsconf-cache-dir)
                              (plist-get talk :track-base-url))))
          (info
           (append
@@ -167,7 +162,7 @@
             (and video-file
                  (let ((tracks
                         (emacsconf-video-subtitle-tracks
-                         (expand-file-name (concat (file-name-base video-file) ".vtt") wiki-caption-dir)
+                         (expand-file-name (concat (file-name-base video-file) ".vtt") emacsconf-cache-dir)
                          (or (plist-get talk :track-base-url)
                              (plist-get talk :base-url)))))
                    (cond
@@ -210,7 +205,7 @@
      :video
      (emacsconf-replace-plist-in-string
       info
-      (if (and video-file (file-exists-p video-file))
+      (if video-file
           (if (eq (plist-get talk :format) 'wiki)
               "[[!template id=\"vid\" vidid=\"${video-id}\" src=\"${source-src}\" poster=\"${poster}\" ${captions}
 size=\"${video-file-size}\" duration=\"${video-duration}\" other_resources=\"\"\"${other-files}${toobnix-info}\"\"\"]]
@@ -747,21 +742,21 @@ Entries are sorted chronologically, with different tracks interleaved."
                             cancelled "\n"))
        ""))))
 
-(defun emacsconf-make-protected-index (filename)
-  (interactive (list (expand-file-name "index.html" emacsconf-protected-media-directory))) 
+(defun emacsconf-make-backstage-index (filename)
+  (interactive (list (expand-file-name "index.html" emacsconf-backstage-dir))) 
   (setq emacsconf-info (emacsconf-get-talk-info))
   (with-temp-file filename
     (let* ((talks (seq-filter (lambda (o) (plist-get o :video-file)) (emacsconf-filter-talks emacsconf-info)))
            (received (seq-remove (lambda (o) (plist-get o :captioner)) talks))
            (captioned (seq-filter (lambda (o) (plist-get o :captioner)) talks)))
       (insert
-       "<html><meta charset=\"UTF-8\"><body>"
-       (format "<h1>Talks to be captioned (%d minutes)</h1><ul class=\"videos\">"
-               (apply '+ (seq-map (lambda (talk) (string-to-number (plist-get talk :duration)))
+       "<html><head><meta charset=\"UTF-8\"><link rel=\"stylesheet\" href=\"/style.css\" /></head><body>"
+       (format "<h1>Talks to be captioned (%d minutes)</h1><p>You can e-mail <a href=\"mailto:sacha@sachachua.com\">sacha@sachachua.com</a> to call dibs on editing the captions for one of these talks.</p><ul class=\"videos\">"
+               (apply '+ (seq-map (lambda (talk) (string-to-number (or (plist-get talk :video-time) "0")))
                                   received)))
        (mapconcat
         (lambda (f)
-          (format  "<li><strong>%s</strong><br />%s<br />%s</li>"
+          (format  "<li><strong>%s</strong><br />%s<br />%s<br/ ><a href=\"%s%s\">View talk page</a></li>"
                    (plist-get f :title)
                    (plist-get f :speakers)
                    (emacsconf-index-card
@@ -769,7 +764,9 @@ Entries are sorted chronologically, with different tracks interleaved."
                      f
                      (list :extra
                            (if (plist-get f :caption-note) (concat "<div class=\"caption-note\">" (plist-get f :caption-note) "</div>") "")))
-                    (append emacsconf-main-extensions emacsconf-protected-extensions))))
+                    (append emacsconf-main-extensions emacsconf-backstage-extensions))
+                   emacsconf-base-url
+                   (plist-get f :url)))
         received
         "\n")
        (format
@@ -912,14 +909,11 @@ Entries are sorted chronologically, with different tracks interleaved."
   (string-join (emacsconf-link-file-formats-as-list video-slug extensions) " "))
 
 (defun emacsconf-link-file-formats-as-list (talk extensions)
-  (let ((video-slug (plist-get talk :video-slug))
-        (wiki-captions-dir (expand-file-name "captions" (expand-file-name (plist-get talk :conf-year) emacsconf-directory))))
+  (let ((video-slug (plist-get talk :video-slug)))
     (delq nil (seq-map (lambda (ext)
                          (let ((file (expand-file-name
                                       (concat video-slug ext)
-                                      (if (string-match "\\.vtt$" ext)
-                                          wiki-captions-dir
-                                        emacsconf-captions-directory)))
+                                      emacsconf-cache-dir))
                                size)
                            (when (file-exists-p file)
                              (setq size
@@ -1101,9 +1095,9 @@ Entries are sorted chronologically, with different tracks interleaved."
     'file-exists-p
     (seq-map (lambda (suffix)
                (expand-file-name (concat video-slug "--" suffix ".webm")
-                                 emacsconf-captions-directory))
+                                 emacsconf-cache-dir))
              '("main" "captioned" "normalized" "compressed")))
-   (car (directory-files emacsconf-captions-directory
+   (car (directory-files emacsconf-cache-dir
                          nil
                          (concat (regexp-quote video-slug)
                                  "\\."
@@ -1133,14 +1127,19 @@ Entries are sorted chronologically, with different tracks interleaved."
 (defun emacsconf-cache-all-video-data ()
   (interactive)
   (org-map-entries (lambda () (when (and (org-entry-get (point) "VIDEO_SLUG") (null (org-entry-get (point) "VIDEO_FILE_SIZE"))) (emacsconf-cache-video-data-for-entry)))))
-(defun emacsconf-cache-video-data-for-entry ()
-  (interactive)
-  (let* ((video-file (emacsconf-get-preferred-video (org-entry-get (point) "VIDEO_SLUG")))
-         (duration (/ (compile-media-get-file-duration-ms video-file) 1000)))
-    (org-entry-put (point) "VIDEO_FILE" (file-name-nondirectory video-file))
-    (org-entry-put (point) "VIDEO_FILE_SIZE" (file-size-human-readable (file-attribute-size (file-attributes video-file))))
-    (org-entry-put (point) "VIDEO_DURATION" (format-seconds "%m:%.2s" duration))
-    (org-entry-put (point) "TIME" (number-to-string (ceiling (/ duration 60))))))
+(defvar emacsconf-cache-dir (expand-file-name "cache" (file-name-directory emacsconf-org-file)))
+(defun emacsconf-sync)
+(defun emacsconf-cache-video-data (talk)
+  (interactive (list (emacsconf-complete-talk)))
+  (emacsconf-with-talk-heading talk
+    (let* ((video-file-name (emacsconf-get-preferred-video (org-entry-get (point) "VIDEO_SLUG")))
+           (video-file (expand-file-name video-file-name emacsconf-cache-dir))
+           duration)
+      (setq duration (/ (compile-media-get-file-duration-ms video-file) 1000))
+      (org-entry-put (point) "VIDEO_FILE" (file-name-nondirectory video-file))
+      (org-entry-put (point) "VIDEO_FILE_SIZE" (file-size-human-readable (file-attribute-size (file-attributes video-file))))
+      (org-entry-put (point) "VIDEO_DURATION" (format-seconds "%m:%.2s" duration))
+      (org-entry-put (point) "VIDEO_TIME" (number-to-string (ceiling (/ duration 60)))))))
 
 (defvar emacsconf-youtube-channel-id "UCwuyodzTl_KdEKNuJmeo99A")
 (defun emacsconf-youtube-edit ()

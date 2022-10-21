@@ -75,7 +75,7 @@
   :type 'file
   :group 'emacsconf)
 
-(defvar emacsconf-stream-base "https://live0.emacsconf.org:9001/emacsconf/")
+(defvar emacsconf-stream-base "https://live0.emacsconf.org/emacsconf/")
 (defvar emacsconf-chat-base "https://chat.emacsconf.org/")
 (defvar emacsconf-backstage-dir "/ssh:media:/var/www/media.emacsconf.org/2022/backstage")
 (defvar emacsconf-upload-dir "/ssh:media:/srv/upload")
@@ -97,6 +97,8 @@
                      (emacsconf-slugify (plist-get talk :speakers)))
             "")))
 
+
+
 (defun emacsconf-set-video-slug-if-needed (o)
   (interactive (list (emacsconf-complete-talk-info)))
   (unless (plist-get o :video-slug)
@@ -114,6 +116,7 @@
    (lambda ()
      (org-entry-put (point) "VIDEO_SLUG" (emacsconf-video-slug (emacsconf-get-talk-info-for-subtree))))
    "SLUG={.}-VIDEO_SLUG={.}"))
+
 
 (defun emacsconf-upload-copy-from-json (talk key filename)
   (interactive (let-alist (json-parse-string (buffer-string) :object-type 'alist)
@@ -309,6 +312,7 @@
                        ;; Processing
                        (:video-slug "VIDEO_SLUG")
                        (:video-file "VIDEO_FILE")                       
+                       (:video-time "VIDEO_TIME")                       
                        (:video-file-size "VIDEO_FILE_SIZE")                       
                        (:video-duration "VIDEO_DURATION")
                        (:youtube-url "YOUTUBE_URL")                       
