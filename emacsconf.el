@@ -75,7 +75,7 @@
   :type 'file
   :group 'emacsconf)
 
-(defvar emacsconf-stream-base "https://live0.emacsconf.org/")
+(defvar emacsconf-stream-base "https://live0.emacsconf.org:9001/emacsconf/")
 (defvar emacsconf-chat-base "https://chat.emacsconf.org/")
 
 (defcustom emacsconf-download-directory "~/Downloads"
@@ -422,14 +422,18 @@
     (when track
       (plist-put o :watch-url (concat emacsconf-base-url emacsconf-year "/watch/" (plist-get track :id))))
     (plist-put o :channel (plist-get track :channel))
+    (plist-put o :webchat-url (concat emacsconf-chat-base "?join=emacsconf," (plist-get track :channel)))
     (cond
      ((string-match "live" (or (plist-get o :q-and-a) ""))
       (plist-put o :bbb-redirect (format "https://emacsconf.org/current/%s/room/" (plist-get o :slug)))
-      (plist-put o :qa-info (plist-get o :bbb-redirect)))
+      (plist-put o :qa-info (plist-get o :bbb-redirect))
+      (plist-put o :qa-link (format "<a href=\"%s\">live</a>" (plist-get o :bbb-redirect))))
      ((string-match "IRC" (or (plist-get o :q-and-a) ""))
       (plist-put o :qa-info (concat (emacsconf-surround "nick: " (plist-get o :irc) ", " "")
-                                    (plist-get o :channel))))
-     (t (plist-put o :qa-info "none")))
+                                    (plist-get o :channel)))
+      (plist-put o :qa-link (format "<a href=\"%s\">%s</a>" (plist-get o :webchat-url) (plist-get o :qa-info))))
+     (t (plist-put o :qa-info "none")
+        (plist-put o :qa-link "none")))
     (plist-put o :pad-url (format "https://pad.emacsconf.org/%s-%s" emacsconf-year (plist-get o :slug)))
     o))
 

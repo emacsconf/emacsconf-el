@@ -226,6 +226,7 @@ Each function should take the info and manipulate it as needed, returning the ne
             (emacsconf-filter-talks info)))))
 
 (defvar emacsconf-schedule-svg-modify-functions '(emacsconf-schedule-svg-color-by-track) "Functions to run to modify the display of each item.")
+(defvar emacsconf-use-absolute-url nil "Non-nil means try to use absolute URLs.")
 (defun emacsconf-schedule-svg-track (svg base-x base-y width height start-time end-time info)
   (let ((scale (/ width (float-time (time-subtract end-time start-time)))))
     (mapc
@@ -258,7 +259,12 @@ Each function should take the info and manipulate it as needed, returning the ne
               (parent (dom-node
                        'a
                        (list
-                        (cons 'href (concat "/" (plist-get o :url)))
+                        (cons 'href
+                              (concat
+                               (if emacsconf-use-absolute-url
+                                   emacsconf-base-url
+                                 "/")
+                               (plist-get o :url)))
                         (cons 'title (plist-get o :title))
                         (cons 'data-slug (plist-get o :slug)))
                        (dom-node 'title nil

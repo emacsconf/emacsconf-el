@@ -696,43 +696,43 @@ Entries are sorted chronologically, with different tracks interleaved."
 
 (defun emacsconf-publish-sched-directive (o)
   (format "[[!template id=sched%s%s]]"
-                  (let ((result "")
-                        (attrs (append
-                                (list
-                                 :title (plist-get o :title)
-                                 :url (concat "/" (plist-get o :url))
-                                 :speakers (plist-get o :speakers)
-                                 :q-and-a (plist-get o :q-and-a))
-                                (unless (eq emacsconf-publishing-phase 'program)
-                                  (list
-                                   :track (plist-get o :track)
-                                   :slug (plist-get o :slug)
-                                   :status (pcase (plist-get o :status)
-                                             ("CAPTIONED" "captioned")
-                                             ("PREREC_RECEIVED" "received")
-                                             ("DONE" "done")
-                                             ("STARTED" "now playing")
-                                             (_ nil))
-                                   :time (plist-get o :time)
-                                   :startutc (format-time-string "%FT%T%z" (plist-get o :start-time) t)
-                                   :endutc (format-time-string "%FT%T%z" (plist-get o :end-time) t)
-                                   :start (format-time-string "%-l:%M" (plist-get o :start-time) emacsconf-timezone)
-                                   :end (format-time-string "%-l:%M" (plist-get o :end-time) emacsconf-timezone))))))
-                    (while attrs
-                      (let ((field (pop attrs))
-                            (val (pop attrs)))
-                        (when val
-                          (setq result (concat result " " (substring (symbol-name field) 1) "=\"" val "\"")))))
-                    result)
-                  (if (eq emacsconf-publishing-phase 'resources)
-                      (format" resources=\"\"\"\n%s\n\"\"\""
-                             (mapconcat (lambda (s) (concat "<li>" s "</li>"))
-                                        (emacsconf-link-file-formats-as-list
-                                         (append o
-                                                 (list :base-url (format "%s%s/" emacsconf-media-base-url emacsconf-year)))
-                                         (append emacsconf-main-extensions '("--main.webm")))
-                                        ""))
-                    "")))
+          (let ((result "")
+                (attrs (append
+                        (list
+                         :title (plist-get o :title)
+                         :url (concat "/" (plist-get o :url))
+                         :speakers (plist-get o :speakers)
+                         :q-and-a (plist-get o :q-and-a))
+                        (unless (eq emacsconf-publishing-phase 'program)
+                          (list
+                           :track (plist-get o :track)
+                           :slug (plist-get o :slug)
+                           :status (pcase (plist-get o :status)
+                                     ("CAPTIONED" "captioned")
+                                     ("PREREC_RECEIVED" "received")
+                                     ("DONE" "done")
+                                     ("STARTED" "now playing")
+                                     (_ nil))
+                           :time (plist-get o :time)
+                           :startutc (format-time-string "%FT%T%z" (plist-get o :start-time) t)
+                           :endutc (format-time-string "%FT%T%z" (plist-get o :end-time) t)
+                           :start (format-time-string "%-l:%M" (plist-get o :start-time) emacsconf-timezone)
+                           :end (format-time-string "%-l:%M" (plist-get o :end-time) emacsconf-timezone))))))
+            (while attrs
+              (let ((field (pop attrs))
+                    (val (pop attrs)))
+                (when val
+                  (setq result (concat result " " (substring (symbol-name field) 1) "=\"" val "\"")))))
+            result)
+          (if (eq emacsconf-publishing-phase 'resources)
+              (format" resources=\"\"\"\n%s\n\"\"\""
+                     (mapconcat (lambda (s) (concat "<li>" s "</li>"))
+                                (emacsconf-link-file-formats-as-list
+                                 (append o
+                                         (list :base-url (format "%s%s/" emacsconf-media-base-url emacsconf-year)))
+                                 (append emacsconf-main-extensions '("--main.webm")))
+                                ""))
+            "")))
 
 (defun emacsconf-format-main-schedule (info)
   (let* ((cancelled (seq-filter (lambda (o) (string= (plist-get o :status) "CANCELLED")) info)))
@@ -1244,88 +1244,181 @@ Entries are sorted chronologically, with different tracks interleaved."
                   (insert "</div>"))))
             by-day))))
 
+(defvar emacsconf-publish-watch-directory "/ssh:front:/var/www/live.emacsconf.org/")
+
+(defun emacsconf-publish-format-watch-index (info)
+  (concat
+   "<!-- Automatically generated by emacsconf-publish-watch-pages -->\n
+<h1>Tracks</h1>"
+   "<table width=\"100%\"><tr><th>Watch page</th><th>IRC channel (libera.chat)</th><th>Alternative for streaming player</th><th>Low res</th></tr>\n"
+   (mapconcat (lambda (track)
+                (emacsconf-replace-plist-in-string
+                 track
+                 "<tr><td><a href=\"/${year}/watch/${id}\">${name}</a></td><td><a href=\"${webchat}\">${channel}</a></td><td><a href=\"${stream}\">${stream}</a></td><td><a href=\"${480p}\">${id}-480p.webm</a></tr>"))
+              emacsconf-tracks
+              "\n")
+   "</table>\n\n"
+   (with-temp-buffer
+     (svg-print (emacsconf-schedule-svg 800 300 info))
+     (buffer-string))))
+
+(defun emacsconf-publish-schedule-line (talk)
+  (setq talk (append talk (list
+                           :startutc (format-time-string "%FT%T%z" (plist-get talk :start-time) t)
+                           :endutc (format-time-string "%FT%T%z" (plist-get talk :end-time) t)
+                           :start (format-time-string "%-l:%M" (plist-get talk :start-time) emacsconf-timezone)
+                           :end (format-time-string "%-l:%M" (plist-get talk :end-time) emacsconf-timezone)
+                           :base-url emacsconf-base-url)))
+  (emacsconf-replace-plist-in-string
+   (append talk (list
+                 :start-info (emacsconf-surround "<span class=\"sched-start\">" (plist-get talk :start) "</span>" "")
+                 :end-info(emacsconf-surround " - <span class=\"sched-end\">" (plist-get talk :end) "</span>" "")
+                 :track-info (emacsconf-surround (format " <span class=\"sched-track %s\">" (or (plist-get talk :track) "")) (plist-get talk :track) "</span>" "")
+                 :q-info  (emacsconf-surround " <span class=\"sched-q-and-a\">Q&amp;A: " (plist-get talk :q-and-a) "</span>; " "")
+                 :slug-info (emacsconf-surround " <span class=\"sched-slug\">id:" (plist-get talk :slug) "</span>" "")
+                 :speaker-info (emacsconf-surround " <div class=\"sched-speakers\">id:" (plist-get talk :speakers) "</div>" "")
+                 :resources-info (emacsconf-surround "<ul class=\"resources\">id:" (plist-get talk :resources) "</ul>" ""))) 
+   "<div data-start=\"${startutc}\" data-end=\"${endutc}\" class=\"sched-entry track-${track}\">
+<div class=\"sched-meta\"><span class=\"sched-time\">${start-info}${end-info}</span>${track-info}${q-info}${slug-info}</div>
+<div class=\"sched-title\"><a href=\"${base-url}${url}\">${title}</a></div>
+${speaker-info}
+${resources-info}
+</div>
+"))
+
+(defun emacsconf-publish-schedule-short (info)
+  (mapconcat (lambda (o)
+               (emacsconf-replace-plist-in-string
+                (append o (list :base-url emacsconf-base-url))
+                "<span><a href=\"${base-url}${url}\">${slug}</a> (<a class=\"pad-link\" href=\"${pad-url}\">pad</a>, ${qa-link})</span>"))
+             info " - "))
+
+(defun emacsconf-publish-page-nav (nav &optional current sep)
+  (concat (if current (format "<a name=\"%s\"></a>" current) "")
+          (mapconcat (lambda (n)
+                       (if (string= current (car n))
+                           (concat "<strong>" (cdr n) "</strong>")
+                         (concat "<a href=\"#" (car n) "\">" (cdr n) "</a>")))
+                     nav (or sep " - "))))
+
+(defun emacsconf-publish-format-watch-track (track info)
+  (let ((nav '(("watch" . "Watch")
+               ("links" . "Pad and Q&amp;A links")
+               ("chat" . "Chat")
+               ("sched" . "Schedule")))
+        (track-talks (seq-filter (lambda (o) (string= (plist-get o :track)
+                                                      (plist-get track :name)))
+                                 info))
+        )
+    (emacsconf-replace-plist-in-string
+     (append
+      (list :links (concat
+                    "<a href=\"#watch\">Watch</a> - <a href=\"#links\">Pad and Q&amp;A links</a> - <a href=\"#chat\">Chat</a> - <a href=\"#sched\">View schedule</a> - \nStreams: "
+                    )
+            :sched (with-temp-buffer
+                     (svg-print (emacsconf-schedule-svg 800 300 info))
+                     (buffer-string))
+            :year emacsconf-year
+            :brief (emacsconf-publish-schedule-short
+
+                    track-talks)
+            :stream-nav (concat "Tracks: " (mapconcat (lambda (tr)
+                                                        (if (string= (plist-get tr :name) (plist-get track :name))
+                                                            (format "<strong>%s</strong>" (plist-get track :name))
+                                                          (format "<a href=\"/%s/watch/%s/\">%s</a>"
+                                                                  emacsconf-year
+                                                                  (plist-get tr :id)
+                                                                  (plist-get tr :name))))
+                                                      emacsconf-tracks
+                                                      " - "))
+            :talks
+            (mapconcat (lambda (entry) (format "<h1>%s</h1>\n%s\n" (car entry)
+                                               (mapconcat #'emacsconf-publish-schedule-line (cdr entry) "\n")))
+                       (seq-group-by (lambda (o)
+                                       (format-time-string "%A, %b %-e, %Y" (plist-get o :start-time) emacsconf-timezone))
+                                     track-talks)))
+      track)
+     (concat
+      "<!-- Automatically generated by emacsconf-publish-watch-pages -->
+<!--
+[[!inline pages=\"internal(${year}/watch/announce)\" raw=\"yes\"]]
+[[!meta title=\"${name} stream\"]]
+[[!sidebar content=\"\"]] -->
+<h1>EmacsConf ${year}: ${name} track</h1>
+<hr size=\"1\">
+<div>"
+      (emacsconf-publish-page-nav nav "watch")
+      " | ${stream-nav}</div>
+
+<video controls><source src=\"${stream}\" type=\"video/webm\" /></video>
+<div>Alternatively, load <a href=\"${stream}\">${stream}</a> or <a href=\"${480p}\"></a> (low-res) in a streaming media player such as MPV.</div>
+<hr size=\"1\"><div>" (emacsconf-publish-page-nav nav "links") " | ${stream-nav}</div>"
+      "<div>${brief}</div>
+<div class=\"pad-output\"></div>
+<hr size=\"1\"><div>" (emacsconf-publish-page-nav nav "chat") " | ${stream-nav}</div>"
+"<div>Chat: <a href=\"${webchat}\">${channel}</a> on libera.chat</div>
+
+<div class=\"chat-iframe\" data-track=\"${id}\"></div>
+<iframe src=\"${webchat}\" height=\"600\" width=\"100%\"></iframe>
+<hr size=\"1\"><div>" (emacsconf-publish-page-nav nav "sched") " | ${stream-nav}</div>"
+"
+<div>${sched}</div>
+<div>${talks}</div>
+"))))
+
 (defun emacsconf-publish-watch-pages ()
   "Update /year/watch pages."
   (interactive)
-  (emacsconf-publish-with-wiki-change
-    
-    (mapc (lambda (track)
-            (plist-put track :year emacsconf-year)
-            (plist-put track :stream (concat emacsconf-stream-base (plist-get track :id) ".webm"))
-            (plist-put track :480p (concat emacsconf-stream-base (plist-get track :id) "-480p.webm"))
-            (plist-put track :webchat-channels (concat "emacsconf,emacsconf-" (plist-get track :id)))
-            (plist-put track :webchat (concat emacsconf-chat-base "?join=" (plist-get track :webchat-channels)))
-            (plist-put track :channel (concat "#emacsconf-" (plist-get track :id))))
-          emacsconf-tracks)
-    (let* ((info (sort (emacsconf-get-talk-info) #'emacsconf-sort-by-scheduled))
-           (emacsconf-publishing-phase 'schedule)
-           (sched (format "[[!inline pages=\"internal(%s/schedule-image)\" raw=\"yes\"]]" emacsconf-year)))
-      (unless (file-directory-p (expand-file-name "watch" (expand-file-name emacsconf-year emacsconf-directory)))
-        (make-directory (expand-file-name "watch" (expand-file-name emacsconf-year emacsconf-directory))))
-      (with-temp-file (expand-file-name "watch/info.md" (expand-file-name emacsconf-year emacsconf-directory))
-        (insert
-         "<!-- Automatically generated by emacsconf-publish-watch-pages -->\n[[!sidebar content=\"\"]]
-# Tracks\n\n"
-         "<table width=\"100%\"><tr><th>Watch page</th><th>IRC channel (libera.chat)</th><th>Alternative for streaming player</th><th>Low res</th></tr>\n"
-         (mapconcat (lambda (track)
-                      (emacsconf-replace-plist-in-string
-                       track
-                       "<tr><td><a href=\"/${year}/watch/${id}\">${name}</a></td><td><a href=\"${webchat}\">${channel}</a></td><td><a href=\"${stream}\">${stream}</a></td><td><a href=\"${480p}\">${id}-480p.webm</a></tr>"))
-                    emacsconf-tracks
-                    "\n")
-         "</table>\n\n" sched))
-      
+  (mapc (lambda (track)
+          (plist-put track :year emacsconf-year)
+          (plist-put track :stream (concat emacsconf-stream-base (plist-get track :id) ".webm"))
+          (plist-put track :480p (concat emacsconf-stream-base (plist-get track :id) "-480p.webm"))
+          (plist-put track :webchat-channels (concat "emacsconf,emacsconf-" (plist-get track :id)))
+          (plist-put track :webchat (concat emacsconf-chat-base "?join=" (plist-get track :webchat-channels)))
+          (plist-put track :channel (concat "#emacsconf-" (plist-get track :id))))
+        emacsconf-tracks)
+  (let* ((info (sort (emacsconf-get-talk-info) #'emacsconf-sort-by-scheduled))
+         (emacsconf-publishing-phase 'schedule)
+         (emacsconf-use-absolute-url t))
+    ;; (when emacsconf-directory
+    ;;   (emacsconf-publish-with-wiki-change
+    ;;     (make-directory (expand-file-name "watch" (expand-file-name emacsconf-year emacsconf-directory)) t)
+    ;;     (with-temp-file (expand-file-name "watch/info.md" (expand-file-name emacsconf-year emacsconf-directory))
+    ;;       (insert "[[!sidebar content=\"\"]]" (emacsconf-publish-format-watch-index info)))
+    ;;     (mapc (lambda (track)
+    ;;             (with-temp-file (expand-file-name (format "%s/watch/%s.md" emacsconf-year (plist-get track :id))
+    ;;                                               emacsconf-directory)
+    ;;               (insert (emacsconf-publish-format-watch-track track info))))
+    ;;           emacsconf-tracks)))
+    ;; Update live.emacsconf.org
+    (when emacsconf-publish-watch-directory
+      (make-directory (expand-file-name "watch" (expand-file-name emacsconf-year emacsconf-publish-watch-directory)) t)
+      (with-temp-file (expand-file-name "watch/index.html" (expand-file-name emacsconf-year emacsconf-publish-watch-directory))
+        (insert "<html><head><title>Watch EmacsConf</title><link rel=\"stylesheet\" type=\"text/css\" href=\"/style.css\"></link></head><body>" (emacsconf-publish-format-watch-index info)
+
+" <p>
+        Depending on which media player you use, you may enter the stream address
+        in a graphical user interface or provide it as an argument to the program
+        when launching it from the terminal.
+      </p>
+      <p>
+        Examples:
+      </p>
+<pre>mpv https://live0.emacsconf.org:9001/emacsconf/gen.webm
+vlc https://live0.emacsconf.org:9001/emacsconf/gen.webm
+ffplay https://live0.emacsconf.org:9001/emacsconf/gen.webm
+</pre>"
+                "</body></html>"))
       (mapc (lambda (track)
-              (with-temp-file (expand-file-name (format "%s/watch/%s.md"
-                                                        emacsconf-year
-                                                        (plist-get track :id))
-                                                emacsconf-directory)
+              (make-directory (expand-file-name (format "%s/watch/%s" emacsconf-year (plist-get track :id)) emacsconf-publish-watch-directory) t)
+              (with-temp-file (expand-file-name (format "%s/watch/%s/index.html" emacsconf-year (plist-get track :id))
+                                                emacsconf-publish-watch-directory)
                 (insert
                  (emacsconf-replace-plist-in-string
-                  (append
-                   (list :links (concat
-                                 "<a href=\"#watch\">Watch</a> - <a href=\"#chat\">Chat</a> - <a href=\"#sched\">View schedule</a> - \nStreams: "
-                                 (mapconcat (lambda (tr)
-                                              (if (string= (plist-get tr :name) (plist-get track :name))
-                                                  (format "**%s**" (plist-get track :name))
-                                                (format "<a href=\"/%s/watch/%s/\">%s</a>"
-                                                        emacsconf-year
-                                                        (plist-get tr :id)
-                                                        (plist-get tr :name))))
-                                            emacsconf-tracks
-                                            " - "))
-                         :sched sched
-                         :year emacsconf-year
-                         :talks (mapconcat #'emacsconf-publish-sched-directive
-                                             (seq-filter (lambda (o) (string= (plist-get o :track)
-                                                                              (plist-get track :name)))
-                                                         info)
-                                             "\n"))
-                   track)
-                  "<!-- Automatically generated by emacsconf-publish-watch-pages -->
-[[!inline pages=\"internal(${year}/watch/announce)\" raw=\"yes\"]]
-[[!meta title=\"${name} stream\"]]
-[[!sidebar content=\"\"]]
-
-<a name=\"watch\"></a>
-${links}
-\n<video controls><source src=\"${stream}\" type=\"video/webm\" /></video>
-Alternatively, load <${stream}> or <${480p}> (low-res) in a streaming media player such as MPV.
-
-<a name=\"chat\"></a>
-${links}
-
-Chat: [${channel} on libera.chat](${webchat})
-
-<div class=\"chat-iframe\" data-track=\"${id}\"></div>
-
-<a name=\"sched\"></a>
-${links}
-
-${sched}\n
-
-${talks}
-"))))
+                  track
+                  "<html><head><title>Watch EmacsConf ${name} track</title><link rel=\"stylesheet\" type=\"text/css\" href=\"/style.css\"></link></head><body>")
+                 (emacsconf-publish-format-watch-track track info)
+                 "</body></html>")))
             emacsconf-tracks))))
 
 (defvar emacsconf-publish-current-dir "/ssh:media:/var/www/media.emacsconf.org/2022/current"
