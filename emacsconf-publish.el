@@ -143,10 +143,11 @@
        "<div class=\"vid\">${video-html}${resources}${extra}${chapter-list}</div>"))))
 
 (defun emacsconf-index-card-video (video-id video-file talk extensions &optional backstage)
-  (let* ((chapter-info (and video-file
+  (let* ((video-base (file-name-base (replace-regexp-in-string "--\\(normalized\\|reencoded\\)" "--main" video-file)))
+         (chapter-info (and video-file
                             (emacsconf-make-chapter-strings
                              (expand-file-name
-                              (concat (file-name-base video-file) "--chapters.vtt")
+                              (concat video-base "--chapters.vtt")
                               emacsconf-cache-dir)
                              (plist-get talk :track-base-url))))
          (info
@@ -162,7 +163,8 @@
             (and video-file
                  (let ((tracks
                         (emacsconf-video-subtitle-tracks
-                         (expand-file-name (concat (file-name-base video-file) ".vtt") emacsconf-cache-dir)
+                         (expand-file-name
+                          (concat video-base  ".vtt") emacsconf-cache-dir)
                          (or (plist-get talk :track-base-url)
                              (plist-get talk :base-url)))))
                    (cond
@@ -773,18 +775,18 @@ Entries are sorted chronologically, with different tracks interleaved."
                                    (if (plist-get f :caption-note) (concat "<div class=\"caption-note\">" (plist-get f :caption-note) "</div>") "")
                                    :files
                                    (emacsconf-publish-talk-files f files))))
-                    (format  "<li><strong>%s</strong><br />%s<br />%s<br/ ><a href=\"%s%s\">View talk page</a></li>"
+                    (format  "<li><strong><a href=\"%s%s\">%s</a></strong><br />%s<br />%s</li>"
+                             emacsconf-base-url
+                             (plist-get f :url)
                              (plist-get f :title)
                              (plist-get f :speakers)
-                             (emacsconf-index-card f)
-                             emacsconf-base-url
-                             (plist-get f :url)))
+                             (emacsconf-index-card f)))
                   list
                   "\n")))
        (format
         "<h1>%d talk(s) being captioned (%s minutes)</h1><ul>%s</ul>"
         (length (assoc-default "TO_CAPTION" by-status))
-        (apply '+ (seq-map (lambda (talk) (string-to-number (plist-get talk :duration))) (assoc-default "TO_CAPTION" by-status)))
+        (emacsconf-sum :video-time (assoc-default "TO_CAPTION" by-status))
         (mapconcat
          (lambda (f)
            (setq f (append
@@ -793,22 +795,25 @@ Entries are sorted chronologically, with different tracks interleaved."
                           (if (plist-get f :captioner) (concat "<div class=\"caption-note\">" (plist-get f :captioner) "</div>") "")
                           :files
                           (emacsconf-publish-talk-files f files))))
-           (format  "<li><strong>%s</strong><br />%s<br />%s<br/ ><a href=\"%s%s\">View talk page</a></li>"
+           (format  "<li><strong><a href=\"%s%s\">%s</a></strong><br />%s<br />%s</li>"
+                    emacsconf-base-url
+                    (plist-get f :url)
                     (plist-get f :title)
                     (plist-get f :speakers)
-                    (emacsconf-index-card f)
-                    emacsconf-base-url
-                    (plist-get f :url)))
+                    (emacsconf-index-card f)))
          (assoc-default "TO_CAPTION" by-status)
          "\n"))
        (format
         "<h1>%d captioned talk(s) ready for enjoyment (%d minutes)</h1><ol class=\"videos\">%s</ol>"
         (length (assoc-default "TO_STREAM" by-status))
-        (apply '+ (seq-map (lambda (talk) (string-to-number (plist-get talk :duration))) (assoc-default "TO_STREAM" by-status)))
-        (mapconcat (lambda (f) (format "<li><strong>%s</strong><br />%s<br />%s</li>"
-                                       (plist-get f :title)
-                                       (plist-get f :speakers)
-                                       (emacsconf-index-card f emacsconf-main-extensions)))
+        (emacsconf-sum :video-time (assoc-default "TO_STREAM" by-status))
+        (mapconcat (lambda (f)
+                     (format  "<li><strong><a href=\"%s%s\">%s</a></strong><br />%s<br />%s</li>"
+                              emacsconf-base-url
+                              (plist-get f :url)
+                              (plist-get f :title)
+                              (plist-get f :speakers)
+                              (emacsconf-index-card (append f (list :extra (concat "Captioned by " (plist-get f :captioner)))) emacsconf-main-extensions)))
                    (assoc-default "TO_STREAM" by-status) "\n"))
        (if (file-exists-p (expand-file-name "include-in-index.html" emacsconf-captions-directory))
            (with-temp-buffer (insert-file-contents (expand-file-name "include-in-index.html" emacsconf-captions-directory)) (buffer-string))

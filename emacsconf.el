@@ -133,11 +133,16 @@
         (emacsconf-upload-to-backstage-and-rename talk "main")))))
 
 (defun emacsconf-upload-to-backstage-and-rename (talk filename)
-  (interactive (list (emacsconf-complete-talk-info)
-                     (read-string (format "Filename (%s): "
-                                          (file-name-base (buffer-file-name)))
-                                  nil nil
-                                  (file-name-base (buffer-file-name)))))
+  (interactive (let ((talk (emacsconf-complete-talk-info))
+                     (base (file-name-base (buffer-file-name))))
+                 (list
+                  talk
+                  (if (string-match (concat "^" (regexp-quote (plist-get talk :video-slug)) "--\\([a-z]+\\)")
+                                    base)
+                      (match-string 1 base)
+                    (read-string (format "Filename (%s): " base)
+                                 nil nil
+                                 base)))))
   (copy-file (buffer-file-name)
              (expand-file-name (concat (plist-get talk :video-slug)
                                        "--"
@@ -146,6 +151,7 @@
                                        (file-name-extension (buffer-file-name)))
                                emacsconf-backstage-dir)
              t))
+
 (defun emacsconf-upload-copy-from-json (talk key filename)
   (interactive (let-alist (json-parse-string (buffer-string) :object-type 'alist)
                  (list (emacsconf-complete-talk-info)
