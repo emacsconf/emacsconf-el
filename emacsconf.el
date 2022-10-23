@@ -117,11 +117,39 @@
      (org-entry-put (point) "VIDEO_SLUG" (emacsconf-video-slug (emacsconf-get-talk-info-for-subtree))))
    "SLUG={.}-VIDEO_SLUG={.}"))
 
+(defun emacsconf-upload-to-backstage ()
+  (interactive)
+  (copy-file (buffer-file-name) (expand-file-name (file-name-nondirectory (buffer-file-name))
+                                                  emacsconf-backstage-dir)
+             t))
+(defun emacsconf-get-srv2-and-upload-to-backstage (talk)
+  (interactive (list (emacsconf-complete-talk-info (seq-filter (lambda (o) (plist-get o :youtube-url)) (emacsconf-get-talk-info)))))
+  (let ((filename (make-temp-file nil nil "srv2"))
+        (buf (get-buffer-create "*test*")))
+    (when (plist-get talk :youtube-url)
+      (call-process "yt-dlp" nil buf t "--write-sub" "--write-auto-sub" "--no-warnings" "--sub-lang" "en" "--skip-download" "--sub-format" "srv2" "-o" filename
+                    (plist-get talk :youtube-url))
+      (with-current-buffer (find-file-noselect (concat filename ".en.srv2"))
+        (emacsconf-upload-to-backstage-and-rename talk "main")))))
 
+(defun emacsconf-upload-to-backstage-and-rename (talk filename)
+  (interactive (list (emacsconf-complete-talk-info)
+                     (read-string (format "Filename (%s): "
+                                          (file-name-base (buffer-file-name)))
+                                  nil nil
+                                  (file-name-base (buffer-file-name)))))
+  (copy-file (buffer-file-name)
+             (expand-file-name (concat (plist-get talk :video-slug)
+                                       "--"
+                                       filename
+                                       "."
+                                       (file-name-extension (buffer-file-name)))
+                               emacsconf-backstage-dir)
+             t))
 (defun emacsconf-upload-copy-from-json (talk key filename)
   (interactive (let-alist (json-parse-string (buffer-string) :object-type 'alist)
                  (list (emacsconf-complete-talk-info)
-                       .key
+                       .metadata.key
                        (read-string (format "Filename (%s): "
                                             (file-name-base .metadata.name))
                                     nil nil
@@ -865,7 +893,8 @@
               (set (car var) (gethash (cdr var) vars))
               )
             '((emacsconf-pad-api-key . etherpad_api_key)
-              (emacsconf-pad-base . etherpad_url))))))
+              (emacsconf-pad-base . etherpad_url)
+              (emacsconf-backstage-password . emacsconf_backstage_password))))))
 ;; (emacsconf-ansible-load-vars (expand-file-name "prod-vars.yml" emacsconf-ansible-directory))
 ;;; Tracks
 (defvar emacsconf-tracks '((:name "General" :color "peachpuff" :id "gen" :channel "emacsconf-gen")
