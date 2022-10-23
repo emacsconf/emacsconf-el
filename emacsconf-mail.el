@@ -33,9 +33,9 @@
            (email (plist-get (seq-find (lambda (o) (string= (plist-get o :slug) slug)) info) :email)))
       (assoc email grouped))))
 
-(defun emacsconf-mail-prepare (template group attrs)
+(defun emacsconf-mail-prepare (template email attrs)
   (compose-mail
-   (car group)
+   email
    (emacsconf-replace-plist-in-string attrs (plist-get template :subject))
    `(("Reply-To" . ,(emacsconf-replace-plist-in-string attrs (plist-get template :reply-to)))
      ("Mail-Followup-To" . ,(emacsconf-replace-plist-in-string attrs (plist-get template :mail-followup-to)))
@@ -53,9 +53,8 @@
                        (emacsconf-mail-merge-get-template-from-subtree)
                      (emacsconf-mail-merge-get-template
                       (completing-read "Template: " (org-property-values "EMAIL_ID")))))
-         (mail-func (plist-get template :function))
-         (group (emacsconf-mail-complete-email-group)))
-    (funcall mail-func (cons user-mail-address (cdr group)) template)))
+         (mail-func (plist-get template :function)))
+    (funcall mail-func user-mail-address template)))
 
 (defun emacsconf-mail-template-to-group ()
   "Prompt for a speaker and e-mail current template to them."
@@ -89,7 +88,7 @@
 (defun emacsconf-mail-group-by-email (info)
   (seq-group-by (lambda (o) (plist-get o :email)) info))
 
-(defun emacsconf-mail-speaker (&optional subject body)
+(defun emacsconf-mail-speaker (&optional subject body talk)
   "Compose a message to the speaker of the current talk."
   (interactive)
   (compose-mail (format "%s <%s>" (org-entry-get (point) "NAME") (org-entry-get (point) "EMAIL")) subject)
