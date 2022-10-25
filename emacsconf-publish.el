@@ -163,10 +163,10 @@
             (and video-file
                  (let ((tracks
                         (emacsconf-video-subtitle-tracks
-                         (expand-file-name
-                          (concat video-base  ".vtt") emacsconf-cache-dir)
+                         (concat video-base  ".vtt")
                          (or (plist-get talk :track-base-url)
-                             (plist-get talk :base-url)))))
+                             (plist-get talk :base-url))
+                         (plist-get talk :files))))
                    (cond
                     ((zerop (length tracks)) "")
                     ((eq (plist-get talk :format) 'wiki) (format "captions=\"\"\"%s\"\"\"" tracks))
@@ -497,6 +497,17 @@ Back to the [[talks]]  \n"
               (emacsconf-generate-after-page o talks))
             talks))))
 
+(defun emacsconf-publish-before-pages (&optional info)
+  "Populate -before files."
+  (interactive)
+  (setq info (or info (emacsconf-get-talk-info)))
+  (setq info (seq-remove (lambda (o) (string= (plist-get o :status) "CANCELLED"))
+                         (sort (emacsconf-filter-talks info) #'emacsconf-sort-by-scheduled)))
+  (emacsconf-publish-with-wiki-change
+    (mapc (lambda (o)
+            (emacsconf-generate-before-page o info))
+          info)))
+
 (defun emacsconf-generate-talks-page (emacsconf-info)
   (interactive "p")
   (let ((info emacsconf-info))
@@ -813,7 +824,9 @@ Entries are sorted chronologically, with different tracks interleaved."
                               (plist-get f :url)
                               (plist-get f :title)
                               (plist-get f :speakers)
-                              (emacsconf-index-card (append f (list :extra (concat "Captioned by " (plist-get f :captioner)))) emacsconf-main-extensions)))
+                              (emacsconf-index-card (append f (list :extra (concat "Captioned by " (plist-get f :captioner))
+                                                                    :files (emacsconf-publish-talk-files f files)))
+                                                    emacsconf-main-extensions)))
                    (assoc-default "TO_STREAM" by-status) "\n"))
        (if (file-exists-p (expand-file-name "include-in-index.html" emacsconf-captions-directory))
            (with-temp-buffer (insert-file-contents (expand-file-name "include-in-index.html" emacsconf-captions-directory)) (buffer-string))
@@ -922,21 +935,22 @@ Entries are sorted chronologically, with different tracks interleaved."
                       chapters
                       "\n"))))))
 
-(defun emacsconf-video-subtitle-tracks (filename track-base-url)
+(defun emacsconf-video-subtitle-tracks (filename track-base-url &optional files)
+  (setq files (or files (directory-files emacsconf-cache-dir)))
   (concat
-   (if (file-exists-p filename)
+   (if (member filename files)
        (format "<track label=\"English\" kind=\"captions\" srclang=\"en\" src=\"%s\" default />"
                (concat (or track-base-url "") (file-name-nondirectory filename)))
      "")
    (mapconcat
     (lambda (lang)
       (let ((lang-file (concat (file-name-sans-extension filename) "_" (car lang) "." (file-name-extension filename))))
-        (if (file-exists-p lang-file)
+        (if (member lang-file files)
             (format "<track label=\"%s\" kind=\"captions\" srclang=\"%s\" src=\"%s\" />"
                     (cdr lang)
                     (car lang)
-                    (concat (or track-base-url "") (file-name-nondirectory lang-file)))
-          "")))
+                    (concat (or track-base-url "") (file-name-nondirectory lang-file))))
+        ""))
     '(("fr" . "French") ("ja" . "Japanese"))
     "")))
 
