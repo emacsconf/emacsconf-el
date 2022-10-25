@@ -79,6 +79,7 @@
 (defvar emacsconf-chat-base "https://chat.emacsconf.org/")
 (defvar emacsconf-backstage-dir "/ssh:media:/var/www/media.emacsconf.org/2022/backstage")
 (defvar emacsconf-upload-dir "/ssh:media:/srv/upload")
+(defvar emacsconf-res-dir "/ssh:res:~/current")
 
 (defun emacsconf-upload-dired ()
   (interactive)
@@ -86,6 +87,9 @@
 (defun emacsconf-backstage-dired ()
   (interactive)
   (dired emacsconf-backstage-dir "-tl"))
+(defun emacsconf-res-dired ()
+  (interactive)
+  (dired emacsconf-res-dir "-tl"))
 (defun emacsconf-slugify (s)
   (replace-regexp-in-string " +" "-" (replace-regexp-in-string "[^a-z0-9 ]" "" (downcase s))))
 
@@ -130,15 +134,16 @@
       (call-process "yt-dlp" nil buf t "--write-sub" "--write-auto-sub" "--no-warnings" "--sub-lang" "en" "--skip-download" "--sub-format" "srv2" "-o" filename
                     (plist-get talk :youtube-url))
       (with-current-buffer (find-file-noselect (concat filename ".en.srv2"))
-        (emacsconf-upload-to-backstage-and-rename talk "main")))))
+        (emacsconf-upload-to-backstage-and-rename talk "main--srt")))))
 
 (defun emacsconf-upload-to-backstage-and-rename (talk filename)
   (interactive (let ((talk (emacsconf-complete-talk-info))
                      (base (file-name-base (buffer-file-name))))
                  (list
                   talk
-                  (if (string-match (concat "^" (regexp-quote (plist-get talk :video-slug)) "--\\([a-z]+\\)")
-                                    base)
+                  (if (and (not current-prefix-arg)
+                           (string-match (concat "^" (regexp-quote (plist-get talk :video-slug)) "--\\([a-z]+\\)")
+                                         base))
                       (match-string 1 base)
                     (read-string (format "Filename (%s): " base)
                                  nil nil
@@ -885,7 +890,7 @@
                                                   (cons :end-time (format-time-string "%FT%T%z" (plist-get o :end-time) t))
                                                   (mapcar (lambda (field)
                                                             (cons field (plist-get o field)))
-                                                          '(:slug :title :speakers :pronouns :pronunciation :url :track)))
+                                                          '(:slug :title :speakers :pronouns :pronunciation :url :track :video-slug)))
                                            )
                                          (emacsconf-filter-talks (emacsconf-get-talk-info)))))))))
 
