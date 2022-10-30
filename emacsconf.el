@@ -90,6 +90,9 @@
 (defun emacsconf-res-dired ()
   (interactive)
   (dired emacsconf-res-dir "-tl"))
+(defun emacsconf-cache-dired ()
+  (interactive)
+  (dired emacsconf-cache-dir "-tl"))
 (defun emacsconf-slugify (s)
   (replace-regexp-in-string " +" "-" (replace-regexp-in-string "[^a-z0-9 ]" "" (downcase s))))
 
@@ -165,14 +168,20 @@
                                             (file-name-base .metadata.name))
                                     nil nil
                                     (file-name-base .metadata.name)))))
-  (copy-file key
-             (expand-file-name (concat (plist-get talk :video-slug)
-                                       "--"
-                                       filename
-                                       "."
-                                       (let-alist (json-parse-string (buffer-string) :object-type 'alist)
-                                         (file-name-extension .metadata.name)))
-                               emacsconf-backstage-dir)))
+  (let ((new-filename (concat (plist-get talk :video-slug)
+                              (if (string= filename "")
+                                  filename
+                                (concat "--" filename))
+                              "."
+                              (let-alist (json-parse-string (buffer-string) :object-type 'alist)
+                                (file-name-extension .metadata.name)))))
+    (copy-file key
+               (expand-file-name new-filename
+                                 emacsconf-backstage-dir) t)
+    (copy-file key (expand-file-name new-filename emacsconf-cache-dir))
+    (unless (file-directory-p (expand-file-name (plist-get talk :slug) emacsconf-res-dir))
+      (make-directory (expand-file-name (plist-get talk :slug) emacsconf-res-dir)))
+    (copy-file (expand-file-name new-filename emacsconf-cache-dir) (expand-file-name new-filename (expand-file-name (plist-get talk :slug) emacsconf-res-dir)))))
 
 (defcustom emacsconf-download-directory "~/Downloads"
   "Directory to check for downloaded files."
@@ -1018,7 +1027,56 @@ Filter by TRACK if given.  Use INFO as the list of talks."
   (if (and text (not (string= text "")))
       (concat (or before "") text (or after ""))
     alternative))
-;;
+
+;;; Volunteer management
+(defun emacsconf-get-volunteer-info ()
+  (with-current-buffer (find-file-noselect emacsconf-org-file)
+    (org-map-entries (lambda () (org-entry-properties))
+                     "volunteer+EMAIL={.}")))
+
+(defun emacsconf-complete-volunteer (&optional info)
+  (setq info (or info (emacsconf-get-volunteer-info)))
+  (let* ((choices
+          (mapcar (lambda (o)
+                    (string-join
+                     (delq nil
+                           (mapcar (lambda (f) (assoc-default f o 'string=)) '("ITEM" "EMAIL")))
+                     " - "))
+                  info))
+         (choice (completing-read
+                  "Volunteer: " 
+                  (lambda (string predicate action)
+                    (if (eq action 'metadata)
+                        '(metadata (category . volunteer))
+                      (complete-with-action action choices string predicate))))))
+    (elt info (seq-position choices choice))))
+
+(defun emacsconf-reflow ()
+  "Help reflow text files."
+  (interactive)
+  (let (input)
+    (while (not (string= "" (setq input (read-string "Word: "))))
+      (if (string= input "'")
+
+          (progn
+            (end-of-line)          
+            (unless (looking-back " ")
+              (insert " "))          
+            (delete-char 1))
+        (forward-word)
+        (cond
+         ((string= input ",")
+          (re-search-forward ", " nil t)
+          (goto-char (match-end 0)))
+         ((string= input ".")
+          (re-search-forward "\\. " nil t)
+          (goto-char (match-end 0)))
+         (t
+          (re-search-forward (concat "\\<" (regexp-quote input)) nil t)
+          (goto-char (match-beginning 0))))
+        (insert "\n"))
+      (recenter)
+      (undo-boundary))))
 
 (provide 'emacsconf)
 ;;; emacsconf.el ends here
