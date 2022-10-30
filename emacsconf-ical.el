@@ -126,3 +126,5 @@
                                                     (expand-file-name emacsconf-year emacsconf-directory)))
                 (insert (emacsconf-format-as-ical (cdr entry)))))))
         (seq-group-by (lambda (o) (plist-get o :track)) (or info (emacsconf-get-talk-info)))))
+
+(provide 'emacsconf-ical)

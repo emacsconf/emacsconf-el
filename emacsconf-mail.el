@@ -36,10 +36,14 @@
 (defun emacsconf-mail-prepare (template email attrs)
   (compose-mail
    email
-   (emacsconf-replace-plist-in-string attrs (plist-get template :subject))
-   `(("Reply-To" . ,(emacsconf-replace-plist-in-string attrs (plist-get template :reply-to)))
-     ("Mail-Followup-To" . ,(emacsconf-replace-plist-in-string attrs (plist-get template :mail-followup-to)))
-     ("Cc" . ,(plist-get template :cc))))
+   (emacsconf-replace-plist-in-string attrs (or (plist-get template :subject) ""))
+   (delq nil
+         (list
+          (if (plist-get template :reply-to) (cons "Reply-To" (emacsconf-replace-plist-in-string attrs (plist-get template :reply-to))))
+          (if (plist-get template :mail-followup-to)
+              (cons "Mail-Followup-To" (emacsconf-replace-plist-in-string attrs (plist-get template :mail-followup-to))))
+          (if (plist-get template :cc)
+              (cons "Cc" (emacsconf-replace-plist-in-string attrs (plist-get template :cc)))))))
   (message-sort-headers)
   (message-goto-body)
   (save-excursion (insert (emacsconf-replace-plist-in-string attrs (plist-get template :body)))
@@ -55,6 +59,17 @@
                       (completing-read "Template: " (org-property-values "EMAIL_ID")))))
          (mail-func (plist-get template :function)))
     (funcall mail-func user-mail-address template)))
+
+(defun emacsconf-mail-template-to-volunteer (volunteer)
+  "Prompt for a volunteer and e-mail current template to them."
+  (interactive (list (with-current-buffer (find-file-noselect emacsconf-org-file))))
+  (let ((template (if (org-entry-get (point) "EMAIL_ID")
+                      (emacsconf-mail-merge-get-template-from-subtree)
+                    (emacsconf-mail-merge-get-template
+                     (completing-read "Template: " (org-property-values "EMAIL_ID")))))
+        (volunteers (emacsconf-get-volunteer-info))
+        (mail-func (plist-get template :function)))
+    (funcall mail-func (emacsconf-complete-volunteer) template)))
 
 (defun emacsconf-mail-template-to-group ()
   "Prompt for a speaker and e-mail current template to them."
@@ -153,8 +168,17 @@
 (defun emacsconf-mail-merge-get-template (id)
   "Return the information for the e-mail template with EMAIL_ID set to ID."
   (save-excursion
-    (goto-char (org-find-property "EMAIL_ID" id))
-    (emacsconf-mail-merge-get-template-from-subtree)))
+    (let ((char (org-find-property "EMAIL_ID" id)))
+      (if char
+          (progn (goto-char char) (emacsconf-mail-merge-get-template-from-subtree))
+        (with-current-buffer
+            (find-file-noselect (expand-file-name "organizers-notebook/index.org" (expand-file-name emacsconf-year emacsconf-directory)))
+          (setq char (org-find-property "EMAIL_ID" id))
+          (if char
+              (progn
+                (goto-char char)
+                (emacsconf-mail-merge-get-template-from-subtree))
+            (error "Could not find template %s" id)))))))
 
 (defun emacsconf-mail-merge-fill (string)
   "Fill in the values for STRING using the properties at point.
