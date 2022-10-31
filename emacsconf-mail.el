@@ -105,8 +105,8 @@
 
 (defun emacsconf-mail-speaker (&optional subject body talk)
   "Compose a message to the speaker of the current talk."
-  (interactive)
-  (compose-mail (format "%s <%s>" (org-entry-get (point) "NAME") (org-entry-get (point) "EMAIL")) subject)
+  (interactive (list nil nil (emacsconf-complete-talk-info)))
+  (compose-mail (plist-get talk :email) subject)
   (when body (message-goto-body) (insert body)))
 
 (defun emacsconf-mail-speaker-schedule (&optional subject body)
