@@ -26,6 +26,10 @@
 
 (defgroup emacsconf nil "EmacsConf" :group 'multimedia)
 
+(defcustom emacsconf-id "emacsconf"
+  "ID of conference"
+  :group 'emacsconf
+  :type 'string)
 (defcustom emacsconf-name "EmacsConf"
   "Name of conference"
   :group 'emacsconf
@@ -521,7 +525,16 @@
     emacsconf-get-talk-abstract-from-subtree
     emacsconf-add-talk-status
     emacsconf-add-timezone-conversions
+    emacsconf-add-speakers-with-pronouns
     emacsconf-add-live-info))
+(defun emacsconf-add-speakers-with-pronouns (o)
+  (plist-put o :speakers-with-pronouns
+             (cond
+              ((null (plist-get o :pronouns)) (plist-get o :speakers))
+              ((string= (plist-get o :pronouns)) (plist-get o :speakers))
+              ((string-match "(" (plist-get o :pronouns)) (plist-get o :pronouns))
+              (t (format "%s (%s)" (plist-get o :speakers) (plist-get o :pronouns)))))
+  o)
 
 (defun emacsconf-add-live-info (o)
   (let ((track (emacsconf-get-track (plist-get o :track))))
@@ -921,6 +934,7 @@
                            (:name "Development" :color "skyblue" :id "dev" :channel "emacsconf-dev")))
 
 (defun emacsconf-get-track (name)
+  (when (listp name) (setq name (plist-get name :track)))
   (seq-find (lambda (track) (or (string= name (plist-get track :name))
                                 (string= name (plist-get track :id))))
             emacsconf-tracks))
@@ -932,6 +946,9 @@
                (string= (plist-get talk :track) (plist-get track :name)))
              info))
           emacsconf-tracks))
+
+(defun emacsconf-complete-track ()
+  (emacsconf-get-track (completing-read "Track: " (mapcar (lambda (o) (plist-get o :name)) emacsconf-tracks))))
 
 (defun emacsconf-by-day (info)
   (seq-group-by (lambda (o)
@@ -1022,7 +1039,7 @@ Filter by TRACK if given.  Use INFO as the list of talks."
          (seq-group-by (lambda (o) (plist-get o :speakers))
                        (or info (emacsconf-active-talks (emacsconf-filter-talks (emacsconf-get-talk-info))))))))
 
-(defun emacsconf-surround (before text after alternative)
+(defun emacsconf-surround (before text after &optional alternative)
   "Concat BEFORE, TEXT, and AFTER if TEXT is specified, or return ALTERNATIVE."
   (if (and text (not (string= text "")))
       (concat (or before "") text (or after ""))
@@ -1077,6 +1094,38 @@ Filter by TRACK if given.  Use INFO as the list of talks."
         (insert "\n"))
       (recenter)
       (undo-boundary))))
+
+(defun emacsconf-add-org-after-todo-state-change-hook ()
+  "Add FUNC to `org-after-todo-stage-change-hook'."
+  (interactive)
+  (with-current-buffer (find-buffer-visiting emacsconf-org-file)
+    (add-hook 'org-after-todo-state-change-hook #'emacsconf-org-after-todo-state-change nil t)))
+
+(defun emacsconf-remove-org-after-todo-state-change-hook ()
+  "Remove FUNC from `org-after-todo-stage-change-hook'."
+  (interactive)
+  (with-current-buffer (find-buffer-visiting emacsconf-org-file)
+    (remove-hook 'org-after-todo-state-change-hook
+                 #'emacsconf-org-after-todo-state-change  t)))
+
+(defvar emacsconf-todo-hooks
+  '(
+    emacsconf-stream-play-talk-org-after-todo-state-change ;; play the talk
+    ;; emacsconf-erc-org-after-todo-state-change ;; announce via ERC
+    ;; emacsconf-publish-backstage-org-after-todo-state-change ;; update the backstage index
+    emacsconf-stream-update-talk-info-org-after-todo-state-change ;; write to the talk text
+    )
+  "Functions to run when the todo state changes.")
+
+(defun emacsconf-org-after-todo-state-change ()
+  "Run all the hooks in `emacsconf-todo-hooks'."
+  (run-hooks 'emacsconf-todo-hooks))
+
+(defun emacsconf-broadcast (message)
+  (interactive "MMessage: ")
+  (when (not (string= (or message "") ""))
+    (erc-cmd-BROADCAST message))
+  (emacsconf-stream-broadcast message))
 
 (provide 'emacsconf)
 ;;; emacsconf.el ends here

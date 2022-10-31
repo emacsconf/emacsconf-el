@@ -280,13 +280,12 @@ ${chapter-list}
   (let ((extra-info (mapconcat #'identity
                                (delq nil (list
                                           (unless (string= (plist-get o :pronunciation) "nil") (plist-get o :pronunciation))
-                                          (unless (string= (plist-get o :pronouns) "nil") (plist-get o :pronouns))
                                           (when (plist-get o :irc) (format "IRC: %s" (plist-get o :irc)))
                                           (when (plist-get o :public-email) (format "<mailto:%s>" (plist-get o :public-email)))))
                                ", ")))
-    (concat (plist-get o :speakers)
+    (concat (plist-get o :speakers-with-pronouns)
             (if (> (length extra-info) 0)
-                (concat " (" extra-info ")")
+                (concat " - " extra-info)
               ""))))
 
 (defun emacsconf-generate-talk-page (o &optional force)

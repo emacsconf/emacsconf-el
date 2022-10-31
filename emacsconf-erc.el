@@ -108,7 +108,7 @@ If MESSAGE is not specified, reset the topic to the template."
      ((string-match "pad" q-and-a)
       (erc-send-message (format "%s: Thanks for checking in! The collaborative pad we'll be using for questions is at %s . We'll collect questions and put them there. If you'd like to open it, you can keep  an eye on questions. Please let us know if you need help, or if you want to switch to live Q&A." nick (plist-get talk :pad-url))))
      ((string-match "IRC" q-and-a)
-      (erc-send-message (format "%s: Thanks for checking in! Feel free to keep an eye on %s for questions and discussion, and we'll copy things from the pad to there. If the volume gets overwhelming, let us know and we can /msg you questions or add them to the pad. If you'd like to try Q&A over live video or the collaborative pad instead, or if you need help, please let us know." nick
+      (erc-send-message (format "#%s: Thanks for checking in! Feel free to keep an eye on %s for questions and discussion, and we'll copy things from the pad to there. If the volume gets overwhelming, let us know and we can /msg you questions or add them to the pad. If you'd like to try Q&A over live video or the collaborative pad instead, or if you need help, please let us know." nick
                                 (plist-get (emacsconf-get-track (plist-get talk :track)) :channel))))
      (t (erc-send-message (format "%s: Thanks for checking in! How would you like to handle Q&A today - live video, the collaborative Etherpad at %s , or IRC (like this)?" nick (plist-get) emacsconf-collaborative-pad))))
     (when (functionp 'emacsconf-upcoming-insert-or-update)
@@ -125,10 +125,9 @@ If MESSAGE is not specified, reset the topic to the template."
 (defun erc-cmd-READY (&rest filter)
   "Notify #emacsconf-org and `emacsconf-streaming-nick' that the speaker is ready."
   (let ((talk (emacsconf-find-talk-info filter))
-        pronouns pronunciation)
+        pronunciation)
     (unless talk (error "Could not find talk"))
-    (setq pronouns (plist-get talk :pronouns)
-          pronunciation (plist-get talk :pronunciation))
+    (setq pronunciation (plist-get talk :pronunciation))
     (emacsconf-erc-with-channels (list emacsconf-erc-org)
       (erc-send-message (format "Ready: %s (%s)" (plist-get talk :title) (plist-get talk :speakers))))
     (mapc (lambda (nick)
@@ -137,8 +136,7 @@ If MESSAGE is not specified, reset the topic to the template."
                                  emacsconf-nick
                                  (plist-get talk :bbb-room)
                                  (plist-get talk :title)
-                                 (plist-get talk :speakers)
-                                 (or pronouns "")                                    
+                                 (plist-get talk :speakers-with-pronouns)
                                  (or pronunciation ""))))
           (if (listp emacsconf-streaming-nick) emacsconf-streaming-nick (list emacsconf-streaming-nick)))))
 
@@ -150,22 +148,18 @@ If MESSAGE is not specified, reset the topic to the template."
   (when (stringp talk) (setq talk (or (emacsconf-find-talk-info talk) (error "Could not find talk %s" talk))))
   ;; Announce it in the track's channel
   (when (plist-get talk :track)
-    (emacsconf-erc-with-channels (list (plist-get talk :channel))
+    (emacsconf-erc-with-channels (list (concat "#" (plist-get talk :channel)))
       (erc-cmd-TOPIC (format "%s: %s (%s) pad: %s Q&A: %s | %s"
                              (plist-get talk :slug)
                              (plist-get talk :title)                               
                              (plist-get talk :speakers)
                              (plist-get talk :pad-url)
                              (plist-get talk :qa-info)
-                             (car (assoc-default (plist-get talk :channel) emacsconf-topic-templates))))
-      (erc-send-message (format "---- %s: %s (%s) ----"
+                             (car (assoc-default (concat "#" (plist-get talk :channel)) emacsconf-topic-templates))))
+      (erc-send-message (format "---- %s: %s - %s ----"
                                 (plist-get talk :slug)
                                 (plist-get talk :title)
-                                (string-join
-                                 (delq nil
-                                       (list (plist-get talk :speakers)
-                                             (plist-get talk :pronouns)))
-                                 "; ")))
+                                (plist-get talk :speakers-with-pronouns)))
       (erc-send-message (concat "Add your notes/questions to the pad: " (plist-get talk :pad-url)))
       (cond
        ((string-match "live" (or (plist-get talk :q-and-a) ""))
@@ -174,7 +168,7 @@ If MESSAGE is not specified, reset the topic to the template."
         (erc-send-message "or discuss the talk on IRC (nick: %s)")))))
   ;; Short announcement in #emacsconf
   (emacsconf-erc-with-channels (list emacsconf-erc-hallway emacsconf-erc-org)
-    (erc-send-message (format "-- %s track: %s: %s (watch: %s, pad: %s, channel: %s)"
+    (erc-send-message (format "-- %s track: %s: %s (watch: %s, pad: %s, channel: #%s)"
                               (plist-get talk :track)
                               (plist-get talk :slug)
                               (plist-get talk :title)                               
@@ -186,14 +180,14 @@ If MESSAGE is not specified, reset the topic to the template."
   "Announce TALK has started Q&A, but the host has not yet opened it up."
   (interactive (list (emacsconf-complete-talk-info)))
   (when (stringp talk) (setq talk (or (emacsconf-find-talk-info talk) (error "Could not find talk %s" talk))))
-  (emacsconf-erc-with-channels (list (plist-get talk :channel))
+  (emacsconf-erc-with-channels (list (concat "#" (plist-get talk :channel)))
     (erc-send-message (format "-- Q&A beginning for \"%s\" (%s) Watch: %s Add notes/questions: %s"
                               (plist-get talk :title)
                               (plist-get talk :qa-info)
                               (plist-get talk :watch-url)
                               (plist-get talk :pad-url))))  
   (emacsconf-erc-with-channels (list emacsconf-erc-hallway emacsconf-erc-org)
-    (erc-send-message (format "-- Q&A beginning for \"%s\" in the %s track (%s) Watch: %s Add notes/questions: %s . Chat: %s"
+    (erc-send-message (format "-- Q&A beginning for \"%s\" in the %s track (%s) Watch: %s Add notes/questions: %s . Chat: #%s"
                          (plist-get talk :title)
                          (plist-get talk :track)
                          (plist-get talk :qa-info)
@@ -204,14 +198,14 @@ If MESSAGE is not specified, reset the topic to the template."
 (defun erc-cmd-NOWOPENQ (talk)
   (interactive (list (emacsconf-complete-talk-info)))
   (when (stringp talk) (setq talk (or (emacsconf-find-talk-info talk) (error "Could not find talk %s" talk))))
-  (emacsconf-erc-with-channels (list (plist-get talk :channel))
+  (emacsconf-erc-with-channels (list (concat "#" (plist-get talk :channel)))
     (erc-send-message (format "-- Q&A now open for \"%s\" (%s). Watch: %s Add notes/questions: %s ."
                          (plist-get talk :title)
                          (plist-get talk :qa-info)
                          (plist-get talk :watch-url)
                          (plist-get talk :pad-url))))  
   (emacsconf-erc-with-channels (list emacsconf-erc-hallway emacsconf-erc-org)
-    (erc-send-message (format "-- Q&A now open for \"%s\" in the %s track (%s). Watch: %s Add notes/questions: %s IRC: %s"
+    (erc-send-message (format "-- Q&A now open for \"%s\" in the %s track (%s). Watch: %s Add notes/questions: %s IRC: #%s"
                          (plist-get talk :title)
                          (plist-get talk :track)
                          (plist-get talk :qa-info)
@@ -222,23 +216,23 @@ If MESSAGE is not specified, reset the topic to the template."
 (defun erc-cmd-NOWUNSTREAMEDQ (talk)
   (interactive (list (emacsconf-complete-talk-info)))
   (when (stringp talk) (setq talk (or (emacsconf-find-talk-info talk) (error "Could not find talk %s" talk))))
-  (emacsconf-erc-with-channels (list (plist-get talk :channel))
+  (emacsconf-erc-with-channels (list (concat "#" (plist-get talk :channel)))
     (erc-send-message (format "-- Q&A continues off-stream for \"%s\" (%s) Add notes/questions: %s ."
                               (plist-get talk :title)
                               (plist-get talk :qa-info)
                               (plist-get talk :pad-url))))  
   (emacsconf-erc-with-channels (list emacsconf-erc-hallway emacsconf-erc-org)
-    (erc-send-message (format "-- Q&A continues off-stream for \"%s\" in the %s track (%s) Add notes/questions: %s IRC: %s"
+    (erc-send-message (format "-- Q&A continues off-stream for \"%s\" in the %s track (%s) Add notes/questions: %s IRC: #%s"
                               (plist-get talk :title)
                               (plist-get talk :track)
                               (plist-get talk :qa-info)
                               (plist-get talk :pad-url)
-                              (plist-get talk :channel)))))
+                              (concat "#" (plist-get talk :channel))))))
 
 (defun erc-cmd-NOWDONE (talk)
   (interactive (list (emacsconf-complete-talk-info)))
   (when (stringp talk) (setq talk (or (emacsconf-find-talk-info talk) (error "Could not find talk %s" talk))))
-  (emacsconf-erc-with-channels (list (plist-get talk :channel))
+  (emacsconf-erc-with-channels (list (concat "#" (plist-get talk :channel)))
     (erc-send-message (format "-- Q&A finished for \"%s\". Add notes/questions: %s %s"
                               (plist-get talk :title)
                               (plist-get talk :pad-url)
@@ -254,12 +248,14 @@ If MESSAGE is not specified, reset the topic to the template."
 
 (defun emacsconf-erc-add-to-todo-hook ()
   (interactive)
-  (add-hook 'org-after-todo-state-change-hook #'emacsconf-erc-org-after-todo-state-change nil t))
+  (emacsconf-add-org-after-todo-state-change-hook #'emacsconf-erc-org-after-todo-state-change))
+
 (defun emacsconf-erc-remove-from-todo-hook ()
   (interactive)
-  (remove-hook 'org-after-todo-state-change-hook #'emacsconf-erc-org-after-todo-state-change t))
+  (emacsconf-remove-org-after-todo-state-change-hook #'emacsconf-erc-org-after-todo-state-change))
 
 (defun emacsconf-erc-org-after-todo-state-change ()
+  "Announce talk."
   (let ((func
          (pcase org-state
            ("PLAYING" #'erc-cmd-NOWPLAYING)
