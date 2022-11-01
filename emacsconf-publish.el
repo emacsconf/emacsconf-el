@@ -649,11 +649,6 @@ Back to the [[talks]]  \n"
          "Sunday closing remarks"))
        ))))
 
-(defun emacsconf-publish-schedule ()
-  (interactive)
-  (emacsconf-publish-with-wiki-change
-    (emacsconf-generate-main-schedule-with-tracks)))
-
 (defun emacsconf-publish-format-interleaved-schedule (&optional info)
   "Return a list with the schedule for INFO.
 Entries are sorted chronologically, with different tracks interleaved."
@@ -691,7 +686,7 @@ Entries are sorted chronologically, with different tracks interleaved."
                by-day
                "\n\n")))
 
-(defun emacsconf-generate-main-schedule (&optional info)
+(defun emacsconf-publish-schedule (&optional info)
   (interactive)
   (emacsconf-publish-schedule-svg-snippets)
   (with-temp-file (expand-file-name "schedule-details.md" (expand-file-name emacsconf-year emacsconf-directory))
@@ -1384,7 +1379,15 @@ Entries are sorted chronologically, with different tracks interleaved."
              (magit-with-toplevel
                (magit-stage-1 "-u" magit-buffer-diff-files))
              (magit-status-setup-buffer))
-         (shell-command "git add -u")))))
+         (shell-command "git add -u"))
+       ;; (when noninteractive
+       ;;   (call-process "git" nil nil nil "commit" "-m" (if (stringp (car body))
+       ;;                                                       (car body)
+       ;;                                                     "Automated commit"))
+       ;;   (call-process "git" nil nil nil "commit" "-m" (if (stringp (car body))
+       ;;                                                     (car body)
+       ;;                                                   "Automated commit")))
+       )))
 
 (defun emacsconf-publish-schedule-svg-snippets ()
   (interactive)
