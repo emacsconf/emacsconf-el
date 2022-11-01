@@ -194,7 +194,7 @@
                             (emacsconf-make-chapter-strings
                              (expand-file-name
                               (concat video-base "--chapters.vtt")
-                              emacsconf-cache-dir)
+                              emacsconf-protected-media-directory)
                              (plist-get talk :track-base-url))))
          (info
           (append
