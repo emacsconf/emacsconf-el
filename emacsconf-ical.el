@@ -24,7 +24,7 @@
 
 ;;; Code:
 
-(defvar emacsconf-ical-public-directory (concat "/ssh:media:/var/www/media.emacsconf.org/" emacsconf-year)
+(defvar emacsconf-ical-public-directory (concat "/ssh:orga@media.emacsconf.org:/var/www/media.emacsconf.org/" emacsconf-year)
   "Directory to post ics files to.")
 
 (defun emacsconf-ical-send-via-email ()

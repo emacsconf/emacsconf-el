@@ -38,7 +38,7 @@
 (defcustom emacsconf-backstage-extensions '(".en.srv2" ".srt")
   "Extensions to list in the staging area."
   :group 'emacsconf)
-(defcustom emacsconf-public-media-directory (concat "/ssh:media:/var/www/media.emacsconf.org/" emacsconf-year "/")
+(defcustom emacsconf-public-media-directory (concat "/ssh:orga@media.emacsconf.org:/var/www/media.emacsconf.org/" emacsconf-year "/")
   "Can be over TRAMP" :type 'string :group 'emacsconf)
 
 (defun emacsconf-update-talk (talk)
@@ -913,8 +913,8 @@ Entries are sorted chronologically, with different tracks interleaved."
                                                                     :files (emacsconf-publish-talk-files f files)))
                                                     emacsconf-main-extensions)))
                    (assoc-default "TO_STREAM" by-status) "\n"))
-       (if (file-exists-p (expand-file-name "include-in-index.html" emacsconf-captions-directory))
-           (with-temp-buffer (insert-file-contents (expand-file-name "include-in-index.html" emacsconf-captions-directory)) (buffer-string))
+       (if (file-exists-p (expand-file-name "include-in-index.html" emacsconf-cache-dir))
+           (with-temp-buffer (insert-file-contents (expand-file-name "include-in-index.html" emacsconf-cache-dir)) (buffer-string))
          "")
        "</body></html>"))))
 
@@ -966,7 +966,7 @@ Entries are sorted chronologically, with different tracks interleaved."
                   "\n")
        "</ol>"
        (if (file-exists-p (expand-file-name "include-in-index.html" emacsconf-cache-dir))
-           (with-temp-buffer (insert-file-contents (expand-file-name "include-in-index.html" emacsconf-captions-directory)) (buffer-string))
+           (with-temp-buffer (insert-file-contents (expand-file-name "include-in-index.html" emacsconf-cache-dir)) (buffer-string))
          "")
        "</body></html>"))))
 
@@ -1007,7 +1007,7 @@ Entries are sorted chronologically, with different tracks interleaved."
                          (format "/%s/captions/" (plist-get f :conf-year))
                          :video-file (expand-file-name
                                       (concat (file-name-sans-extension (plist-get f :video-slug)) "--answers.webm")
-                                      emacsconf-captions-directory))
+                                      emacsconf-cache-dir))
                         f)
                        (list "--answers.vtt" "--answers--chapters.vtt"))
                     "")))
@@ -1109,10 +1109,10 @@ Entries are sorted chronologically, with different tracks interleaved."
                                                             emacsconf-timezone))
                                   (main-video (expand-file-name
                                                (concat (plist-get o :video-slug) "--main.webm")
-                                               emacsconf-captions-directory))
+                                               emacsconf-cache-dir))
                                   (qa-video (expand-file-name
                                              (concat (plist-get o :video-slug) "--answers.webm")
-                                             emacsconf-captions-directory))
+                                             emacsconf-cache-dir))
                                   (talk-page-url (plist-get o :url))
                                   (speakers (or (plist-get o :speakers) "")))
                               (delq
@@ -1241,7 +1241,7 @@ Entries are sorted chronologically, with different tracks interleaved."
                      (lambda (talk)
                        (let* ((slug (plist-get talk :video-slug))
                               (filename (concat (plist-get talk :video-slug) "--main.webm")))
-                         (if (and slug (file-exists-p (expand-file-name filename emacsconf-captions-directory))) 
+                         (if (and slug (file-exists-p (expand-file-name filename emacsconf-cache-dir))) 
                              (format "#EXTINF:-1,%s - %s\n%s%s\n"
                                      (plist-get talk :title)
                                      (plist-get talk :speakers)
@@ -1328,8 +1328,8 @@ Entries are sorted chronologically, with different tracks interleaved."
         (when (string-match "/w/\\([A-Za-z0-9]+\\)" url)
           (browse-url (format "https://toobnix.org/videos/update/%s" (match-string 1 url))))
       (when (> (length (org-entry-get (point) "VIDEO_SLUG")) 80)
-        (copy-file (expand-file-name (concat (org-entry-get (point) "VIDEO_SLUG") "--main.webm") emacsconf-captions-directory)
-                   (expand-file-name (concat "emacsconf-" emacsconf-year "-" (org-entry-get (point) "SLUG") ".webm") emacsconf-captions-directory) t))
+        (copy-file (expand-file-name (concat (org-entry-get (point) "VIDEO_SLUG") "--main.webm") emacsconf-cache-dir)
+                   (expand-file-name (concat "emacsconf-" emacsconf-year "-" (org-entry-get (point) "SLUG") ".webm") emacsconf-cache-dir) t))
       (browse-url "https://toobnix.org/videos/upload#upload"))))
 
 (defun emacsconf-publish-files ()
@@ -1349,8 +1349,8 @@ Entries are sorted chronologically, with different tracks interleaved."
           (magit-stage-file (buffer-file-name))))
       (mapc
        (lambda (suffix)
-         (when (file-exists-p (expand-file-name (concat slug suffix) emacsconf-captions-directory))
-           (copy-file (expand-file-name (concat slug suffix) emacsconf-captions-directory)
+         (when (file-exists-p (expand-file-name (concat slug suffix) emacsconf-cache-dir))
+           (copy-file (expand-file-name (concat slug suffix) emacsconf-cache-dir)
                       (expand-file-name (concat slug suffix) wiki-captions-directory)t)
            (with-current-buffer (find-file-noselect (expand-file-name (concat slug suffix) wiki-captions-directory))
              (magit-stage-file (buffer-file-name)))))
@@ -1371,8 +1371,8 @@ Entries are sorted chronologically, with different tracks interleaved."
                                   (emacsconf-public-talks (emacsconf-get-talk-info))))))
     ;; (copy-file (emacsconf-get-preferred-video slug) emacsconf-public-media-directory t)
     ;; (mapc (lambda (ext)
-    ;;         (when (file-exists-p (expand-file-name (concat slug ext) emacsconf-captions-directory))
-    ;;           (copy-file (expand-file-name (concat slug ext) emacsconf-captions-directory)
+    ;;         (when (file-exists-p (expand-file-name (concat slug ext) emacsconf-cache-dir))
+    ;;           (copy-file (expand-file-name (concat slug ext) emacsconf-cache-dir)
     ;;                      emacsconf-public-media-directory
     ;;                      t)))
     ;;       emacsconf-published-extensions)
@@ -1413,7 +1413,7 @@ Entries are sorted chronologically, with different tracks interleaved."
                   (insert "</div>"))))
             by-day))))
 
-(defvar emacsconf-publish-watch-directory "/ssh:front:/var/www/live.emacsconf.org/")
+(defvar emacsconf-publish-watch-directory "/ssh:orga@front0.emacsconf.org:/var/www/live.emacsconf.org/")
 
 (defun emacsconf-publish-format-watch-index (info)
   (concat
@@ -1610,7 +1610,7 @@ ffplay https://live0.emacsconf.org:9001/emacsconf/gen.webm
             emacsconf-tracks))))
 
 
-(defvar emacsconf-publish-current-dir "/ssh:media:/var/www/media.emacsconf.org/2022/current"
+(defvar emacsconf-publish-current-dir "/ssh:orga@media.emacsconf.org:/var/www/media.emacsconf.org/2022/current"
   "Directory to publish BBB redirects and current information to.")
 
 
