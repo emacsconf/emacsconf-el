@@ -651,12 +651,8 @@ Back to the [[talks]]  \n"
 
 (defun emacsconf-publish-schedule ()
   (interactive)
-  (emacsconf-generate-main-schedule-with-tracks)
-  (let ((default-directory emacsconf-directory))
-    (magit-status emacsconf-directory)
-    (magit-stage-modified)
-    (magit-commit-create (list "-m" (read-string "Commit message: ")))
-    (call-interactively #'magit-push-current-to-pushremote)))
+  (emacsconf-publish-with-wiki-change
+    (emacsconf-generate-main-schedule-with-tracks)))
 
 (defun emacsconf-publish-format-interleaved-schedule (&optional info)
   "Return a list with the schedule for INFO.
@@ -721,8 +717,7 @@ Entries are sorted chronologically, with different tracks interleaved."
        "This is a *DRAFT* schedule.\n"
        (let ((emacsconf-publishing-phase 'schedule))
          (emacsconf-publish-format-interleaved-schedule info)))))
-  (emacsconf-publish-watch-pages)
-  (magit-status-setup-buffer emacsconf-directory))
+  (emacsconf-publish-watch-pages))
 
 (defun emacsconf-format-talk-link (talk)
   (and talk (if (plist-get talk :slug)
@@ -1384,8 +1379,12 @@ Entries are sorted chronologically, with different tracks interleaved."
   `(progn
      ,@body
      (let ((default-directory emacsconf-directory))
-       (magit-stage-modified)
-       (magit-status-setup-buffer))))
+       (if (featurep 'magit)
+           (progn
+             (magit-with-toplevel
+               (magit-stage-1 "-u" magit-buffer-diff-files))
+             (magit-status-setup-buffer))
+         (shell-command "git add -u")))))
 
 (defun emacsconf-publish-schedule-svg-snippets ()
   (interactive)
