@@ -68,8 +68,8 @@ Files should be in YEAR/video-slug--main.webm and video-slug--main.vtt.")
 
 (defun emacsconf-stream-set-talk-info (talk)
   (interactive (list (emacsconf-complete-talk-info)))
-  (emacsconf-stream-set-talk-info
-   (track (emacsconf-get-track talk))
+  (emacsconf-stream-set-talk-info-from-strings
+   (emacsconf-get-track talk)
    (concat (replace-regexp-in-string "^.*//" "" emacsconf-base-url)
            (plist-get talk :url))
    (concat (cond
