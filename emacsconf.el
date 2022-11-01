@@ -81,9 +81,9 @@
 
 (defvar emacsconf-stream-base "https://live0.emacsconf.org/emacsconf/")
 (defvar emacsconf-chat-base "https://chat.emacsconf.org/")
-(defvar emacsconf-backstage-dir "/ssh:media:/var/www/media.emacsconf.org/2022/backstage")
-(defvar emacsconf-upload-dir "/ssh:media:/srv/upload")
-(defvar emacsconf-res-dir "/ssh:res:~/current")
+(defvar emacsconf-backstage-dir "/ssh:orga@media.emacsconf.org:/var/www/media.emacsconf.org/2022/backstage")
+(defvar emacsconf-upload-dir "/ssh:orga@media.emacsconf.org:/srv/upload")
+(defvar emacsconf-res-dir (format "/ssh:orga@res.emacsconf.org:/data/emacsconf/%s" emacsconf-year))
 
 (defun emacsconf-upload-dired ()
   (interactive)
@@ -531,7 +531,7 @@
   (plist-put o :speakers-with-pronouns
              (cond
               ((null (plist-get o :pronouns)) (plist-get o :speakers))
-              ((string= (plist-get o :pronouns)) (plist-get o :speakers))
+              ((string= (plist-get o :pronouns) "nil") (plist-get o :speakers))
               ((string-match "(" (plist-get o :pronouns)) (plist-get o :pronouns))
               (t (format "%s (%s)" (plist-get o :speakers) (plist-get o :pronouns)))))
   o)
