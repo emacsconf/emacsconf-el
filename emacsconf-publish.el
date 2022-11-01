@@ -189,12 +189,12 @@
           emacsconf-tracks)))
 
 (defun emacsconf-index-card-video (video-id video-file talk extensions &optional backstage)
-  (let* ((video-base (file-name-base video-file))
+  (let* ((video-base (and video-file (file-name-base video-file)))
          (chapter-info (and video-file
                             (emacsconf-make-chapter-strings
                              (expand-file-name
                               (concat video-base "--chapters.vtt")
-                              emacsconf-protected-media-directory)
+                              emacsconf-backstage-dir)
                              (plist-get talk :track-base-url))))
          (info
           (append
@@ -1359,7 +1359,7 @@ Entries are sorted chronologically, with different tracks interleaved."
       (when (and emacsconf-public-media-directory slug (> (length (string-trim slug)) 0)
                  ;; TODO: make this customizable
                  (shell-command
-                  (format "ssh front -- 'rm /var/www/media.emacsconf.org/%s/%s* ; cp -n -l /var/www/media.emacsconf.org/%s/protected/%s* /var/www/media.emacsconf.org/%s/; chmod ugo+r /var/www/media.emacsconf.org/%s/ -R'"
+                  (format "ssh media.emacsconf.org -- 'rm /var/www/media.emacsconf.org/%s/%s* ; cp -n -l /var/www/media.emacsconf.org/%s/backstage/%s* /var/www/media.emacsconf.org/%s/; chmod ugo+r /var/www/media.emacsconf.org/%s/ -R'"
             emacsconf-year slug
             emacsconf-year slug
             emacsconf-year
