@@ -1256,7 +1256,7 @@ Entries are sorted chronologically, with different tracks interleaved."
    (car
     (mapcar
      (lambda (suffix)
-       (seq-find (lambda (s) (string-match (regexp-quote (concat video-slug "--" suffix "\\." (regexp-opt subed-video-extensions))) s)) files))
+       (seq-find (lambda (s) (string-match (regexp-quote (concat video-slug "--" suffix "\\." (regexp-opt emacsconf-media-extensions))) s)) files))
      '("main" "captioned" "normalized" "reencoded" "compressed" "original")))
    (seq-find
     'file-exists-p
@@ -1268,7 +1268,7 @@ Entries are sorted chronologically, with different tracks interleaved."
                          nil
                          (concat (regexp-quote video-slug)
                                  ".*\\."
-                                 (regexp-opt subed-video-extensions))))))
+                                 (regexp-opt emacsconf-media-extensions))))))
 
 (defun emacsconf-check-video-formats ()
   (interactive)
