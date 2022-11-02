@@ -63,9 +63,28 @@ Files should be in YEAR/video-slug--main.webm and video-slug--main.vtt.")
 
 (defun emacsconf-stream-set-talk-info-from-strings (track url bottom)
   (interactive (list (emacsconf-complete-track) (read-string "URL: ") (read-string "Bottom: ")))
-  (let* ((home (concat (emacsconf-stream-track-login track) "~")))
-    (with-temp-file (expand-file-name "url.txt" home) (insert url))
-    (with-temp-file (expand-file-name "bottom.txt" home) (insert bottom))))
+  (let* ((home (concat (emacsconf-stream-track-login track) "~"))
+         (default-directory home))
+    (with-temp-file (expand-file-name "url.txt" home)
+      (insert url))
+    (with-temp-file (expand-file-name "bottom.txt" home)
+      (insert bottom))
+    (with-temp-file (expand-file-name "video.svg" home)
+      (insert
+       (emacsconf-replace-plist-in-string
+        (list
+         :news
+         (with-temp-buffer
+           (insert-file-contents (expand-file-name "news.txt" home))
+           (buffer-string))
+         :url
+         url
+         :bottom
+         bottom)
+        (with-temp-buffer
+          (insert-file-contents (expand-file-name "roles/obs/video.svg" emacsconf-ansible-directory))
+          (buffer-string)))))
+    (shell-command "inkscape --export-type=png --export-dpi=96 --export-background-opacity=0 video.svg")))
 
 (defun emacsconf-stream-set-talk-info (talk)
   (interactive (list (emacsconf-complete-talk-info)))
@@ -74,22 +93,22 @@ Files should be in YEAR/video-slug--main.webm and video-slug--main.vtt.")
    (concat (replace-regexp-in-string "^.*//" "" emacsconf-base-url)
            (plist-get talk :url))
    (concat (cond
-        ((or (null (plist-get talk :pronouns)) (string= (plist-get talk :pronouns) "nil"))
-         (plist-get talk :speakers))
-        ((string-match ", " (plist-get talk :pronouns))
-         (plist-get talk :pronouns))
-        (t (format "%s (%s)"
-                   (plist-get talk :speakers)
-                   (plist-get talk :pronouns))))    
-       "\n"    
-       (cond
-        ((string-match "live" (plist-get talk :q-and-a))
-         "Q&A: live - see talk page for URL")
-        ((string-match "irc" (plist-get talk :q-and-a))
-         (format "Q&A: IRC (#%s) - speaker nick: %s"
-                 (plist-get track :channel)
-                 (plist-get talk :irc)))
-        (t "")))))
+            ((or (null (plist-get talk :pronouns)) (string= (plist-get talk :pronouns) "nil"))
+             (plist-get talk :speakers))
+            ((string-match ", " (plist-get talk :pronouns))
+             (plist-get talk :pronouns))
+            (t (format "%s (%s)"
+                       (plist-get talk :speakers)
+                       (plist-get talk :pronouns))))
+           "\n"
+           (cond
+            ((string-match "live" (plist-get talk :q-and-a))
+             "Q&A: live - see talk page for URL")
+            ((string-match "irc" (plist-get talk :q-and-a))
+             (format "Q&A: IRC (#%s) - speaker nick: %s"
+                     (plist-get track :channel)
+                     (plist-get talk :irc)))
+            (t "")))))
 
 (defun emacsconf-stream-update-talk-info-org-after-todo-state-change ()
   "Update talk info."
@@ -112,8 +131,9 @@ Final files should be stored in /data/emacsconf/stream/YEAR/video-slug--main.web
 (defun emacsconf-stream-play-video (talk)
   (interactive (list (emacsconf-complete-talk-info)))
   (let ((default-directory (emacsconf-stream-track-login talk)))
-    (shell-command (concat "~/bin/track-mpv "
-			   (shell-quote-argument (emacsconf-stream-get-filename talk))))))
+    (shell-command
+     (concat "~/bin/track-mpv "
+			       (shell-quote-argument (emacsconf-stream-get-filename talk))))))
 
 (provide 'emacsconf-stream)
 ;;; emacsconf-stream.el ends here
