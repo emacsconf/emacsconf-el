@@ -93,7 +93,7 @@ Files should be in YEAR/video-slug--main.webm and video-slug--main.vtt.")
 (defun emacsconf-stream-update-talk-info-org-after-todo-state-change ()
   "Update talk info."
   (when (string= org-state "PLAYING")
-    (emacsconf-stream-write-talk-info (emacsconf-get-talk-info-for-subtree))))
+    (emacsconf-stream-set-talk-info (emacsconf-get-talk-info-for-subtree))))
 
 (defun emacsconf-stream-play-talk-org-after-todo-state-change ()
   "Play the talk."
