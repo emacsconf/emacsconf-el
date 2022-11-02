@@ -33,14 +33,15 @@ Files should be in YEAR/video-slug--main.webm and video-slug--main.vtt.")
   "Return user@host for the track."
   (when (plist-get track :track)
     (setq track (emacsconf-get-track (plist-get track :track))))
-  (concat emacsconf-id "-" (plist-get track :id) "@" emacsconf-stream-host))
+  (or (plist-get track :tramp)
+      (concat "/ssh:" emacsconf-id "-" (plist-get track :id) "@" emacsconf-stream-host)))
 
 (defvar emacsconf-stream-bottom-limit 80
   "Number of characters for bottom text.")
 
 (defun emacsconf-stream-write-news (track message)
   (interactive (list (emacsconf-complete-track) (read-string "Message: ")))
-  (with-temp-file (expand-file-name "news.txt" (concat "/ssh:" (emacsconf-stream-track-login track) ":~"))
+  (with-temp-file (expand-file-name "news.txt" (concat (emacsconf-stream-track-login track) "~"))
     (insert message)))
 
 (defun emacsconf-stream-broadcast (message)
@@ -62,7 +63,7 @@ Files should be in YEAR/video-slug--main.webm and video-slug--main.vtt.")
 
 (defun emacsconf-stream-set-talk-info-from-strings (track url bottom)
   (interactive (list (emacsconf-complete-track) (read-string "URL: ") (read-string "Bottom: ")))
-  (let* ((home (concat "/ssh:" (emacsconf-stream-track-login track) ":~")))
+  (let* ((home (concat (emacsconf-stream-track-login track) "~")))
     (with-temp-file (expand-file-name "url.txt" home) (insert url))
     (with-temp-file (expand-file-name "bottom.txt" home) (insert bottom))))
 
@@ -110,9 +111,10 @@ Final files should be stored in /data/emacsconf/stream/YEAR/video-slug--main.web
 
 (defun emacsconf-stream-play-video (talk)
   (interactive (list (emacsconf-complete-talk-info)))
-  (start-process (concat "mpv-" (plist-get talk :slug))
-                 "test"
-                 "ssh" (emacsconf-stream-track-login talk) "nohup" "~/bin/track-mpv" (emacsconf-stream-get-filename talk)  "&"))
+  (let ((default-directory (emacsconf-stream-track-login talk)))
+    (start-process (concat "mpv-" (plist-get talk :slug))
+                   "test"
+                   "~/bin/track-mpv" (emacsconf-stream-get-filename talk))))
 
 (provide 'emacsconf-stream)
 ;;; emacsconf-stream.el ends here
