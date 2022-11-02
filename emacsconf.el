@@ -931,8 +931,10 @@
               (emacsconf-backstage-password . emacsconf_backstage_password))))))
 ;; (emacsconf-ansible-load-vars (expand-file-name "prod-vars.yml" emacsconf-ansible-directory))
 ;;; Tracks
-(defvar emacsconf-tracks '((:name "General" :color "peachpuff" :id "gen" :channel "emacsconf-gen" :tramp "/sudo:emacsconf-gen@localhost:")
-                           (:name "Development" :color "skyblue" :id "dev" :channel "emacsconf-dev" :tramp "/sudo:emacsconf-dev@localhost:")))
+(defvar emacsconf-tracks '((:name "General" :color "peachpuff" :id "gen" :channel "emacsconf-gen"
+				  :tramp "/ssh:emacsconf-gen@localhost#46668:")
+                           (:name "Development" :color "skyblue" :id "dev" :channel "emacsconf-dev"
+				  :tramp "/ssh:emacsconf-dev@localhost#46668:")))
 
 (defun emacsconf-get-track (name)
   (when (listp name) (setq name (plist-get name :track)))
