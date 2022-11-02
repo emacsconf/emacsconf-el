@@ -112,9 +112,8 @@ Final files should be stored in /data/emacsconf/stream/YEAR/video-slug--main.web
 (defun emacsconf-stream-play-video (talk)
   (interactive (list (emacsconf-complete-talk-info)))
   (let ((default-directory (emacsconf-stream-track-login talk)))
-    (start-process (concat "mpv-" (plist-get talk :slug))
-                   "test"
-                   "~/bin/track-mpv" (emacsconf-stream-get-filename talk))))
+    (shell-command (concat "~/bin/track-mpv "
+			   (shell-quote-argument (emacsconf-stream-get-filename talk))))))
 
 (provide 'emacsconf-stream)
 ;;; emacsconf-stream.el ends here
