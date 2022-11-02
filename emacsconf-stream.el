@@ -42,17 +42,9 @@ Files should be in YEAR/video-slug--main.webm and video-slug--main.vtt.")
 (defun emacsconf-stream-set-news (track message)
   (interactive (list (emacsconf-complete-track) (read-string "Message: ")))
   (let* ((home (concat (emacsconf-stream-track-login track) "~"))
-         (default-directory home)
-         (filename (expand-file-name "other.svg" home))
-         (dom (xml-parse-file filename)))
-    (emacsconf-stream-svg-set-text dom "news" message)
-    (with-temp-file filename (dom-print dom t))
-    (with-temp-file (expand-file-name "video.svg" home)
-      (emacsconf-stream-svg-set-text dom "bottom" "")
-      (dom-print dom t))
-    ;; (shell-command "inkscape --export-type=png --export-dpi=96 --export-background-opacity=0 video.svg")
-    ;; (shell-command "inkscape --export-type=png --export-dpi=96 --export-background-opacity=0 other.svg")
-    ))
+         (filename (expand-file-name "news.txt" home)))
+    (with-temp-file filename
+      (insert message))))
 
 (defun emacsconf-stream-broadcast (message)
   (interactive (list (read-string "Message: ")))
@@ -75,17 +67,14 @@ Files should be in YEAR/video-slug--main.webm and video-slug--main.vtt.")
 (defun emacsconf-stream-svg-set-text (dom id text)
   "Update DOM to set the tspan in the element with ID to TEXT.
 If the element doesn't have a tspan child, use the element itself."
-  (setq text (svg--encode-text text))
+  (setq text (if (string= text "") "&nbsp;"
+               (svg--encode-text text)))
   (let ((node (or (dom-child-by-tag
                    (car (dom-by-id dom id))
                    'tspan)
                   (dom-by-id dom id))))
     (cond
      ((null node))                      ; skip
-     ((and (string= text "")
-           (= (length node) 2)))        ; already nothing, skip
-     ((string= text "")
-      (setf (elt node 2) ""))
      ((= (length node) 2)
       (nconc node (list text)))
      (t (setf (elt node 2) text)))))
