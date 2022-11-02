@@ -67,8 +67,7 @@ Files should be in YEAR/video-slug--main.webm and video-slug--main.vtt.")
 (defun emacsconf-stream-svg-set-text (dom id text)
   "Update DOM to set the tspan in the element with ID to TEXT.
 If the element doesn't have a tspan child, use the element itself."
-  (setq text (if (string= text "") "&nbsp;"
-               (svg--encode-text text)))
+  (setq text (svg--encode-text text))
   (let ((node (or (dom-child-by-tag
                    (car (dom-by-id dom id))
                    'tspan)
@@ -83,16 +82,23 @@ If the element doesn't have a tspan child, use the element itself."
   (interactive (list (emacsconf-complete-track) (read-string "URL: ") (read-string "Bottom: ")))
   (let* ((home (concat (emacsconf-stream-track-login track) "~"))
          (default-directory home)
-         (filename (expand-file-name "other.svg" home))
+         (filename
+          (if (file-exists-p (expand-file-name "roles/obs/overlay.svg" emacsconf-ansible-directory))
+              (expand-file-name "roles/obs/overlay.svg" emacsconf-ansible-directory)
+            (expand-file-name "other.svg" home)))
          (dom (xml-parse-file filename)))
     (emacsconf-stream-svg-set-text dom "bottom" bottom)
     (emacsconf-stream-svg-set-text dom "url" url)
-    (with-temp-file filename (dom-print dom t))
+    (with-temp-file filename (dom-print dom))
     (with-temp-file (expand-file-name "video.svg" home)
-      (emacsconf-stream-svg-set-text dom "bottom" "")
-      (dom-print dom t))
-    ;; (shell-command "inkscape --export-type=png --export-dpi=96 --export-background-opacity=0 video.svg")
-    ;; (shell-command "inkscape --export-type=png --export-dpi=96 --export-background-opacity=0 other.svg")
+      (let ((node (dom-by-id dom "bottom")))
+        (when node
+          (dom-set-attribute node 'style "visibility: hidden")
+          (dom-set-attribute (dom-child-by-tag node 'tspan) 'style "fill: none; stroke: none")))
+      (dom-print dom))
+    ;; OBS doesn't kern SVG text as prettily as Inkscape does, so we use Inkscape for the conversion
+    (shell-command "inkscape --export-type=png --export-dpi=96 --export-background-opacity=0 video.svg")
+    (shell-command "inkscape --export-type=png --export-dpi=96 --export-background-opacity=0 other.svg")
     ))
 
 (defun emacsconf-stream-set-talk-info (talk)
