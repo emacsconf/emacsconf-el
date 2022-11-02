@@ -144,7 +144,7 @@
         (plist-get talk :video-html)
       (emacsconf-replace-plist-in-string
        talk
-       "<div class=\"vid\">${video-html}${resources}${extra}${chapter-list}</div>"))))
+       "<div class=\"vid\">${video-html}<div>${extra}</div>${resources}${chapter-list}</div>"))))
 
 (defun emacsconf-publish-res-index ()
   (interactive)
