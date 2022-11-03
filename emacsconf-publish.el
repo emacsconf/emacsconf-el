@@ -30,7 +30,7 @@
   :type 'string
   :group 'emacsconf)
 
-(defcustom emacsconf-main-extensions '("--main.org" ".org" ".odp" ".pdf" ".el" "--compressed56.webm" "--main.vtt" "--main_fr.vtt" "--main_ja.vtt" "--chapters.vtt" "--main--chapters.vtt" "--script.fountain")
+(defcustom emacsconf-main-extensions '(".webm" "--main.webm" "--main.org" ".org" ".odp" ".pdf" ".el" "--compressed56.webm" "--main.vtt" "--main_fr.vtt" "--main_ja.vtt" "--chapters.vtt" "--main--chapters.vtt" "--script.fountain")
   "Extensions to list on public pages."
   :type '(repeat string)
   :group 'emacsconf)
@@ -125,19 +125,24 @@
                                (format "https://media.emacsconf.org/%s/backstage/" emacsconf-year)))
 
 (defun emacsconf-index-card (talk &optional extensions)
-  "Format an HTML card for TALK, linking the files  in EXTENSIONS."
+  "Format an HTML card for TALK, linking the files in EXTENSIONS."
   (let* ((video-slug (plist-get talk :video-slug))
-         (video-file (and video-slug
-                          (emacsconf-get-preferred-video (plist-get talk :video-slug) (plist-get talk :files))))
-         (video (emacsconf-index-card-video (or (plist-get talk :video-id) "mainVideo") video-file talk extensions)))
+         (video-file
+          (or (plist-get talk :video-file)
+              (and video-slug
+                   (emacsconf-get-preferred-video (plist-get talk :video-slug)
+                                                  (plist-get talk :files)))))
+         (video (and video-slug
+                     (emacsconf-index-card-video (or (plist-get talk :video-id) "mainVideo")
+                                                 video-file talk extensions))))
     ;; Add extra information to the talk
     (setq talk
           (append
            talk
            (list
-            :video-html (plist-get video :video)
+            :video-html (or (plist-get video :video) "")
             :chapter-list (or (plist-get video :chapter-list) "")
-            :resources (plist-get video :resources)
+            :resources (or (plist-get video :resources) "")
             :extra (or (plist-get talk :extra) "") 
             :speaker-info (or (plist-get talk :speakers) ""))))
     (if (eq (plist-get talk :format) 'wiki)
@@ -915,17 +920,20 @@ Entries are sorted chronologically, with different tracks interleaved."
          "")
        "</body></html>"))))
 
-(defun emacsconf-publish-filter-files (talk files extensions)
-  (seq-filter
-   (lambda (f)
-     (string-match (concat (regexp-quote (plist-get talk :video-slug))
-                           ".*"
-                           (regexp-opt extensions))
-                   f))
-   files))
+(defun emacsconf-publish-filter-files (talk files extensions &optional selector)
+  (when (plist-get talk :video-slug)
+      (seq-filter
+       (lambda (f)
+         (string-match (concat (regexp-quote (plist-get talk :video-slug))
+                               (if selector (concat "--" selector))
+                               ".*"
+                               (regexp-opt extensions))
+                       f))
+       files)))
 
-(defun emacsconf-publish-public-index (filename)
+(defun emacsconf-publish-public-index (&optional filename)
   (interactive (list (expand-file-name "index.html" emacsconf-public-media-directory)))
+  (setq filename (or filename (expand-file-name "index.html" emacsconf-public-media-directory)))
   (let ((files (directory-files emacsconf-public-media-directory)))
     (with-temp-file filename
       (insert
@@ -943,21 +951,28 @@ Entries are sorted chronologically, with different tracks interleaved."
                                            (emacsconf-publish-filter-files o files emacsconf-main-extensions))
                                      o)
                              '(".org" ".pdf" "--main.vtt" "--compressed56.webm"))
-                            (if (plist-get o :qa-public)
+                            (if (member (concat (plist-get o :video-slug)
+                                                "--answers.webm")
+                                        files)
                                 (format "<li><div class=\"title\">Q&A for %s</div>%s</li>"
                                         (plist-get o :title)
-                                        (emacsconf-index-card (append
-                                                               (list
-                                                                :public 1
-                                                                :video-id "qanda"
-                                                                :toobnix-url nil
-                                                                :video-file (expand-file-name
-                                                                             (concat (file-name-sans-extension (plist-get o :video-slug))
-                                                                                     "--answers.webm")
-                                                                             emacsconf-cache-dir)
-                                                                :files files)
-                                                               o)
-                                                              (list "--answers.vtt" "--answers--chapters.vtt")))
+                                        (emacsconf-index-card
+                                         (append
+                                          (list
+                                           :public 1
+                                           :video-id "qanda"
+                                           :toobnix-url nil
+                                           :video-file
+                                           (expand-file-name
+                                            (concat (file-name-sans-extension (plist-get o :video-slug))
+                                                    "--answers.webm")
+                                            emacsconf-public-media-directory)
+                                           :files (emacsconf-publish-filter-files
+                                                   o
+                                                   files emacsconf-main-extensions
+                                                   "answers"))
+                                          o)
+                                         (list "--answers.webm" "--answers.vtt" "--answers--chapters.vtt")))
                               "")))
                   (emacsconf-public-talks (emacsconf-get-talk-info))
                   "\n")
@@ -1253,8 +1268,12 @@ Entries are sorted chronologically, with different tracks interleaved."
    (car
     (mapcar
      (lambda (suffix)
-       (seq-find (lambda (s) (string-match (regexp-quote (concat video-slug "--" suffix "\\." (regexp-opt emacsconf-media-extensions))) s)) files))
-     '("main" "captioned" "normalized" "reencoded" "compressed" "original")))
+       (seq-find (lambda (s) (string-match
+                              (concat (regexp-quote
+                                       (if suffix (concat video-slug "--" suffix)
+                                         video-slug))
+                                      "\\." (regexp-opt emacsconf-media-extensions)) s)) files))
+     '("main" "captioned" "normalized" "reencoded" "compressed" "original" nil)))
    (seq-find
     'file-exists-p
     (seq-map (lambda (suffix)
