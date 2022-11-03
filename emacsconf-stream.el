@@ -327,6 +327,26 @@ This uses the BBB room if available, or the IRC channel if not."
                               (expand-file-name (concat (plist-get talk :video-slug) "--main.webm") dir)
                               t))
           info)))
+
+(defun emacsconf-stream-handle-talk-timer (talk)
+  (save-window-excursion
+    (emacsconf-with-talk-heading (plist-get talk :slug)
+      (org-todo "PLAYING"))))
+
+(defun emacsconf-stream-schedule-timers (&optional info)
+  (interactive)
+  (setq info (emacsconf-filter-talks (or info (emacsconf-get-talk-info))))
+  (cancel-function-timers #'emacsconf-stream-handle-talk-timer)
+  (let ((now (current-time)))
+    (mapc (lambda (talk)
+            (when (and (time-less-p now (plist-get talk :start-time)))
+              (run-at-time
+               (time-to-seconds (time-subtract (plist-get talk :start-time) now))
+               nil
+               #'emacsconf-stream-handle-talk-timer
+               talk)))
+          info)))
+
 ;; (emacsconf-stream-display-talk-info
 ;;  '(:title "The ship that builds itself: How we used Emacs to develop a workshop for communities"
 ;;           :speakers-with-pronouns "Noorah Alhasan (she/her), Joseph Corneli (he/him), Leo Vivier (he/him)"
