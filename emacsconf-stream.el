@@ -190,6 +190,16 @@ This uses the BBB room if available, or the IRC channel if not."
 		   (plist-get talk :webchat-url)))
 	     " & "))))
 
+(defun emacsconf-stream-join-chat (talk)
+  "Join the IRC chat for TALK."
+  (interactive (list (emacsconf-complete-talk-info)))
+  (let ((default-directory (emacsconf-stream-track-login talk)))
+    (shell-command
+     (concat "firefox -new-window "
+	     (shell-quote-argument
+	      (plist-get talk :webchat-url))
+	     " & "))))
+
 (defun emacsconf-stream-write-talk-overlay-svgs (talk video-filename other-filename)
   (setq talk (emacsconf-stream-add-talk-props talk))
   (let ((dom (xml-parse-file (expand-file-name "roles/obs/overlay.svg" emacsconf-ansible-directory)))
