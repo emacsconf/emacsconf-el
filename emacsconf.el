@@ -84,7 +84,7 @@
 (defvar emacsconf-backstage-dir "/ssh:orga@media.emacsconf.org:/var/www/media.emacsconf.org/2022/backstage")
 (defvar emacsconf-upload-dir "/ssh:orga@media.emacsconf.org:/srv/upload")
 (defvar emacsconf-res-dir (format "/ssh:orga@res.emacsconf.org:/data/emacsconf/%s" emacsconf-year))
-(defvar emacsconf-media-extensions '("mkv" "mp4" "webm" "avi" "ts" "ogv" "wav" "ogg" "mp3"))
+(defvar emacsconf-media-extensions '("webm" "mkv" "mp4" "webm" "avi" "ts" "ogv" "wav" "ogg" "mp3"))
 
 (defun emacsconf-upload-dired ()
   (interactive)
