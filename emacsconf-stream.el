@@ -190,6 +190,7 @@ Final files should be stored in /data/emacsconf/stream/YEAR/video-slug--main.web
      (concat "inkscape --export-type=png --export-dpi=96 --export-background-opacity=0 "
              (shell-quote-argument (file-name-nondirectory other-filename))))))
 
+(defvar emacsconf-stream-asset-dir "/data/emacsconf/assets/")
 (defvar emacsconf-stream-overlay-dir "/data/emacsconf/overlays/")
 
 (defun emacsconf-stream-generate-overlays (&optional info)
@@ -204,5 +205,105 @@ Final files should be stored in /data/emacsconf/stream/YEAR/video-slug--main.web
            (expand-file-name (concat (plist-get talk :slug) "-other.svg") emacsconf-stream-overlay-dir)))
         info))
 
+(defun emacsconf-stream-display-talk-info (talk)
+  (interactive (list (emacsconf-complete-talk-info)))
+  (let ((buf (get-buffer-create "*EmacsConf*"))
+        (title-mult 1.5)
+        (title (plist-get talk :title)))
+    (modus-themes-load-operandi)
+    (switch-to-buffer buf)
+    (erase-buffer)
+    (face-remap-add-relative 'default '(:height 150))
+    (insert
+     (replace-regexp-in-string
+      "https://" ""
+      (concat
+       "\n\n\n\n\n\n"
+       (propertize
+        (string-join
+         (apply
+          #'append
+          (mapcar
+           (lambda (s)
+             (org-wrap s 40))
+           (if (string-match "\\(.*:\\) \\(.*\\)" title)
+               (list (match-string 1 title)
+                     (match-string 2 title))
+             (list title))))
+         "\n")
+        'face `(:height ,(floor (* 200 title-mult)) :weight bold)) "\n\n"
+       (emacsconf-surround "" (plist-get talk :speakers-with-pronouns) "\n" "")
+       (emacsconf-surround "Info: "
+                           (if (plist-get talk :url)
+                               (concat emacsconf-base-url (plist-get talk :url)))
+                           "\n" "")
+       (emacsconf-surround "Pad: " (plist-get talk :pad-url) "\n" "")
+       (emacsconf-surround "Q&A: " (plist-get talk :qa-info) "\n" "")
+       (emacsconf-surround "IRC: #" (plist-get talk :channel) "\n" ""))))
+    (display-time-mode -1)
+    (when (functionp 'hl-line-mode)
+      (global-hl-line-mode -1))
+    (set-window-margins nil 10 10)))
+
+(defun emacsconf-stream-generate-title-page (talk)
+  (interactive (list (emacsconf-complete-talk-info)))
+  (emacsconf-stream-display-talk-info talk)
+  (message nil)
+  (with-temp-file (expand-file-name (concat (plist-get talk :slug) "-title.svg")
+                                    (expand-file-name "titles" emacsconf-stream-asset-dir))
+    (insert (x-export-frames nil 'svg))))
+
+(defun emacsconf-stream-generate-title-pages (&optional info)
+  (interactive)
+  (setq info (emacsconf-filter-talks (or info (emacsconf-get-talk-info))))
+  (let ((title-dir (expand-file-name "titles" emacsconf-stream-asset-dir)))
+    (unless (file-directory-p title-dir) (make-directory title-dir t))
+    (set-frame-size nil 1280 720 t)
+    (mapc #'emacsconf-stream-generate-title-page info)))
+
+(defun emacsconf-stream-generate-test-subtitles (&optional info)
+  (interactive)
+  (setq info (emacsconf-filter-talks (or info (emacsconf-get-talk-info))))
+  (let ((dir (expand-file-name "test" emacsconf-stream-asset-dir))
+        (subtitle-fill (substring "0123456789012345678901234567890123456789012345678901234567890123456789" 0 55))
+        (subtitle-len 1))
+    (unless (file-directory-p dir) (make-directory dir t))
+    (mapc (lambda (talk)
+            (with-temp-file (expand-file-name (concat (plist-get talk :video-slug) "--main.vtt")
+                                              dir)
+              (insert "WEBVTT\n\n"
+                      (cl-loop
+                       for i from 0 to (/ 60 subtitle-len)
+                       concat
+                       (let ((sub-prefix (format "%s %d "
+                                                 (plist-get talk :slug)
+                                                 i)))
+                         (format "%s --> %s\n%s%s\n\n"
+                                 (format-seconds "00:%.2m:%.2s.000"
+                                                 (* subtitle-len i))
+                                 (format-seconds "00:%.2m:%.2s.900"
+                                                 (1- (* subtitle-len (1+ i))))
+                                 sub-prefix
+                                 (substring subtitle-fill (length sub-prefix))))))))
+          info)))
+
+(defun emacsconf-stream-generate-test-videos (&optional info)
+  (interactive)
+  (setq info (emacsconf-filter-talks (or info (emacsconf-get-talk-info))))
+  (let ((dir (expand-file-name "test" emacsconf-stream-asset-dir)))
+    (unless (file-directory-p dir) (make-directory dir t))
+    (mapc (lambda (talk)
+            (add-name-to-file (expand-file-name "template.webm" dir)
+                              (expand-file-name (concat (plist-get talk :video-slug) "--main.webm") dir)
+                              t))
+          info)))
+;; (emacsconf-stream-display-talk-info
+;;  '(:title "The ship that builds itself: How we used Emacs to develop a workshop for communities"
+;;           :speakers-with-pronouns "Noorah Alhasan (she/her), Joseph Corneli (he/him), Leo Vivier (he/him)"
+;;           :url "2022/talks/community"
+;;           :pad-url "https://pad.emacsconf.org/2022-community"
+;;           :channel "emacsconf-gen"
+;;           :qa-info "https://emacsconf.org/current/community/room/")
+;;  )
 (provide 'emacsconf-stream)
 ;;; emacsconf-stream.el ends here

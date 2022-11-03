@@ -1074,10 +1074,15 @@ Filter by TRACK if given.  Use INFO as the list of talks."
 (defun emacsconf-reflow ()
   "Help reflow text files."
   (interactive)
-  (let (input)
+  (let (input last-input)
     (while (not (string= "" (setq input (read-string "Word: "))))
+      (when (string= input "!")
+        (delete-backward-char 1)
+        (insert " ")
+        (end-of-line)
+        (re-search-forward (regexp-quote last-input) nil t)
+        (setq input last-input))
       (if (string= input "'")
-
           (progn
             (end-of-line)          
             (unless (looking-back " ")
@@ -1094,9 +1099,10 @@ Filter by TRACK if given.  Use INFO as the list of talks."
          (t
           (re-search-forward (concat "\\<" (regexp-quote input)) nil t)
           (goto-char (match-beginning 0))))
-        (insert "\n"))
-      (recenter)
-      (undo-boundary))))
+        (insert "\n")
+        (setq last-input input)
+        (recenter)
+        (undo-boundary)))))
 
 (defun emacsconf-add-org-after-todo-state-change-hook ()
   "Add FUNC to `org-after-todo-stage-change-hook'."
