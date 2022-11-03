@@ -1143,6 +1143,7 @@ Filter by TRACK if given.  Use INFO as the list of talks."
 
 (defun emacsconf-track-agenda (track)
   (interactive (list (emacsconf-complete-track)))
+  (when (stringp track) (setq track (emacsconf-get-track track)))
   (let ((org-agenda-files (list emacsconf-org-file))
         (org-agenda-category-filter-preset (list (concat "+" (plist-get track :id)))))
     (org-agenda-list nil emacsconf-date 2)))
