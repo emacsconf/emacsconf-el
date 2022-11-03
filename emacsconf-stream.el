@@ -78,6 +78,31 @@ If the element doesn't have a tspan child, use the element itself."
       (nconc node (list text)))
      (t (setf (elt node 2) text)))))
 
+(defun emacsconf-stream-add-talk-props (talk)
+  "Create an overlay for TALK.
+VIDEO-FILENAME will be displayed while the video is playing,
+while OTHER-FILENAME will be displayed at other times."
+  (plist-put
+   talk
+   :overlay-url
+   (concat (replace-regexp-in-string "^.*//" "" emacsconf-base-url)
+           (plist-get talk :url)
+           (cond
+            ((null (plist-get talk :q-and-a)) "")
+            ((string-match "live" (plist-get talk :q-and-a))
+             " - Q&A: live (see talk page for URL)")
+            ((and (string-match "irc" (plist-get talk :q-and-a))
+                  (plist-get talk :irc))
+             (format " - Q&A: IRC (#%s) - speaker nick: %s"
+                     (plist-get (emacsconf-get-track (plist-get talk :track)) :channel)
+                     (plist-get talk :irc)))
+            ((string-match "irc" (plist-get talk :q-and-a))
+             (format " - Q&A: IRC (#%s)"
+                     (plist-get (emacsconf-get-track (plist-get talk :track)) :channel)))
+            (t ""))))
+  (plist-put talk :overlay-bottom (or (plist-get talk :speakers-with-pronouns) "EmacsConf"))
+  talk)
+
 (defun emacsconf-stream-set-talk-info-from-strings (track url bottom)
   (interactive (list (emacsconf-complete-track) (read-string "URL: ") (read-string "Bottom: ")))
   (let* ((home (concat (emacsconf-stream-track-login track) "~"))
@@ -98,31 +123,27 @@ If the element doesn't have a tspan child, use the element itself."
       (dom-print dom))
     ;; OBS doesn't kern SVG text as prettily as Inkscape does, so we use Inkscape for the conversion
     (shell-command "inkscape --export-type=png --export-dpi=96 --export-background-opacity=0 video.svg")
-    (shell-command "inkscape --export-type=png --export-dpi=96 --export-background-opacity=0 other.svg")
-    ))
+    (shell-command "inkscape --export-type=png --export-dpi=96 --export-background-opacity=0 other.svg")))
 
 (defun emacsconf-stream-set-talk-info (talk)
   (interactive (list (emacsconf-complete-talk-info)))
-  (emacsconf-stream-set-talk-info-from-strings
-   (emacsconf-get-track talk)
-   (concat (replace-regexp-in-string "^.*//" "" emacsconf-base-url)
-           (plist-get talk :url)
-           (cond
-            ((string-match "live" (plist-get talk :q-and-a))
-             " - Q&A: live (see talk page for URL)")
-            ((string-match "irc" (plist-get talk :q-and-a))
-             (format " - Q&A: IRC (#%s) - speaker nick: %s"
-                     (plist-get track :channel)
-                     (plist-get talk :irc)))
-            (t "")))
-   (cond
-    ((or (null (plist-get talk :pronouns)) (string= (plist-get talk :pronouns) "nil"))
-     (plist-get talk :speakers))
-    ((string-match ", " (plist-get talk :pronouns))
-     (plist-get talk :pronouns))
-    (t (format "%s (%s)"
-               (plist-get talk :speakers)
-               (plist-get talk :pronouns))))))
+  (setq talk (emacsconf-stream-add-talk-props talk))
+  (let ((home (concat (emacsconf-stream-track-login (emacsconf-get-track talk)) "~")))
+    (if (file-exists-p
+         (expand-file-name (concat (plist-get talk :slug) "-video.png") emacsconf-stream-overlay-dir))
+        (progn
+          (copy-file
+           (expand-file-name (concat (plist-get talk :slug) "-video.png") emacsconf-stream-overlay-dir)
+           (expand-file-name "video.png" home)
+           t)
+          (copy-file
+           (expand-file-name (concat (plist-get talk :slug) "-other.png") emacsconf-stream-overlay-dir)
+           (expand-file-name "other.png" home)
+           t))
+      (emacsconf-stream-set-talk-info-from-strings
+       (emacsconf-get-track talk)
+       (plist-get talk :overlay-url)
+       (plist-get talk :overlay-bottom)))))
 
 (defun emacsconf-stream-update-talk-info-org-after-todo-state-change ()
   "Update talk info."
@@ -148,6 +169,40 @@ Final files should be stored in /data/emacsconf/stream/YEAR/video-slug--main.web
     (shell-command
      (concat "~/bin/track-mpv "
 			       (shell-quote-argument (emacsconf-stream-get-filename talk))))))
+
+(defun emacsconf-stream-write-talk-overlay-svgs (talk video-filename other-filename)
+  (setq talk (emacsconf-stream-add-talk-props talk))
+  (let ((dom (xml-parse-file (expand-file-name "roles/obs/overlay.svg" emacsconf-ansible-directory)))
+        (default-directory (file-name-directory video-filename)))
+    (emacsconf-stream-svg-set-text dom "bottom" (plist-get talk :overlay-bottom))
+    (emacsconf-stream-svg-set-text dom "url" (plist-get talk :overlay-url))
+    (with-temp-file other-filename (dom-print dom))
+    (with-temp-file video-filename
+      (let ((node (dom-by-id dom "bottom")))
+        (when node
+          (dom-set-attribute node 'style "visibility: hidden")
+          (dom-set-attribute (dom-child-by-tag node 'tspan) 'style "fill: none; stroke: none")))
+      (dom-print dom))
+    (shell-command
+     (concat "inkscape --export-type=png --export-dpi=96 --export-background-opacity=0 "
+             (shell-quote-argument (file-name-nondirectory video-filename))))
+    (shell-command
+     (concat "inkscape --export-type=png --export-dpi=96 --export-background-opacity=0 "
+             (shell-quote-argument (file-name-nondirectory other-filename))))))
+
+(defvar emacsconf-stream-overlay-dir "/data/emacsconf/overlays/")
+
+(defun emacsconf-stream-generate-overlays (&optional info)
+  (interactive)
+  (setq info (emacsconf-filter-talks (or info (emacsconf-get-talk-info))))
+  (unless (file-directory-p emacsconf-stream-overlay-dir)
+    (make-directory emacsconf-stream-overlay-dir))
+  (mapc (lambda (talk)
+          (emacsconf-stream-write-talk-overlay-svgs
+           talk
+           (expand-file-name (concat (plist-get talk :slug) "-video.svg") emacsconf-stream-overlay-dir)
+           (expand-file-name (concat (plist-get talk :slug) "-other.svg") emacsconf-stream-overlay-dir)))
+        info))
 
 (provide 'emacsconf-stream)
 ;;; emacsconf-stream.el ends here
