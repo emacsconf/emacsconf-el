@@ -180,11 +180,16 @@
                                 (format "<a href=\"%s\" target=\"_blank\" rel=\"noreferrer\">Open pad</a>" (plist-get o :pad-url))
                               "")
                      "</td>"
+                     "<td>" (format "<a href=\"%s\" target=\"_blank\" rel=\"noreferrer\">Open chat</a>" (plist-get o :webchat-url))
+                     ""
+                     "</td>"
                      "<td>" (format-time-string "%-l:%M" (plist-get o :start-time) emacsconf-timezone) "</td>"
                      "<td>" (or (plist-get o :slug) "") "</td>"
                      "<td>" (or (plist-get o :title) "") "</td>"
                      "</tr>"))
-                  info "\n")
+                  (seq-filter (lambda (talk) (string= (plist-get talk :track)
+                                                      (plist-get track :name))) info)
+                  "\n")
                  "</table></body></html>"))))
           emacsconf-tracks)))
 
