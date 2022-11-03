@@ -170,6 +170,26 @@ Final files should be stored in /data/emacsconf/stream/YEAR/video-slug--main.web
      (concat "~/bin/track-mpv "
 			       (shell-quote-argument (emacsconf-stream-get-filename talk))))))
 
+(defun emacsconf-stream-open-pad (talk)
+  (interactive (list (emacsconf-complete-talk-info)))
+  (let ((default-directory (emacsconf-stream-track-login talk)))
+    (shell-command
+     (concat "firefox -new-window "
+	     (shell-quote-argument (plist-get talk :pad-url))
+	     " & "))))
+
+(defun emacsconf-stream-join-qa (talk)
+  "Join the Q&A for TALK.
+This uses the BBB room if available, or the IRC channel if not."
+  (interactive (list (emacsconf-complete-talk-info)))
+  (let ((default-directory (emacsconf-stream-track-login talk)))
+    (shell-command
+     (concat "firefox -new-window "
+	     (shell-quote-argument
+	       (or (plist-get talk :bbb-room)
+		   (plist-get talk :webchat-url)))
+	     " & "))))
+
 (defun emacsconf-stream-write-talk-overlay-svgs (talk video-filename other-filename)
   (setq talk (emacsconf-stream-add-talk-props talk))
   (let ((dom (xml-parse-file (expand-file-name "roles/obs/overlay.svg" emacsconf-ansible-directory)))
