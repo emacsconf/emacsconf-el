@@ -1119,16 +1119,19 @@ Filter by TRACK if given.  Use INFO as the list of talks."
 
 (defvar emacsconf-todo-hooks
   '(
-    emacsconf-stream-play-talk-org-after-todo-state-change ;; play the talk
+    emacsconf-stream-play-talk-on-change ;; play the talk
     ;; emacsconf-erc-org-after-todo-state-change ;; announce via ERC
-    ;; emacsconf-publish-backstage-org-after-todo-state-change ;; update the backstage index
-    emacsconf-stream-update-talk-info-org-after-todo-state-change ;; write to the talk text
+    emacsconf-publish-bbb-redirect
+    emacsconf-publish-backstage-org-on-state-change ;; update the backstage index
+    emacsconf-stream-update-talk-on-change ;; write to the talk text
     )
-  "Functions to run when the todo state changes.")
+  "Functions to run when the todo state changes.
+They will be called with TALK.")
 
 (defun emacsconf-org-after-todo-state-change ()
   "Run all the hooks in `emacsconf-todo-hooks'."
-  (run-hooks 'emacsconf-todo-hooks))
+  (let ((talk (emacsconf-get-talk-info-for-subtree)))
+    (run-hook-with-args 'emacsconf-todo-hooks talk)))
 
 (defun emacsconf-broadcast (message)
   (interactive "MMessage: ")

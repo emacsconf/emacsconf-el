@@ -815,13 +815,15 @@ Entries are sorted chronologically, with different tracks interleaved."
   (with-current-buffer (find-file-noselect emacsconf-org-file)
     (remove-hook 'org-after-todo-state-change-hook #'emacsconf-publish-backstage-org-after-todo-state-change t)))
 
-(defun emacsconf-publish-backstage-org-after-todo-state-change ()
-  (when (member org-state '("TO_CAPTION"))
-    (unless (org-entry-get (point) "CAPTIONER")
-      (org-entry-put (point) "CAPTIONER"
-                     (assoc-default "CUSTOM_ID" (emacsconf-complete-volunteer)))))
-  (when (member org-state '("TO_ASSIGN" "TO_CAPTION" "TO_STREAM"))
-    (emacsconf-publish-backstage-index)))
+(defun emacsconf-publish-backstage-org-on-state-change (talk)
+  (save-window-excursion
+    (emacsconf-with-talk-heading talk
+      (when (member org-state '("TO_CAPTION"))
+        (unless (org-entry-get (point) "CAPTIONER")
+          (org-entry-put (point) "CAPTIONER"
+                         (assoc-default "CUSTOM_ID" (emacsconf-complete-volunteer)))))
+      (when (member org-state '("TO_ASSIGN" "TO_CAPTION" "TO_STREAM"))
+        (emacsconf-publish-backstage-index)))))
 
 (defun emacsconf-publish-copy-main-files-from-backstage-to-media-root (talk)
   (interactive (list (emacsconf-complete-talk-info)))
@@ -1630,7 +1632,7 @@ ffplay https://live0.emacsconf.org:9001/emacsconf/gen.webm
   (let ((bbb-filename (expand-file-name (format "bbb-%s.html" (plist-get talk :slug))
                                         emacsconf-publish-current-dir))
         (bbb-redirect-url (concat "https://media.emacsconf.org/" emacsconf-year "/current/bbb-" (plist-get talk :slug) ".html"))
-        (status (emacsconf-bbb-status talk)))
+        (status (emacsconf-bbb-status (if (boundp 'org-state) (append (list :status org-state) talk) talk))))
     (with-temp-file bbb-filename
       (insert
        (emacsconf-replace-plist-in-string

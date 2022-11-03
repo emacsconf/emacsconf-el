@@ -145,15 +145,15 @@ while OTHER-FILENAME will be displayed at other times."
        (plist-get talk :overlay-url)
        (plist-get talk :overlay-bottom)))))
 
-(defun emacsconf-stream-update-talk-info-org-after-todo-state-change ()
+(defun emacsconf-stream-update-talk-info-on-change (talk)
   "Update talk info."
   (when (string= org-state "PLAYING")
-    (emacsconf-stream-set-talk-info (emacsconf-get-talk-info-for-subtree))))
+    (emacsconf-stream-set-talk-info talk)))
 
-(defun emacsconf-stream-play-talk-org-after-todo-state-change ()
+(defun emacsconf-stream-play-talk-on-change (talk)
   "Play the talk."
   (when (string= org-state "PLAYING")
-    (emacsconf-stream-play-video (emacsconf-get-talk-info-for-subtree))))
+    (emacsconf-stream-play-video talk)))
 
 (defun emacsconf-stream-get-filename (talk)
   "Return the local filename for the video file for TALK.
