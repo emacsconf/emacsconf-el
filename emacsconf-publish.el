@@ -835,17 +835,20 @@ Entries are sorted chronologically, with different tracks interleaved."
   (setq filename (or filename (expand-file-name "index.html" emacsconf-backstage-dir)))
   (setq emacsconf-info (emacsconf-get-talk-info))
   (with-temp-file filename
-    (let* ((talks (emacsconf-filter-talks emacsconf-info))
+    (let* ((talks (seq-filter (lambda (o) (plist-get o :speakers)) (emacsconf-filter-talks emacsconf-info)))
            (by-status (seq-group-by (lambda (o) (plist-get o :status)) talks))
            (files (directory-files emacsconf-backstage-dir)))
       (insert
        "<html><head><meta charset=\"UTF-8\"><link rel=\"stylesheet\" href=\"/style.css\" /></head><body>"
-       (format "<p>Waiting for %d talks (~%d minutes)</p>"
+       (format "<p>Waiting for %d talks (~%d minutes) out of %d total</p>"
                (length (assoc-default "WAITING_FOR_PREREC" by-status))
-               (emacsconf-sum :time (assoc-default "WAITING_FOR_PREREC" by-status)))
+               (emacsconf-sum :time (assoc-default "WAITING_FOR_PREREC" by-status))
+               (length talks))
        (let ((list (append (assoc-default "TO_PROCESS" by-status)
+                           (assoc-default "PROCESSING" by-status)
+                           (assoc-default "TO_AUTOCAP" by-status)
                            (assoc-default "TO_ASSIGN" by-status))))
-         (format "<h1>%s talk(s) to be captioned (%d minutes)</h1><p>You can e-mail <a href=\"mailto:sacha@sachachua.com\">sacha@sachachua.com</a> to call dibs on editing the captions for one of these talks. This year, we're experimenting with using OpenAI Whisper and Torchaudio to provide auto-generated VTT and SRV2 files you can use as a starting point. If you're writing them from scratch, you can choose to include timing information, or we can probably figure them out afterwards with a forced alignment tool. Also, if you feel like making chapter markers, that's cool too. More info: <a href=\"https://emacsconf.org/captioning/\">captioning tips</a></p><ul class=\"videos\">%s</ul>"
+         (format "<h1>%s talk(s) to be captioned (%d minutes)</h1><p>You can e-mail <a href=\"mailto:sacha@sachachua.com\">sacha@sachachua.com</a> to call dibs on editing the captions for one of these talks. This year, we're experimenting with using OpenAI Whisper to provide auto-generated VTT that you can use as a starting point. If you're writing them from scratch, you can choose to include timing information, or we can probably figure them out afterwards with a forced alignment tool. Also, if you feel like making chapter markers, that's cool too. More info: <a href=\"https://emacsconf.org/captioning/\">captioning tips</a></p><ul class=\"videos\">%s</ul>"
                  (length list)
                  (emacsconf-sum :video-time list)
                  (mapconcat
