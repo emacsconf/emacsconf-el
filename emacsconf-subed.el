@@ -149,15 +149,15 @@
   "Open the caption file for this talk.
 Create it if necessary."
   (interactive)
-  (require 'compile-media)
   (let ((video-slug (org-entry-get (point) "VIDEO_SLUG")))
     (find-file
-     (or (car (directory-files emacsconf-captions-directory
+     (or (car (directory-files emacsconf-cache-dir
                                t
                                (concat (regexp-quote video-slug)
                                        "--main\\.\\(srt\\|vtt\\)")))
          (expand-file-name (concat video-slug "--main.vtt") "captions")))
     (when (eobp)
+      (require 'compile-media)
       (insert "WEBVTT\n\n0:00:00.000 --> "
               (compile-media-msecs-to-timestamp
                (compile-media-get-file-duration-ms (subed-guess-video-file)))
