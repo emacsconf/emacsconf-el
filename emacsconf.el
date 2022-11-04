@@ -1151,5 +1151,11 @@ They will be called with TALK.")
         (org-agenda-category-filter-preset (list (concat "+" (plist-get track :id)))))
     (org-agenda-list nil emacsconf-date 2)))
 
+(defun emacsconf-update-talk-status (slug from-states to-state)
+  (interactive (list (emacsconf-complete-talk) (read-string "From: ") (read-string "To: ")))
+  (emacsconf-with-talk-heading slug
+    (when (string-match from-states (org-entry-get (point) "TODO"))
+      (org-todo to-state))))
+
 (provide 'emacsconf)
 ;;; emacsconf.el ends here
