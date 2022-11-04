@@ -201,12 +201,14 @@ This uses the BBB room if available, or the IRC channel if not."
   (interactive (list (emacsconf-complete-talk-info)))
   (let ((default-directory (emacsconf-stream-track-login talk))
         (async-shell-command-buffer 'new-buffer))
-    (shell-command
-     (concat "nohup firefox -new-window "
-	     (shell-quote-argument
-	       (or (plist-get talk :bbb-room)
-		   (plist-get talk :webchat-url)))
-	     " > /dev/null 2>&1 & "))))
+    (save-window-excursion
+      (shell-command
+       (concat "nohup firefox -new-window "
+	             (shell-quote-argument
+	              (if (string-match (plist-get talk :q-and-a) "IRC")
+                    (plist-get talk :webchat-url)
+                  (plist-get talk :bbb-room)))
+	             " > /dev/null 2>&1 & ")))))
 
 (defun emacsconf-stream-join-chat (talk)
   "Join the IRC chat for TALK."
