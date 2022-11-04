@@ -500,7 +500,7 @@
                                 emacsconf-status-types 'string= "")
                  (plist-get o :status)))
   (if (member (plist-get o :status)
-              (split-string "PLAYING CLOSED_Q OPEN_Q UNSTREAMED_Q TO_ARCHIVE TO_EXTRACT TO_FOLLOW_UP"))
+              (split-string "PLAYING CLOSED_Q OPEN_Q UNSTREAMED_Q TO_ARCHIVE TO_EXTRACT TO_FOLLOW_UP DONE"))
       (plist-put o :public t))
   o)
 
@@ -1118,12 +1118,13 @@ Filter by TRACK if given.  Use INFO as the list of talks."
                  #'emacsconf-org-after-todo-state-change  t)))
 
 (defvar emacsconf-todo-hooks
-  '(
-    emacsconf-stream-play-talk-on-change ;; play the talk
+  '(emacsconf-stream-play-talk-on-change ;; play the talk
+    emacsconf-stream-open-qa-windows-on-change
     ;; emacsconf-erc-org-after-todo-state-change ;; announce via ERC
+    emacsconf-publish-media-files-on-change
     emacsconf-publish-bbb-redirect
     emacsconf-publish-backstage-org-on-state-change ;; update the backstage index
-    emacsconf-stream-update-talk-on-change ;; write to the talk text
+    emacsconf-stream-update-talk-info-on-change ;; write to the talk text
     )
   "Functions to run when the todo state changes.
 They will be called with TALK.")

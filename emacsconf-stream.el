@@ -145,15 +145,26 @@ while OTHER-FILENAME will be displayed at other times."
        (plist-get talk :overlay-url)
        (plist-get talk :overlay-bottom)))))
 
+(defun emacsconf-stream-open-qa-windows-on-change (talk)
+  (interactive (list (emacsconf-complete-talk-info)))
+  (when (or (not (boundp 'org-state)) (string= org-state "CLOSED_Q"))
+    (let ((default-directory (emacsconf-stream-track-login talk)))
+      (save-window-excursion
+        (emacsconf-stream-open-pad talk)
+        (emacsconf-stream-join-qa talk)
+        (shell-command "i3-msg 'layout splith'")))))
+
 (defun emacsconf-stream-update-talk-info-on-change (talk)
   "Update talk info."
   (when (string= org-state "PLAYING")
-    (emacsconf-stream-set-talk-info talk)))
+    (save-window-excursion
+      (emacsconf-stream-set-talk-info talk))))
 
 (defun emacsconf-stream-play-talk-on-change (talk)
   "Play the talk."
   (when (string= org-state "PLAYING")
-    (emacsconf-stream-play-video talk)))
+    (save-window-excursion
+      (emacsconf-stream-play-video talk))))
 
 (defun emacsconf-stream-get-filename (talk)
   "Return the local filename for the video file for TALK.
@@ -165,40 +176,48 @@ Final files should be stored in /data/emacsconf/stream/YEAR/video-slug--main.web
 
 (defun emacsconf-stream-play-video (talk)
   (interactive (list (emacsconf-complete-talk-info)))
-  (let ((default-directory (emacsconf-stream-track-login talk)))
-    (shell-command
-     (concat "~/bin/track-mpv "
-			       (shell-quote-argument (emacsconf-stream-get-filename talk))))))
+  (let ((default-directory (emacsconf-stream-track-login talk))
+        (async-shell-command-buffer 'new-buffer))
+    ;; I tried using start-file-process, but I couldn't figure out how to get MPV to work.
+    ;; We'll just use shell-command then, and manually move to the QA states when we want to.
+    (save-window-excursion
+      (shell-command
+       (concat "nohup ~/bin/track-mpv "
+			         (shell-quote-argument (emacsconf-stream-get-filename talk))
+               " > /dev/null 2>&1 & ")))))
 
 (defun emacsconf-stream-open-pad (talk)
   (interactive (list (emacsconf-complete-talk-info)))
-  (let ((default-directory (emacsconf-stream-track-login talk)))
+  (let ((default-directory (emacsconf-stream-track-login talk))
+        (async-shell-command-buffer 'new-buffer))
     (shell-command
-     (concat "firefox -new-window "
+     (concat "nohup firefox -new-window "
 	     (shell-quote-argument (plist-get talk :pad-url))
-	     " & "))))
+	     " > /dev/null 2>&1 & "))))
 
 (defun emacsconf-stream-join-qa (talk)
   "Join the Q&A for TALK.
 This uses the BBB room if available, or the IRC channel if not."
   (interactive (list (emacsconf-complete-talk-info)))
-  (let ((default-directory (emacsconf-stream-track-login talk)))
+  (let ((default-directory (emacsconf-stream-track-login talk))
+        (async-shell-command-buffer 'new-buffer))
     (shell-command
-     (concat "firefox -new-window "
+     (concat "nohup firefox -new-window "
 	     (shell-quote-argument
 	       (or (plist-get talk :bbb-room)
 		   (plist-get talk :webchat-url)))
-	     " & "))))
+	     " > /dev/null 2>&1 & "))))
 
 (defun emacsconf-stream-join-chat (talk)
   "Join the IRC chat for TALK."
   (interactive (list (emacsconf-complete-talk-info)))
-  (let ((default-directory (emacsconf-stream-track-login talk)))
+  (let ((default-directory (emacsconf-stream-track-login talk))
+        (async-shell-command-buffer 'new-buffer))
     (shell-command
-     (concat "firefox -new-window "
+     (concat "nohup firefox -new-window "
 	     (shell-quote-argument
 	      (plist-get talk :webchat-url))
-	     " & "))))
+	     " > /dev/null 2>&1 & "))))
 
 (defun emacsconf-stream-write-talk-overlay-svgs (talk video-filename other-filename)
   (setq talk (emacsconf-stream-add-talk-props talk))

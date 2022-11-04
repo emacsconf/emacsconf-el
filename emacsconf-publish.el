@@ -830,23 +830,6 @@ Entries are sorted chronologically, with different tracks interleaved."
       (when (member org-state '("TO_ASSIGN" "TO_CAPTION" "TO_STREAM"))
         (emacsconf-publish-backstage-index)))))
 
-(defun emacsconf-publish-copy-main-files-from-backstage-to-media-root (talk)
-  (interactive (list (emacsconf-complete-talk-info)))
-  (let ((files (directory-files emacsconf-backstage-dir nil (concat (plist-get talk :video-slug)
-                                                                    ".*"
-                                                                    (regexp-opt (append
-                                                                                 emacsconf-main-extensions
-                                                                                 (list "--main.webm"
-                                                                                       "--questions.webm")) t)
-                                                                    "$"))))
-    (mapc
-     (lambda (f)
-       (copy-file
-        (expand-file-name f emacsconf-backstage-dir)
-        (expand-file-name f emacsconf-public-media-directory) t t))
-     files)
-    (message "Copied %s" (string-join files ", "))))
-
 (defun emacsconf-publish-backstage-index (&optional filename)
   (interactive)
   (setq filename (or filename (expand-file-name "index.html" emacsconf-backstage-dir)))
@@ -1671,6 +1654,33 @@ The Q&A room for ${title} has finished. You can find more information about the 
 There is no live Q&A room for ${title}. You can find more information about the talk at <a href=\"${base-url}${url}\">${base-url}${url}</a>.</body></html>"
            )
           ))))))
+
+(defun emacsconf-publish-media-files-on-change (talk)
+  "Publish the files and update the index."
+  (interactive (list (emacsconf-complete-talk-info)))
+  (when (or (not (boundp 'org-state))
+            (string= org-state "PLAYING")
+            (string= org-state "TO_STREAM"))
+    (if (plist-get talk :public)
+        ;; Copy main extension files from backstage to public
+        (let ((files (directory-files emacsconf-backstage-dir nil
+                                      (concat "^"
+                                              (regexp-quote (plist-get talk :video-slug))
+                                              (regexp-opt emacsconf-main-extensions)))))
+          (mapc (lambda (file)
+                  (copy-file (expand-file-name file emacsconf-backstage-dir)
+                             (expand-file-name file emacsconf-public-media-directory) t))
+                files))
+      ;; Remove files from public
+      (let ((files (directory-files emacsconf-public-media-directory nil
+                                    (concat "^"
+                                            (regexp-quote (plist-get talk :video-slug)
+                                                          )))))
+        (mapc (lambda (file)
+                (delete-file (expand-file-name file emacsconf-public-media-directory)))
+              files)))
+    (emacsconf-publish-public-index)))
+
 (defun emacsconf-publish-bbb-redirect-all ()
   (interactive)
   (unless (file-directory-p emacsconf-publish-current-dir)
