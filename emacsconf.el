@@ -169,10 +169,7 @@
   (interactive (let-alist (json-parse-string (buffer-string) :object-type 'alist)
                  (list (emacsconf-complete-talk-info)
                        .metadata.key
-                       (read-string (format "Filename (%s): "
-                                            (file-name-base .metadata.name))
-                                    nil nil
-                                    (file-name-base .metadata.name)))))
+                       (read-string (format "Filename: ")))))
   (let ((new-filename (concat (plist-get talk :video-slug)
                               (if (string= filename "")
                                   filename
@@ -183,10 +180,12 @@
     (copy-file key
                (expand-file-name new-filename
                                  emacsconf-backstage-dir) t)
-    (copy-file key (expand-file-name new-filename emacsconf-cache-dir))
-    (unless (file-directory-p (expand-file-name (plist-get talk :slug) emacsconf-res-dir))
-      (make-directory (expand-file-name (plist-get talk :slug) emacsconf-res-dir)))
-    (copy-file (expand-file-name new-filename emacsconf-cache-dir) (expand-file-name new-filename (expand-file-name (plist-get talk :slug) emacsconf-res-dir)))))
+    ;; (copy-file key (expand-file-name new-filename emacsconf-cache-dir))
+    ;; (unless (file-directory-p (expand-file-name (plist-get talk :slug) emacsconf-res-dir))
+    ;;   (make-directory (expand-file-name (plist-get talk :slug) emacsconf-res-dir)))
+    ;; (copy-file (expand-file-name new-filename emacsconf-cache-dir)
+    ;;            (expand-file-name new-filename (expand-file-name (plist-get talk :slug) emacsconf-res-dir)))
+    ))
 
 (defcustom emacsconf-download-directory "~/Downloads"
   "Directory to check for downloaded files."
@@ -199,7 +198,7 @@
 
 (defun emacsconf-find-captions-from-slug (search)
   (interactive (list (emacsconf-complete-talk)))
-  (emacsconf-with-talk-heading search (emacsconf-find-captions)))
+  (emacsconf-with-talk-heading search (emacsconf-subed-find-captions)))
 
 (defun emacsconf-edit-wiki-page (search)
   (interactive (list (emacsconf-complete-talk)))
