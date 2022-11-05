@@ -844,10 +844,11 @@ Entries are sorted chronologically, with different tracks interleaved."
                (length (assoc-default "WAITING_FOR_PREREC" by-status))
                (emacsconf-sum :time (assoc-default "WAITING_FOR_PREREC" by-status))
                (length talks))
-       (let ((list (append (assoc-default "TO_PROCESS" by-status)
-                           (assoc-default "PROCESSING" by-status)
-                           (assoc-default "TO_AUTOCAP" by-status)
-                           (assoc-default "TO_ASSIGN" by-status))))
+       (let ((list (append
+		    (assoc-default "TO_ASSIGN" by-status)
+		    (assoc-default "TO_PROCESS" by-status)
+                    (assoc-default "PROCESSING" by-status)
+                    (assoc-default "TO_AUTOCAP" by-status))))
          (format "<h1>%s talk(s) to be captioned (%d minutes)</h1><p>You can e-mail <a href=\"mailto:sacha@sachachua.com\">sacha@sachachua.com</a> to call dibs on editing the captions for one of these talks. This year, we're experimenting with using OpenAI Whisper to provide auto-generated VTT that you can use as a starting point. If you're writing them from scratch, you can choose to include timing information, or we can probably figure them out afterwards with a forced alignment tool. Also, if you feel like making chapter markers, that's cool too. More info: <a href=\"https://emacsconf.org/captioning/\">captioning tips</a></p><ul class=\"videos\">%s</ul>"
                  (length list)
                  (emacsconf-sum :video-time list)
