@@ -1119,7 +1119,7 @@ Filter by TRACK if given.  Use INFO as the list of talks."
 (defvar emacsconf-todo-hooks
   '(emacsconf-stream-play-talk-on-change ;; play the talk
     emacsconf-stream-open-qa-windows-on-change
-    ;; emacsconf-erc-org-after-todo-state-change ;; announce via ERC
+    emacsconf-erc-announce-on-change ;; announce via ERC
     emacsconf-publish-media-files-on-change
     emacsconf-publish-bbb-redirect
     emacsconf-publish-backstage-org-on-state-change ;; update the backstage index

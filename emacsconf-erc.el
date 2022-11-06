@@ -246,15 +246,7 @@ If MESSAGE is not specified, reset the topic to the template."
 
 ;;; For todo hooks
 
-(defun emacsconf-erc-add-to-todo-hook ()
-  (interactive)
-  (emacsconf-add-org-after-todo-state-change-hook #'emacsconf-erc-org-after-todo-state-change))
-
-(defun emacsconf-erc-remove-from-todo-hook ()
-  (interactive)
-  (emacsconf-remove-org-after-todo-state-change-hook #'emacsconf-erc-org-after-todo-state-change))
-
-(defun emacsconf-erc-org-after-todo-state-change ()
+(defun emacsconf-erc-announce-on-change (talk)
   "Announce talk."
   (let ((func
          (pcase org-state
@@ -264,7 +256,7 @@ If MESSAGE is not specified, reset the topic to the template."
            ("UNSTREAMED_Q" #'erc-cmd-NOWUNSTREAMEDQ)
            ("TO_ARCHIVE" #'erc-cmd-NOWDONE))))
     (when func
-      (funcall func (emacsconf-get-talk-info-for-subtree)))))
+      (funcall func talk))))
 
 ;;; Change TODO states
 (defun erc-cmd-MARKPLAYING (talk)
@@ -317,7 +309,7 @@ If MESSAGE is not specified, reset the topic to the template."
 (defun erc-cmd-BROADCAST (&rest message)
   "Say MESSAGE in all the emacsconference channels."
   (emacsconf-erc-with-channels (mapcar 'car emacsconf-topic-templates)
-    (erc-send-message (s-join " " message))))
+    (erc-send-message (string-join message " "))))
 
 (defun erc-cmd-JUMP (talk)
   (emacsconf-go-to-talk talk))
@@ -437,7 +429,7 @@ ${video-description}
   "Go to TALK and store NOTES in the :LOGBOOK:.
 Usage: /conflog keyword notes go here"
   (save-window-excursion
-    (emacsconf-with-talk-heading talk (emacsconf-org-log-note (s-join " " notes)))))
+    (emacsconf-with-talk-heading talk (emacsconf-org-log-note (string-join notes " ")))))
 
 (defun erc-cmd-GIT (&optional location)
   (if (string= location "conf")
