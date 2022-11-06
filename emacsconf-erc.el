@@ -315,6 +315,12 @@ If MESSAGE is not specified, reset the topic to the template."
 	(erc-cmd-OP nick)
       (erc-cmd-OPME))))
 
+(defun erc-cmd-DEOPALL (&optional nick)
+  (emacsconf-erc-with-channels (mapcar 'car emacsconf-topic-templates)
+    (if nick
+	      (erc-cmd-DEOP nick)
+      (erc-cmd-DEOPME))))
+
 (defun erc-cmd-BROADCAST (&rest message)
   "Say MESSAGE in all the emacsconference channels."
   (emacsconf-erc-with-channels (mapcar 'car emacsconf-topic-templates)
