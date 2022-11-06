@@ -153,16 +153,19 @@
 
 (defun emacsconf-publish-res-index ()
   (interactive)
-  (let ((info (mapcar (lambda (o)
-                        (if (plist-get o :bbb-room)
-                            (append (list
-                                     :qa-link
-                                     (format "<a href=\"%s\" target=\"_blank\" rel=\"noreferrer\">Join Q&A</a>" (plist-get o :bbb-room))
-                                     :url
-                                     (plist-get o :bbb-room))
-                                    o)
-                          o))
-               (emacsconf-prepare-for-display (emacsconf-get-talk-info)))))
+  (let ((emacsconf-use-absolute-url t)
+        (emacsconf-base-url "")
+        (info (mapcar (lambda (o)
+                        (append (list
+                                 :url (concat "#" (plist-get o :slug)))
+                                (if (and (string-match "live" (or (plist-get o :q-and-a) ""))
+                                         (plist-get o :bbb-room))
+                                    (append (list
+                                             :qa-link
+                                             (format "<a href=\"%s\" target=\"_blank\" rel=\"noreferrer\">Join Q&A</a>" (plist-get o :bbb-room)))
+                                            o)
+                                  o)))
+                      (emacsconf-prepare-for-display (emacsconf-get-talk-info)))))
     (mapc (lambda (track)
             (let ((track-talks (seq-filter (lambda (o) (string= (plist-get o :track)
                                                                 (plist-get track :name)))
@@ -179,7 +182,10 @@
                   (lambda (o)
                     (concat
                      "<tr>"
-                     "<td>" (plist-get o :qa-link)
+                     (format
+                      "<td><a name=\"%s\"></a>"
+                      (plist-get o :slug))
+                     (plist-get o :qa-link)
                      "</td>"
                      "<td>" (if (plist-get o :pad-url)
                                 (format "<a href=\"%s\" target=\"_blank\" rel=\"noreferrer\">Open pad</a>" (plist-get o :pad-url))
