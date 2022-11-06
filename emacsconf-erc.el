@@ -165,7 +165,8 @@ If MESSAGE is not specified, reset the topic to the template."
        ((string-match "live" (or (plist-get talk :q-and-a) ""))
         (erc-send-message (concat "Live Q&A: " (plist-get talk :bbb-redirect))))
        ((plist-get talk :irc)
-        (erc-send-message "or discuss the talk on IRC (nick: %s)")))))
+        (erc-send-message (format "or discuss the talk on IRC (nick: %s)"
+                                  (plist-get talk :irc)))))))
   ;; Short announcement in #emacsconf
   (emacsconf-erc-with-channels (list emacsconf-erc-hallway emacsconf-erc-org)
     (erc-send-message (format "-- %s track: %s: %s (watch: %s, pad: %s, channel: #%s)"
