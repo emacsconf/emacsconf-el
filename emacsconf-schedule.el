@@ -338,6 +338,12 @@ Each function should take the info and manipulate it as needed, returning the ne
     (when track
       (dom-set-attribute node 'fill (plist-get track :color)))))
 
+(defun emacsconf-schedule-svg-color-by-availability (o node &optional parent)
+  (dom-set-attribute node 'fill
+                     (if (string-match "^[><]" (plist-get o :availability))
+                         "gray"
+                       "green")))
+
 (defun emacsconf-schedule-svg (width height &optional info)
   (setq info (or info (emacsconf-get-talk-info)))
   (let ((days (seq-group-by (lambda (o)
@@ -357,6 +363,21 @@ Each function should take the info and manipulate it as needed, returning the ne
                        :end end
                        :tracks (emacsconf-by-track (cdr o)))))
              days))))
+
+(defun emacsconf-schedule-svg-color-by-status (o node &optional parent)
+  (dom-set-attribute node 'fill
+                     (pcase (plist-get o :status)
+                       ((rx (or "TO_PROCESS"
+                                "PROCESSING"
+                                "TO_AUTOCAP"))
+                        "lightyellow")
+                       ((rx (or "TO_ASSIGN"))
+                        "yellow")
+                       ((rx (or "TO_CAPTION"))
+                        "lightgreen")
+                       ((rx (or "TO_STREAM"))
+                        "green")
+                       (t "gray"))))
 
 (defun emacsconf-schedule-svg-days (width height days)
   (let ((svg (svg-create width height :background "white"))
