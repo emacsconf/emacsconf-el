@@ -225,7 +225,8 @@
             (and video-file
                  (let ((tracks
                         (emacsconf-video-subtitle-tracks
-                         (concat video-base ".vtt")
+                         (concat (replace-regexp-in-string "reencoded\\|original" "main" video-base)
+				 ".vtt")
                          (or (plist-get talk :track-base-url)
                              (plist-get talk :base-url))
                          (plist-get talk :files))))
@@ -841,7 +842,8 @@ Entries are sorted chronologically, with different tracks interleaved."
   (setq filename (or filename (expand-file-name "index.html" emacsconf-backstage-dir)))
   (setq emacsconf-info (emacsconf-get-talk-info))
   (with-temp-file filename
-    (let* ((talks (seq-filter (lambda (o) (plist-get o :speakers)) (emacsconf-filter-talks emacsconf-info)))
+    (let* ((talks (seq-filter (lambda (o) (plist-get o :speakers))
+			      (emacsconf-active-talks (emacsconf-filter-talks emacsconf-info))))
            (by-status (seq-group-by (lambda (o) (plist-get o :status)) talks))
            (files (directory-files emacsconf-backstage-dir)))
       (insert

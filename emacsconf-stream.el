@@ -176,15 +176,13 @@ Final files should be stored in /data/emacsconf/stream/YEAR/video-slug--main.web
 
 (defun emacsconf-stream-play-video (talk)
   (interactive (list (emacsconf-complete-talk-info)))
-  (let ((default-directory (emacsconf-stream-track-login talk))
-        (async-shell-command-buffer 'new-buffer))
-    ;; I tried using start-file-process, but I couldn't figure out how to get MPV to work.
-    ;; We'll just use shell-command then, and manually move to the QA states when we want to.
-    (save-window-excursion
-      (shell-command
-       (concat "nohup ~/bin/track-mpv "
-			         (shell-quote-argument (emacsconf-stream-get-filename talk))
-               " > /dev/null 2>&1 & ")))))
+  (let ((info (tramp-dissect-file-name (emacsconf-stream-track-login talk))))
+    (call-process "ssh" nil nil t
+		  (concat (tramp-file-name-user info)
+			  "@" (tramp-file-name-host info))
+			  "-p" (tramp-file-name-port info)
+			  "nohup" "~/bin/track-mpv" (emacsconf-stream-get-filename talk) ">" "/dev/null"
+			  "2>&1" "&")))
 
 (defun emacsconf-stream-open-pad (talk)
   (interactive (list (emacsconf-complete-talk-info)))
@@ -354,9 +352,17 @@ This uses the BBB room if available, or the IRC channel if not."
           info)))
 
 (defun emacsconf-stream-handle-talk-timer (talk)
+  (interactive (list (save-match-data (emacsconf-complete-talk-info))))
   (save-window-excursion
-    (emacsconf-with-talk-heading (plist-get talk :slug)
-      (org-todo "PLAYING"))))
+    (save-match-data
+      (undo-boundary)
+      (message "Start %s" talk)
+      (with-local-quit
+	(ignore-error 'remote-file-error
+	  (emacsconf-with-talk-heading (plist-get talk :slug)
+	    (org-todo "PLAYING"))))
+      (message "Done %s" talk)
+      (undo-boundary))))
 
 (defun emacsconf-stream-schedule-timers (&optional info)
   (interactive)
