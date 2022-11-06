@@ -240,7 +240,7 @@ This uses the BBB room if available, or the IRC channel if not."
              (shell-quote-argument (file-name-nondirectory other-filename))))))
 
 (defvar emacsconf-stream-asset-dir "/data/emacsconf/assets/")
-(defvar emacsconf-stream-overlay-dir "/data/emacsconf/overlays/")
+(defvar emacsconf-stream-overlay-dir "/data/emacsconf/assets/overlays/")
 
 (defun emacsconf-stream-generate-overlays (&optional info)
   (interactive)
@@ -300,7 +300,11 @@ This uses the BBB room if available, or the IRC channel if not."
   (message nil)
   (with-temp-file (expand-file-name (concat (plist-get talk :slug) "-title.svg")
                                     (expand-file-name "titles" emacsconf-stream-asset-dir))
-    (insert (x-export-frames nil 'svg))))
+    (insert (x-export-frames nil 'svg)))
+  (shell-command
+     (concat "inkscape --export-type=png --export-dpi=96 --export-background-opacity=0 "
+             (shell-quote-argument (expand-file-name (concat (plist-get talk :slug) "-title.svg")
+                                    (expand-file-name "titles" emacsconf-stream-asset-dir))))))
 
 (defun emacsconf-stream-generate-title-pages (&optional info)
   (interactive)
@@ -374,6 +378,13 @@ This uses the BBB room if available, or the IRC channel if not."
                talk)))
           info)))
 
+(defun emacsconf-stream-generate-assets-for-talk (talk)
+  (interactive (list (emacsconf-complete-talk-info)))
+  (let ((info (list talk)))
+    (emacsconf-stream-generate-test-videos info)
+    (emacsconf-stream-generate-test-subtitles info)
+    (emacsconf-stream-generate-title-pages info)
+    (emacsconf-stream-generate-overlays info)))
 ;; (emacsconf-stream-display-talk-info
 ;;  '(:title "The ship that builds itself: How we used Emacs to develop a workshop for communities"
 ;;           :speakers-with-pronouns "Noorah Alhasan (she/her), Joseph Corneli (he/him), Leo Vivier (he/him)"
