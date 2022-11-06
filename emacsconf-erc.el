@@ -297,9 +297,22 @@ If MESSAGE is not specified, reset the topic to the template."
 
 ;;; Other commands
 
-(defun erc-cmd-OPALL ()
+(defun erc-cmd-OPME ()
+  "Request chanserv to op me."
+  (erc-message "PRIVMSG"
+	       (format "chanserv op %s %s"
+		       (erc-default-target)
+		       (erc-current-nick)) nil))
+
+(defun erc-cmd-DEOPME ()
+  "Deop myself from current channel."
+  (erc-cmd-DEOP (format "%s" (erc-current-nick))))
+
+(defun erc-cmd-OPALL (&optional nick)
   (emacsconf-erc-with-channels (mapcar 'car emacsconf-topic-templates)
-    (erc-cmd-OPME)))
+    (if nick
+	(erc-cmd-OP nick)
+      (erc-cmd-OPME))))
 
 (defun erc-cmd-BROADCAST (&rest message)
   "Say MESSAGE in all the emacsconference channels."
