@@ -131,9 +131,13 @@
 
 (defun emacsconf-upload-to-backstage ()
   (interactive)
-  (copy-file (buffer-file-name) (expand-file-name (file-name-nondirectory (buffer-file-name))
-                                                  emacsconf-backstage-dir)
-             t))
+  (mapc (lambda (file)
+          (copy-file file (expand-file-name (file-name-nondirectory file)
+                                            emacsconf-backstage-dir)
+                     t))
+        (or (dired-get-marked-files)
+            (list (buffer-file-name)))))
+
 (defun emacsconf-get-srv2-and-upload-to-backstage (talk)
   (interactive (list (emacsconf-complete-talk-info (seq-filter (lambda (o) (plist-get o :youtube-url)) (emacsconf-get-talk-info)))))
   (let ((filename (make-temp-file nil nil "srv2"))
@@ -145,21 +149,13 @@
         (emacsconf-upload-to-backstage-and-rename talk "main--srt")))))
 
 (defun emacsconf-upload-to-backstage-and-rename (talk filename)
-  (interactive (let ((talk (emacsconf-complete-talk-info))
-                     (base (file-name-base (buffer-file-name))))
-                 (list
-                  talk
-                  (if (and (not current-prefix-arg)
-                           (string-match (concat "^" (regexp-quote (plist-get talk :video-slug)) "--\\([a-z]+\\)")
-                                         base))
-                      (match-string 1 base)
-                    (read-string (format "Filename (%s): " base)
-                                 nil nil
-                                 base)))))
+  (interactive (list (emacsconf-complete-talk-info)
+                     (read-string "Filename: ")))
   (copy-file (buffer-file-name)
              (expand-file-name (concat (plist-get talk :video-slug)
-                                       "--"
-                                       filename
+                                       (if (string= filename "")
+                                           ""
+                                         (concat "--" filename))
                                        "."
                                        (file-name-extension (buffer-file-name)))
                                emacsconf-backstage-dir)
@@ -311,6 +307,7 @@
 (defvar emacsconf-status-types
   '(("WAITING_FOR_PREREC" . "Waiting for video from speaker")
     ("TO_PROCESS" . "Processing uploaded video")
+    ("PROCESSING" . "Processing uploaded video")
     ("TO_AUTOCAP" . "Processing uploaded video")
     ("TO_ASSIGN" . "Waiting for a caption volunteer")
     ("TO_CAPTION" . "Processing uploaded video")
@@ -1016,7 +1013,7 @@ Filter by TRACK if given.  Use INFO as the list of talks."
 (defun emacsconf-bbb-status (talk)
   (let ((states
          '((open . "OPEN_Q UNSTREAMED_Q")
-           (before . "TODO TO_REVIEW TO_ACCEPT WAITING_FOR_PREREC TO_PROCESS TO_AUTOCAP TO_ASSIGN TO_CAPTION TO_STREAM PLAYING CLOSED_Q")
+           (before . "TODO TO_REVIEW TO_ACCEPT WAITING_FOR_PREREC TO_PROCESS PROCESSING TO_AUTOCAP TO_ASSIGN TO_CAPTION TO_STREAM PLAYING CLOSED_Q")
            (after . "TO_ARCHIVE TO_EXTRACT TO_FOLLOW_UP DONE"))))
     (if (string-match "live" (or (plist-get talk :q-and-a) ""))
         (or (car (seq-find (lambda (state)
