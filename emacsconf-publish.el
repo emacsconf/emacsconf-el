@@ -1095,7 +1095,8 @@ Entries are sorted chronologically, with different tracks interleaved."
                          " "
                          (elt chapter 3)
                          "\n"))
-                      chapters)
+                      chapters
+                      "")
        :html (format "<pre data-target=\"%s\" class=\"chapters\">\n%s\n</pre>"
                      (or target "")
                      (mapconcat
