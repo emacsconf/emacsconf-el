@@ -370,7 +370,7 @@ Each function should take the info and manipulate it as needed, returning the ne
                        ((rx (or "TO_PROCESS"
                                 "PROCESSING"
                                 "TO_AUTOCAP"))
-                        "lightyellow")
+                        "palegoldenrod")
                        ((rx (or "TO_ASSIGN"))
                         "yellow")
                        ((rx (or "TO_CAPTION"))
