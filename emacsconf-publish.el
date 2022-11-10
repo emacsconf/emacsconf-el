@@ -151,7 +151,31 @@
        talk
        "<div class=\"vid\">${video-html}<div>${extra}</div>${resources}${chapter-list}</div>"))))
 
+(defun emacsconf-publish-format-res-talks (info)
+  (mapconcat
+   (lambda (o)
+     (concat
+      "<tr>"
+      (format
+       "<td><a name=\"%s\"></a>"
+       (plist-get o :slug))
+      (plist-get o :qa-link)
+      "</td>"
+      "<td>" (if (plist-get o :pad-url)
+                 (format "<a href=\"%s\" target=\"_blank\" rel=\"noreferrer\">Open pad</a>" (plist-get o :pad-url))
+               "")
+      "</td>"
+      "<td>" (format "<a href=\"%s\" target=\"_blank\" rel=\"noreferrer\">Open chat</a>" (plist-get o :webchat-url))
+      ""
+      "</td>"
+      "<td>" (format-time-string "%-l:%M" (plist-get o :start-time) emacsconf-timezone) "</td>"
+      "<td>" (or (plist-get o :slug) "") "</td>"
+      "<td>" (or (plist-get o :title) "") "</td>"
+      "</tr>"))
+   info
+   "\n"))
 (defun emacsconf-publish-res-index ()
+  "Publish BBB room URLs and pad links for volunteer convenience."
   (interactive)
   (let ((emacsconf-use-absolute-url t)
         (emacsconf-base-url "")
@@ -166,43 +190,42 @@
                                             o)
                                   o)))
                       (emacsconf-prepare-for-display (emacsconf-get-talk-info)))))
-    (mapc (lambda (track)
-            (let ((track-talks (seq-filter (lambda (o) (string= (plist-get o :track)
-                                                                (plist-get track :name)))
-                                           info)))
-              (with-temp-file (expand-file-name (format "index-%s.html" (plist-get track :id)) emacsconf-res-dir)
-                (insert
-                 "<html><head><link rel=\"stylesheet\" href=\"style.css\"></head><body>
+    (mapc
+     (lambda (track)
+       (let*
+           ((track-talks (seq-filter (lambda (o) (string= (plist-get o :track)
+                                                          (plist-get track :name)))
+                                     info))
+            (result
+             (concat
+              "<html><head><link rel=\"stylesheet\" href=\"style.css\"></head><body>
 <div>"
-                 (with-temp-buffer
-                   (svg-print (emacsconf-schedule-svg 800 300 info))
-                   (buffer-string))
-                 "</div><table>"
-                 (mapconcat
-                  (lambda (o)
-                    (concat
-                     "<tr>"
-                     (format
-                      "<td><a name=\"%s\"></a>"
-                      (plist-get o :slug))
-                     (plist-get o :qa-link)
-                     "</td>"
-                     "<td>" (if (plist-get o :pad-url)
-                                (format "<a href=\"%s\" target=\"_blank\" rel=\"noreferrer\">Open pad</a>" (plist-get o :pad-url))
-                              "")
-                     "</td>"
-                     "<td>" (format "<a href=\"%s\" target=\"_blank\" rel=\"noreferrer\">Open chat</a>" (plist-get o :webchat-url))
-                     ""
-                     "</td>"
-                     "<td>" (format-time-string "%-l:%M" (plist-get o :start-time) emacsconf-timezone) "</td>"
-                     "<td>" (or (plist-get o :slug) "") "</td>"
-                     "<td>" (or (plist-get o :title) "") "</td>"
-                     "</tr>"))
-                  (seq-filter (lambda (talk) (string= (plist-get talk :track)
-                                                      (plist-get track :name))) info)
-                  "\n")
-                 "</table></body></html>"))))
-          emacsconf-tracks)))
+              (with-temp-buffer
+                (svg-print (emacsconf-schedule-svg 800 300 info))
+                (buffer-string))
+              "</div><h1>"
+              (plist-get track :name)
+              "</h1><table>"
+              "<tr><th colspan=\"6\" style=\"text-align: left\">Saturday</th></tr>"
+              (emacsconf-publish-format-res-talks
+               (emacsconf-prepare-for-display
+                (emacsconf-filter-talks-by-time
+                 (format "2022-12-03T08:00:00%s" emacsconf-timezone-offset)
+                 (format "2022-12-03T18:00:00%s" emacsconf-timezone-offset)
+                 track-talks)))
+              "<tr><th colspan=\"6\" style=\"text-align: left\">Sunday</th></tr>"
+              (emacsconf-publish-format-res-talks
+               (emacsconf-prepare-for-display
+                (emacsconf-filter-talks-by-time
+                 (format "2022-12-04T08:00:00%s" emacsconf-timezone-offset)
+                 (format "2022-12-04T18:00:00%s" emacsconf-timezone-offset)
+                 track-talks)))
+              "</table></body></html>")))
+         (with-temp-file (expand-file-name (format "index-%s.html" (plist-get track :id)) emacsconf-res-dir)
+           (insert result))
+         (with-temp-file (expand-file-name (format "index-%s.html" (plist-get track :id)) emacsconf-backstage-dir)
+           (insert result))))
+     emacsconf-tracks)))
 
 (defun emacsconf-index-card-video (video-id video-file talk extensions &optional backstage)
   (let* ((video-base (and video-file (file-name-base video-file)))
@@ -875,15 +898,6 @@ Entries are sorted chronologically, with different tracks interleaved."
 (defun emacsconf-sum (field talks)
   (apply '+ (seq-map (lambda (talk) (string-to-number (or (plist-get talk field) "0"))) talks)))
 
-(defun emacsconf-publish-backstage-add-to-todo-hook ()
-  (interactive)
-  (with-current-buffer (find-file-noselect emacsconf-org-file)
-    (add-hook 'org-after-todo-state-change-hook #'emacsconf-publish-backstage-org-after-todo-state-change nil t)))
-(defun emacsconf-publish-backstage-remove-from-todo-hook ()
-  (interactive)
-  (with-current-buffer (find-file-noselect emacsconf-org-file)
-    (remove-hook 'org-after-todo-state-change-hook #'emacsconf-publish-backstage-org-after-todo-state-change t)))
-
 (defun emacsconf-publish-backstage-org-on-state-change (talk)
   (save-window-excursion
     (emacsconf-with-talk-heading talk
@@ -906,7 +920,7 @@ Entries are sorted chronologically, with different tracks interleaved."
       (insert
        "<html><head><meta charset=\"UTF-8\"><link rel=\"stylesheet\" href=\"/style.css\" /></head><body>"
        "<p>Schedule by status: (gray: waiting, light yellow: processing, yellow: to assign, light green: captioning, green: captioned and ready)<br />Updated by conf.org and the wiki repository</br />"
-       "<img src=\"https://emacsconf.org/2022/organizers-notebook/schedule.svg\" /></p>"
+       "<img src=\"schedule.svg\" /></p>"
        (format "<p>Waiting for %d talks (~%d minutes) out of %d total</p>"
                (length (assoc-default "WAITING_FOR_PREREC" by-status))
                (emacsconf-sum :time (assoc-default "WAITING_FOR_PREREC" by-status))

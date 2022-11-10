@@ -67,16 +67,22 @@ Files should be in YEAR/video-slug--main.webm and video-slug--main.vtt.")
 (defun emacsconf-stream-svg-set-text (dom id text)
   "Update DOM to set the tspan in the element with ID to TEXT.
 If the element doesn't have a tspan child, use the element itself."
-  (setq text (svg--encode-text text))
-  (let ((node (or (dom-child-by-tag
-                   (car (dom-by-id dom id))
-                   'tspan)
-                  (dom-by-id dom id))))
-    (cond
-     ((null node))                      ; skip
-     ((= (length node) 2)
-      (nconc node (list text)))
-     (t (setf (elt node 2) text)))))
+  (if (or (null text) (string= text ""))
+      (let ((node (dom-by-id dom id)))
+        (when node
+          (dom-set-attribute node 'style "visibility: hidden")
+          (dom-set-attribute (dom-child-by-tag node 'tspan) 'style "fill: none; stroke: none")))
+    (setq text (svg--encode-text text))
+    (let ((node (or (dom-child-by-tag
+                     (car (dom-by-id dom id))
+                     'tspan)
+                    (dom-by-id dom id))))
+      (cond
+       ((null node)
+        (error "Could not find node %s" id))                      ; skip
+       ((= (length node) 2)
+        (nconc node (list text)))
+       (t (setf (elt node 2) text))))))
 
 (defun emacsconf-stream-add-talk-props (talk)
   "Create an overlay for TALK.
@@ -248,11 +254,16 @@ This uses the BBB room if available, or the IRC channel if not."
   (unless (file-directory-p emacsconf-stream-overlay-dir)
     (make-directory emacsconf-stream-overlay-dir))
   (mapc (lambda (talk)
-          (emacsconf-stream-write-talk-overlay-svgs
-           talk
-           (expand-file-name (concat (plist-get talk :slug) "-video.svg") emacsconf-stream-overlay-dir)
-           (expand-file-name (concat (plist-get talk :slug) "-other.svg") emacsconf-stream-overlay-dir)))
-        info))
+          (unless (file-exists-p (expand-file-name (concat (plist-get talk :slug) "-video.png") emacsconf-stream-overlay-dir))
+            (emacsconf-stream-write-talk-overlay-svgs
+             talk
+             (expand-file-name (concat (plist-get talk :slug) "-video.svg") emacsconf-stream-overlay-dir)
+             (expand-file-name (concat (plist-get talk :slug) "-other.svg") emacsconf-stream-overlay-dir))))
+        info)
+  (emacsconf-stream-write-talk-overlay-svgs
+   nil
+   (expand-file-name "blank-video.svg" emacsconf-stream-overlay-dir)
+   (expand-file-name "blank-other.svg" emacsconf-stream-overlay-dir)))
 
 (defun emacsconf-stream-display-talk-info (talk)
   (interactive (list (emacsconf-complete-talk-info)))
@@ -314,6 +325,57 @@ This uses the BBB room if available, or the IRC channel if not."
     (set-frame-size nil 1280 720 t)
     (mapc #'emacsconf-stream-generate-title-page info)))
 
+(defun emacsconf-stream-generate-in-between-pages (&optional info)
+  (interactive)
+  (setq info (emacsconf-prepare-for-display (emacsconf-filter-talks (or info (emacsconf-get-talk-info)))))
+  (let* ((by-track (seq-group-by (lambda (o) (plist-get o :track)) info))
+         (dir (expand-file-name "in-between" emacsconf-stream-asset-dir))
+         (template (expand-file-name "template.svg" dir)))
+    (mapc (lambda (track)
+            (let (prev)
+              (mapc (lambda (talk)
+                      (let ((dom (xml-parse-file template)))
+                        (mapc (lambda (entry)
+                                (let ((prefix (car entry)))
+                                  (emacsconf-stream-svg-set-text dom (concat prefix "title")
+                                                                 (plist-get (cdr entry) :title))
+                                  (emacsconf-stream-svg-set-text dom (concat prefix "speakers")
+                                                                 (plist-get (cdr entry) :speakers-with-pronouns))
+                                  (emacsconf-stream-svg-set-text dom (concat prefix "url")
+                                                                 (and (cdr entry) (concat emacsconf-base-url (plist-get (cdr entry) :url))))
+                                  (emacsconf-stream-svg-set-text
+                                   dom
+                                   (concat prefix "qa")
+                                   (pcase (plist-get (cdr entry) :q-and-a)
+                                     ("live" "Live Q&A after talk")
+                                     ("IRC" "IRC Q&A after talk")
+                                     (_ "")))))
+                              (list (cons "previous-" prev)
+                                    (cons "current-" talk)))
+                        (with-temp-file (expand-file-name (concat (plist-get talk :slug) ".svg") dir)
+                          (dom-print dom))
+                        (unless (file-exists-p (expand-file-name (concat (plist-get talk :slug) ".png")
+                                                                 dir))
+                          (shell-command
+                           (concat "inkscape --export-type=png --export-dpi=300 --export-background-opacity=0 "
+                                   (shell-quote-argument (expand-file-name (concat (plist-get talk :slug) ".svg")
+                                                                           dir))))))
+                      (setq prev talk))
+                    (cdr track)))
+            (let ((default-directory dir))
+              (shell-command
+               (concat
+                "convert "
+                (mapconcat (lambda (talk) (shell-quote-argument
+                                           (concat (plist-get talk :slug) ".png")))
+                           (cdr track)
+                           " ")
+                " "
+                (plist-get (emacsconf-get-track (car track)) :id)
+                "-in-between.pdf"
+                ))))
+          by-track)))
+
 (defun emacsconf-stream-generate-test-subtitles (&optional info)
   (interactive)
   (setq info (emacsconf-filter-talks (or info (emacsconf-get-talk-info))))
@@ -363,6 +425,7 @@ This uses the BBB room if available, or the IRC channel if not."
 	    (org-todo "PLAYING"))))
       (message "Done %s" talk)
       (undo-boundary))))
+
 
 (defun emacsconf-stream-schedule-timers (&optional info)
   (interactive)

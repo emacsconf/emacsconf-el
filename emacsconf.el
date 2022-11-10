@@ -134,7 +134,11 @@
   (mapc (lambda (file)
           (copy-file file (expand-file-name (file-name-nondirectory file)
                                             emacsconf-backstage-dir)
-                     t))
+                     t)
+          (when emacsconf-cache-dir
+            (copy-file file (expand-file-name (file-name-nondirectory file)
+                                              emacsconf-cache-dir)
+                       t)))
         (or (dired-get-marked-files)
             (list (buffer-file-name)))))
 
@@ -927,10 +931,12 @@
               (emacsconf-backstage-password . emacsconf_backstage_password))))))
 ;; (emacsconf-ansible-load-vars (expand-file-name "prod-vars.yml" emacsconf-ansible-directory))
 ;;; Tracks
-(defvar emacsconf-tracks '((:name "General" :color "peachpuff" :id "gen" :channel "emacsconf-gen"
-				  :tramp "/ssh:emacsconf-gen@res.emacsconf.org#46668:")
-                           (:name "Development" :color "skyblue" :id "dev" :channel "emacsconf-dev"
-				  :tramp "/ssh:emacsconf-dev@res.emacsconf.org#46668:")))
+(defvar emacsconf-tracks
+  '(
+    (:name "General" :color "peachpuff" :id "gen" :channel "emacsconf-gen"
+				   :tramp "/ssh:emacsconf-gen@res.emacsconf.org#46668:")
+    (:name "Development" :color "skyblue" :id "dev" :channel "emacsconf-dev"
+				   :tramp "/ssh:emacsconf-dev@res.emacsconf.org#46668:")))
 
 (defun emacsconf-get-track (name)
   (when (listp name) (setq name (plist-get name :track)))
@@ -985,8 +991,9 @@
   (when (stringp start-time) (setq start-time (date-to-time start-time)))
   (when (stringp end-time) (setq end-time (date-to-time end-time)))
   (seq-filter (lambda (o)
-                (and (not (time-less-p (plist-get o :start-time) end-time)) 
-                     (not (time-less-p start-time (plist-get o :end-time)))))
+                (and (plist-get o :start-time)
+                     (time-less-p (plist-get o :start-time) end-time) 
+                     (time-less-p start-time (plist-get o :end-time))))
               info))
 
 (defun emacsconf-get-shift (time)
@@ -1070,7 +1077,7 @@ Filter by TRACK if given.  Use INFO as the list of talks."
 (defun emacsconf-reflow ()
   "Help reflow text files."
   (interactive)
-  (let (input last-input)
+  (let (input last-input (case-fold-search t))
     (while (not (string= "" (setq input (read-string "Word: "))))
       (when (string= input "!")
         (delete-backward-char 1)
@@ -1114,9 +1121,9 @@ Filter by TRACK if given.  Use INFO as the list of talks."
                  #'emacsconf-org-after-todo-state-change  t)))
 
 (defvar emacsconf-todo-hooks
-  '(emacsconf-stream-play-talk-on-change ;; play the talk
-    emacsconf-stream-open-qa-windows-on-change
-    emacsconf-erc-announce-on-change ;; announce via ERC
+  '((emacsconf-stream-play-talk-on-change "gen") ;; play the talk - dev will be managed separately
+    (emacsconf-stream-open-qa-windows-on-change "gen")
+    ;; emacsconf-erc-announce-on-change ;; announce via ERC
     emacsconf-publish-media-files-on-change
     emacsconf-publish-bbb-redirect
     emacsconf-publish-backstage-org-on-state-change ;; update the backstage index
@@ -1126,9 +1133,18 @@ Filter by TRACK if given.  Use INFO as the list of talks."
 They will be called with TALK.")
 
 (defun emacsconf-org-after-todo-state-change ()
-  "Run all the hooks in `emacsconf-todo-hooks'."
-  (let ((talk (emacsconf-get-talk-info-for-subtree)))
-    (run-hook-with-args 'emacsconf-todo-hooks talk)))
+  "Run all the hooks in `emacsconf-todo-hooks'.
+If an `emacsconf-todo-hooks' entry is a list, run it only for the
+tracks with the ID in the cdr of that list."
+  (let* ((talk (emacsconf-get-talk-info-for-subtree))
+         (track (emacsconf-get-track (plist-get talk :track))))
+    (mapc
+     (lambda (hook-entry)
+       (cond
+        ((symbolp hook-entry) (funcall hook-entry talk))
+        ((member (plist-get track :id) (cdr hook-entry))
+         (funcall (car hook-entry) talk))))
+     emacsconf-todo-hooks)))
 
 (defun emacsconf-broadcast (message)
   (interactive "MMessage: ")
@@ -1149,10 +1165,77 @@ They will be called with TALK.")
     (org-agenda-list nil emacsconf-date 2)))
 
 (defun emacsconf-update-talk-status (slug from-states to-state)
-  (interactive (list (emacsconf-complete-talk) (read-string "From: ") (read-string "To: ")))
+  (interactive (list (emacsconf-complete-talk) "." (completing-read "To: " (mapcar 'car emacsconf-status-types))))
   (emacsconf-with-talk-heading slug
     (when (string-match from-states (org-entry-get (point) "TODO"))
       (org-todo to-state))))
 
+;; copied from org-ascii--indent-string
+(defun emacsconf-indent-string (s width)
+  "Indent S by WIDTH spaces."
+  (replace-regexp-in-string "\\(^\\)[ \t]*\\S-" (make-string width ?\s) s nil nil 1))
+
+(defun emacsconf-shift-hyperlist (params talks &optional do-insert)
+  "Use PARAMS to personalize the shift hyperlist."
+  (mapconcat (lambda (talk)
+               (emacsconf-talk-hyperlist (append (assoc-default (plist-get (emacsconf-get-track talk) :id)
+                                                                params)
+                                                 talk)
+                                         do-insert))
+             talks))
+
+(defun emacsconf-talk-hyperlist (talk &optional do-insert)
+  (interactive (list (emacsconf-complete-talk-info) t))
+  (let ((result
+         (emacsconf-replace-plist-in-string
+          talk
+          (format "- %s %s %s %s\n%s"
+                  (format-time-string "%H:%M" (plist-get talk :start-time) emacsconf-timezone)
+                  (plist-get talk :track)
+                  (plist-get talk :slug)
+                  (plist-get talk :title)
+                  (replace-regexp-in-string
+                   "\\(^\\)[ \t]*\\S-" "  " 
+                   (pcase (or (plist-get talk :q-and-a) "")
+                     ((rx "live")
+                      "- [ ] ${checkin}: Check ${speakers-with-pronouns} (${irc}) into BBB room sometime beforehand
+- [ ] ${stream}: Display the in-between slide
+- [ ] ${host}: Connect to the ${track} channel in Mumble and introduce the talk
+- [ ] ${stream}: [[elisp:(emacsconf-update-talk-status \"${slug}\" \".\" \"PLAYING\")][Play the talk]]
+- [ ] ${host}: Join the Q&A room and open the pad; optionally open IRC for ${channel}
+- [ ] [? speaker missing?] ${host}: Let #emacsconf-org know so that we can text or call the speaker
+- [ ] ${stream}: After the talk, [[elisp:(emacsconf-update-talk-status \"${slug}\" \".\" \"CLOSED_Q\")][open the Q&A window and the pad]], give the host the go-ahead via Mumble or #emacsconf-org
+- [ ] ${host}: Start recording and read questions
+- [ ] ${host}: [[elisp:(emacsconf-update-talk-status \"${slug}\" \".\" \"OPEN_Q\")][Decide when to open the Q&A]] and announce that people can join using the URL on the talk page
+- [? Open Q&A is still going on and it's about five minutes before the next talk]
+  - [ ] ${host}: Let the speaker know about the time and that the Q&A can continue off-stream if people want to join
+- [? Open Q&A is still going on and it's about two minutes before the next talk]
+  - [ ] ${host}: Announce that the Q&A will continue if people want to join the BBB room from the talk page, and the stream will now move to the next talk
+- [? Q&A is done]
+  - [ ] ${host}: [[elisp:(emacsconf-update-talk-status \"${slug}\" \".\" \"TO_ARCHIVE\")][Mark talk as to archive]], close Q&A windows
+- [ ] ${stream}: Close the Q&A windows and move on to the next talk
+")
+                     ((rx "irc")
+                      "- [ ] ${stream}: Display the in-between slide
+- [ ] ${host}: Connect to the ${track} channel in Mumble and introduce the talk
+- [ ] ${stream}: [[elisp:(emacsconf-update-talk-status \"${slug}\" \".\" \"PLAYING\")][Start talk]]
+- [ ] ${stream}: [[elisp:(emacsconf-update-talk-status \"${slug}\" \".\" \"OPEN_Q\")][Open the IRC channel (${channel}) and the pad]]
+- [ ] ${stream}: When it's time for the next talk, close the Q&A windows and move on to the next talk
+")
+                     (_
+                      "- [ ] ${stream}: Display the in-between slide
+- [ ] ${host}: Connect to the ${track} channel in Mumble and introduce the talk
+- [ ] ${stream}: [[elisp:(emacsconf-update-talk-status \"${slug}\" \".\" \"PLAYING\")][Start talk]]
+- [ ] ${stream}: [[elisp:(emacsconf-update-talk-status \"${slug}\" \".\" \"OPEN_Q\")][Open the IRC channel (${channel}) and the pad]]
+- [ ] ${stream}: When it's time for the next talk, close the Q&A windows and move on to the next talk
+"))
+                   nil nil 1)))))
+    (if do-insert (insert result))
+    result))
+
+(defun emacsconf-reload ()
+  "Reload the emacsconf-el modules."
+  (interactive)
+  (mapc #'load-library '("emacsconf" "emacsconf-erc" "emacsconf-publish" "emacsconf-stream" "emacsconf-pad")))
 (provide 'emacsconf)
 ;;; emacsconf.el ends here
