@@ -85,7 +85,10 @@
 (defvar emacsconf-upload-dir "/ssh:orga@media.emacsconf.org:/srv/upload")
 (defvar emacsconf-res-dir (format "/ssh:orga@res.emacsconf.org:/data/emacsconf/%s" emacsconf-year))
 (defvar emacsconf-media-extensions '("webm" "mkv" "mp4" "webm" "avi" "ts" "ogv" "wav" "ogg" "mp3"))
-
+(defvar emacsconf-ftp-upload-dir "/ssh:orga@media.emacsconf.org:/srv/ftp/anon/upload-here")
+(defun emacsconf-ftp-upload-dired ()
+  (interactive)
+  (dired emacsconf-ftp-upload-dir "-tl"))
 (defun emacsconf-upload-dired ()
   (interactive)
   (dired emacsconf-upload-dir "-tl"))
@@ -135,7 +138,8 @@
           (copy-file file (expand-file-name (file-name-nondirectory file)
                                             emacsconf-backstage-dir)
                      t)
-          (when emacsconf-cache-dir
+          (when (and emacsconf-cache-dir (not (string= (expand-file-name default-directory)
+                                                       (expand-file-name emacsconf-cache-dir))))
             (copy-file file (expand-file-name (file-name-nondirectory file)
                                               emacsconf-cache-dir)
                        t)))
@@ -152,18 +156,20 @@
       (with-current-buffer (find-file-noselect (concat filename ".en.srv2"))
         (emacsconf-upload-to-backstage-and-rename talk "main--srt")))))
 
-(defun emacsconf-upload-to-backstage-and-rename (talk filename)
-  (interactive (list (emacsconf-complete-talk-info)
-                     (read-string "Filename: ")))
-  (copy-file (buffer-file-name)
-             (expand-file-name (concat (plist-get talk :video-slug)
-                                       (if (string= filename "")
-                                           ""
-                                         (concat "--" filename))
-                                       "."
-                                       (file-name-extension (buffer-file-name)))
-                               emacsconf-backstage-dir)
-             t))
+(defun emacsconf-upload-to-backstage-and-rename (talk &optional filename)
+  (interactive (list (emacsconf-complete-talk-info)))
+  (mapc (lambda (file)
+          (let ((new-file (or filename (read-string (format "Filename (%s): " (file-name-base file))))))
+            (copy-file file
+                       (expand-file-name (concat (plist-get talk :video-slug)
+                                                 (if (string= new-file "")
+                                                     ""
+                                                   (concat "--" new-file))
+                                                 "."
+                                                 (file-name-extension file))
+                                         emacsconf-backstage-dir)
+                       t)))
+        (or (dired-get-marked-files) (list (buffer-file-name)))))
 
 (defun emacsconf-upload-copy-from-json (talk key filename)
   (interactive (let-alist (json-parse-string (buffer-string) :object-type 'alist)
