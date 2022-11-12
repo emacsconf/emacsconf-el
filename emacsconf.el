@@ -1113,6 +1113,12 @@ Filter by TRACK if given.  Use INFO as the list of talks."
         (recenter)
         (undo-boundary)))))
 
+(defmacro emacsconf-with-todo-hooks (&rest body)
+  "Run BODY with the Emacsconf todo hooks."
+  `(with-current-buffer (find-file-noselect emacsconf-org-file)
+     (let ((org-after-todo-state-change-hook '(emacsconf-org-after-todo-state-change)))
+       ,@body)))
+
 (defun emacsconf-add-org-after-todo-state-change-hook ()
   "Add FUNC to `org-after-todo-stage-change-hook'."
   (interactive)
@@ -1174,7 +1180,8 @@ tracks with the ID in the cdr of that list."
   (interactive (list (emacsconf-complete-talk) "." (completing-read "To: " (mapcar 'car emacsconf-status-types))))
   (emacsconf-with-talk-heading slug
     (when (string-match from-states (org-entry-get (point) "TODO"))
-      (org-todo to-state))))
+      (org-todo to-state)
+      (save-buffer))))
 
 ;; copied from org-ascii--indent-string
 (defun emacsconf-indent-string (s width)
