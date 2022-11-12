@@ -899,11 +899,13 @@ Entries are sorted chronologically, with different tracks interleaved."
 (defun emacsconf-publish-backstage-org-on-state-change (talk)
   (save-window-excursion
     (emacsconf-with-talk-heading talk
+      (when (member org-state '("PROCESSING" "TO_ASSIGN"))
+        (emacsconf-cache-video-data talk))
       (when (member org-state '("TO_CAPTION"))
-        (unless (org-entry-get (point) "CAPTIONER")
+        (unless (or noninteractive (org-entry-get (point) "CAPTIONER"))
           (org-entry-put (point) "CAPTIONER"
                          (assoc-default "CUSTOM_ID" (emacsconf-complete-volunteer)))))
-      (when (member org-state '("TO_ASSIGN" "TO_CAPTION" "TO_STREAM"))
+      (when (member org-state '("WAITING_FOR_PREREC" "TO_ASSIGN" "TO_CAPTION" "TO_STREAM"))
         (emacsconf-publish-backstage-index)))))
 
 (defun emacsconf-publish-backstage-index (&optional filename)
