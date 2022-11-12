@@ -749,7 +749,9 @@ Back to the [[talks]]  \n"
 (defun emacsconf-publish-format-interleaved-schedule (&optional info)
   "Return a list with the schedule for INFO.
 Entries are sorted chronologically, with different tracks interleaved."
-  (let* ((by-day (emacsconf-by-day (or info (emacsconf-get-talk-info))))
+  (setq info (or info (emacsconf-get-talk-info)))
+  (let* ((by-day (emacsconf-by-day (emacsconf-prepare-for-display info)))
+         (cancelled (seq-filter (lambda (o) (string= (plist-get o :status) "CANCELLED")) info))
          (dates (seq-map (lambda (o) (plist-get (cadr o) :start-time)) by-day))
          (links (mapcar (lambda (o)
                           (format "<a href=\"#date-%s\">%s</a>"
@@ -758,30 +760,39 @@ Entries are sorted chronologically, with different tracks interleaved."
                         dates))
          (height 150)
          (width 600))
-    (mapconcat (lambda (day)
-                 (let ((day-start (date-to-time
-					                         (concat (format-time-string "%Y-%m-%dT" (plist-get (cadr day) :start-time) emacsconf-timezone)
-                                           emacsconf-schedule-start-time
-						                               emacsconf-timezone-offset)))
-			                 (day-end (date-to-time (concat (format-time-string "%Y-%m-%dT" (plist-get (cadr day) :start-time) emacsconf-timezone)
-                                                      emacsconf-schedule-end-time
-							                                        emacsconf-timezone-offset))))
-                   (concat
-                    (if (> (length links) 1) (concat "Jump to: " (string-join links " - ")) "")
-                    (format "<a name=\"date-%s\"></a>\n"
-                            (format-time-string "%Y-%m-%d"
-                                                (plist-get (cadr day) :start-time)
-                                                emacsconf-timezone))
-                    (format-time-string "# %A %b %-e, %Y\n" (plist-get (cadr day) :start-time) emacsconf-timezone)
-                    (format "[[!inline pages=\"internal(%s/schedule-%s)\" raw=\"yes\"]]" emacsconf-year (car day))
-                    "\n\n"
-                    (format "<div class=\"schedule\" data-start=\"%s\" data-end=\"%s\" data-tracks=\"General,Development\">\n"
-                            (format-time-string "%FT%T%z" day-start t)
-                            (format-time-string "%FT%T%z" day-end t))
-                    (emacsconf-format-main-schedule (cdr day))
-                    "</div>")))
-               by-day
-               "\n\n")))
+    (concat
+     (mapconcat (lambda (day)
+                  (let ((day-start (date-to-time
+					                          (concat (format-time-string "%Y-%m-%dT" (plist-get (cadr day) :start-time) emacsconf-timezone)
+                                            emacsconf-schedule-start-time
+						                                emacsconf-timezone-offset)))
+			                  (day-end (date-to-time (concat (format-time-string "%Y-%m-%dT" (plist-get (cadr day) :start-time) emacsconf-timezone)
+                                                       emacsconf-schedule-end-time
+							                                         emacsconf-timezone-offset))))
+                    (concat
+                     (if (> (length links) 1) (concat "Jump to: " (string-join links " - ")) "")
+                     (format "<a name=\"date-%s\"></a>\n"
+                             (format-time-string "%Y-%m-%d"
+                                                 (plist-get (cadr day) :start-time)
+                                                 emacsconf-timezone))
+                     (format-time-string "# %A %b %-e, %Y\n" (plist-get (cadr day) :start-time) emacsconf-timezone)
+                     (format "[[!inline pages=\"internal(%s/schedule-%s)\" raw=\"yes\"]]" emacsconf-year (car day))
+                     "\n\n"
+                     (format "<div class=\"schedule\" data-start=\"%s\" data-end=\"%s\" data-tracks=\"General,Development\">\n"
+                             (format-time-string "%FT%T%z" day-start t)
+                             (format-time-string "%FT%T%z" day-end t))
+                     (emacsconf-format-main-schedule (cdr day))
+                     "</div>")))
+                by-day
+                "\n\n")
+     (if (> (length cancelled) 0)
+         (format "<div class=\"cancelled\">Cancelled:<ul>%s</ul></div>"
+                 (mapconcat (lambda (talk) (format "<li>%s - %s</li>"
+                                                   (plist-get talk :title)
+                                                   (plist-get talk :speakers)))
+                            cancelled "\n"))
+       "")
+     )))
 
 (defun emacsconf-publish-schedule (&optional info)
   (interactive)
@@ -789,10 +800,7 @@ Entries are sorted chronologically, with different tracks interleaved."
   (with-temp-file (expand-file-name "schedule-details.md" (expand-file-name emacsconf-year emacsconf-directory))
     (insert
      (if (eq emacsconf-publishing-phase 'program)
-         (let ((sorted (sort (emacsconf-active-talks
-                              (emacsconf-filter-talks
-                               (or info (emacsconf-get-talk-info))))
-                             #'emacsconf-sort-by-scheduled)))
+         (let ((sorted (emacsconf-prepare-for-display (or info (emacsconf-get-talk-info)))))
            (concat
             "<a href=\"#development\">Jump to development talks</a>\n<a name=\"general\"></a>\n<h1><span class=\"sched-track General\">General talks</span></h1>\n"
             (emacsconf-format-main-schedule
@@ -877,17 +885,7 @@ Entries are sorted chronologically, with different tracks interleaved."
             "")))
 
 (defun emacsconf-format-main-schedule (info)
-  (let* ((cancelled (seq-filter (lambda (o) (string= (plist-get o :status) "CANCELLED")) info)))
-    (concat
-     (mapconcat #'emacsconf-publish-sched-directive (emacsconf-active-talks info) "\n")
-     "\n"
-     (if (> (length cancelled) 0)
-         (format "<div class=\"cancelled\">Cancelled:<ul>%s</ul></div>"
-                 (mapconcat (lambda (talk) (format "<li>%s - %s</li>"
-                                                   (plist-get talk :title)
-                                                   (plist-get talk :speakers)))
-                            cancelled "\n"))
-       ""))))
+  (mapconcat #'emacsconf-publish-sched-directive (emacsconf-active-talks info) "\n"))
 
 (defun emacsconf-publish-talk-files (talk files)
   (seq-filter (lambda (o)
@@ -1491,7 +1489,7 @@ Entries are sorted chronologically, with different tracks interleaved."
 
 (defun emacsconf-publish-schedule-svg-snippets ()
   (interactive)
-  (let* ((info (emacsconf-get-talk-info))
+  (let* ((info (emacsconf-prepare-for-display (emacsconf-get-talk-info)))
          (by-day (emacsconf-by-day info))
          (year-dir (expand-file-name emacsconf-year emacsconf-directory))
          (width 800)
@@ -1499,7 +1497,7 @@ Entries are sorted chronologically, with different tracks interleaved."
     (emacsconf-publish-with-wiki-change
       (with-temp-file (expand-file-name "schedule-image.md" year-dir)
         (insert "<div class=\"schedule-svg-container\">")
-        (svg-print (emacsconf-schedule-svg 800 300 (emacsconf-get-talk-info)))
+        (svg-print (emacsconf-schedule-svg 800 300 info))
         (insert "</div>"))
       (mapc (lambda (day)
               (let ((start (date-to-time (concat (car day) "T" emacsconf-schedule-start-time emacsconf-timezone-offset)))
