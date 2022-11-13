@@ -138,8 +138,9 @@
           (copy-file file (expand-file-name (file-name-nondirectory file)
                                             emacsconf-backstage-dir)
                      t)
-          (when (and emacsconf-cache-dir (not (string= (expand-file-name default-directory)
-                                                       (expand-file-name emacsconf-cache-dir))))
+          (when (and emacsconf-cache-dir
+                     (not (string= (expand-file-name (file-name-nondirectory file) default-directory)
+                                   (expand-file-name (file-name-nondirectory file) emacsconf-cache-dir))))
             (copy-file file (expand-file-name (file-name-nondirectory file)
                                               emacsconf-cache-dir)
                        t)))
@@ -943,6 +944,9 @@
 				   :tramp "/ssh:emacsconf-gen@res.emacsconf.org#46668:")
     (:name "Development" :color "skyblue" :id "dev" :channel "emacsconf-dev"
 				   :tramp "/ssh:emacsconf-dev@res.emacsconf.org#46668:")))
+
+(defvar emacsconf-shifts (list (list :id "sat-am-gen" :track "General" :start "2022-12-03T08:00:00-0500" :end "2022-12-03T12:00:00-0500" :host "zaeph" :streamer "corwin" :checkin "sachac" :irc "sachac" :pad "publicvoit") (list :id "sat-pm-gen" :track "General" :start "2022-12-03T13:00:00-0500" :end "2022-12-03T18:00:00-0500" :host "zaeph" :streamer "corwin" :checkin "FlowyCoder" :irc "dto" :pad "publicvoit") (list :id "sat-am-dev" :track "Development" :start "2022-12-03T08:00:00-0500" :end "2022-12-03T12:00:00-0500" :host "bandali" :streamer "bandali" :checkin "sachac" :irc "dto") (list :id "sat-pm-dev" :track "Development" :start "2022-12-03T13:00:00-0500" :end "2022-12-03T18:00:00-0500" :host "vetrivln" :streamer "bandali" :checkin "FlowyCoder" :irc "vetrivln") (list :id "sun-am-gen" :track "General" :start "2022-12-04T08:00:00-0500" :end "2022-12-04T12:00:00-0500" :host "zaeph" :streamer "corwin" :checkin "sachac" :irc "sachac" :pad "publicvoit") (list :id "sun-pm-gen" :track "General" :start "2022-12-04T13:00:00-0500" :end "2022-12-04T18:00:00-0500" :host "zaeph" :streamer "jman" :checkin "FlowyCoder" :irc "dto" :pad "publicvoit") (list :id "sun-am-dev" :track "Development" :start "2022-12-04T08:00:00-0500" :end "2022-12-04T12:00:00-0500" :host "bandali" :streamer "bandali" :checkin "sachac" :irc "dto") (list :id "sun-pm-dev" :track "Development" :start "2022-12-04T13:00:00-0500" :end "2022-12-04T18:00:00-0500" :host "vetrivln" :streamer "bandali" :checkin "FlowyCoder" :irc "vetrivln"))
+  "Shift information derived from the organizer's notebook.")
 
 (defun emacsconf-get-track (name)
   (when (listp name) (setq name (plist-get name :track)))

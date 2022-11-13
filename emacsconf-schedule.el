@@ -94,7 +94,7 @@ Each function should take the info and manipulate it as needed, returning the ne
             (when (plist-get o :slug)
               (plist-put o :buffer
                          (number-to-string
-                          (if (string-match "live" (plist-get o :q-and-a))
+                          (if (string-match "live" (or (plist-get o :q-and-a) ""))
                               (min (string-to-number (plist-get o :max-time))
                                    emacsconf-schedule-default-buffer-minutes-for-live-q-and-a)
                             emacsconf-schedule-default-buffer-minutes))))
@@ -414,19 +414,24 @@ Each function should take the info and manipulate it as needed, returning the ne
 
 ;;; Schedule summary
 
-(defun emacsconf-schedule-round-start-to-five (o)
-  (let* ((start-time (plist-get o :start))
-         (decoded-time (decode-time start-time "America/Toronto"))
-         (duration (* (string-to-number (plist-get o :time)) 60))
-         (minutes (elt decoded-time 1))
-         offset end-time)
-    (unless (= (mod minutes 5) 0)
-      (setq offset (seconds-to-time (* 60 (- 5 (mod minutes 5))))
-            end-time (time-add start-time (time-to-seconds duration)))
-      (plist-put o :scheduled (format "%s-%s" (format-time-string "%Y-%m-%d %H:%M" (time-add start-time offset))
-                                      (format-time-string "%H:%M" (time-add end-time offset))))
-      (plist-put o :start-time (time-add start-time offset))
-      (plist-put o :end-time (time-add end-time offset)))))
+(defun emacsconf-schedule-round-start-to-five (info)
+  (mapcar (lambda (o)
+            (when (plist-get o :time)
+              (let* ((start-time (plist-get o :start))
+                     (decoded-time (decode-time start-time emacsconf-timezone))
+                     (duration (* (string-to-number (plist-get o :time)) 60))
+                     (minutes (elt decoded-time 1))
+                     offset end-time)
+                (unless (= (mod minutes 5) 0)
+                  (setq offset (seconds-to-time (* 60 (- 5 (mod minutes 5))))
+                        end-time (time-add start-time (time-to-seconds duration)))
+                  (plist-put o :scheduled (format "%s-%s"
+                                                  (format-time-string "%Y-%m-%d %H:%M" (time-add start-time offset))
+                                                  (format-time-string "%H:%M" (time-add end-time offset))))
+                  (plist-put o :start-time (time-add start-time offset))
+                  (plist-put o :end-time (time-add end-time offset)))))
+            o)
+          info))
 
 ;(emacsconf-update-schedules #'emacsconf-round-start-to-five)
 (defvar emacsconf-schedule-default-buffer-minutes-for-live-q-and-a 15)
@@ -440,6 +445,13 @@ Each function should take the info and manipulate it as needed, returning the ne
                             (if (string-match "live" (plist-get o :q-and-a))
                                 emacsconf-schedule-default-buffer-minutes-for-live-q-and-a
                               emacsconf-schedule-default-buffer-minutes)))))
+            o)
+          info))
+
+(defun emacsconf-schedule-allocate-video-time (info)
+  (mapcar (lambda (o)
+            (when (plist-get o :video-time)
+              (plist-put o :time (plist-get o :video-time)))
             o)
           info))
 
@@ -596,11 +608,12 @@ Both start and end time are tested."
    tracks))
 
 (defmacro emacsconf-schedule-test (filename &rest varlist)
+  (declare (debug t))
   `(let* (,@varlist)
      (let* ((schedule (emacsconf-schedule-prepare arranged))
             (validation (or (emacsconf-schedule-validate schedule) "")))
        (with-temp-file ,filename
-         (svg-print (emacsconf-schedule-svg 800 200 (emacsconf-schedule-inflate-tracks tracks schedule))))
+         (svg-print (emacsconf-schedule-svg 800 200 schedule)))
        (mapconcat (lambda (o) (format "- %s\n" o)) (append validation (list (format "[[file:%s]]" filename)))))))
 
 (defun emacsconf-schedule-format-summary-row (o)

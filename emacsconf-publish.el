@@ -899,7 +899,8 @@ Entries are sorted chronologically, with different tracks interleaved."
 (defun emacsconf-publish-backstage-org-on-state-change (talk)
   (save-window-excursion
     (emacsconf-with-talk-heading talk
-      (when (member org-state '("PROCESSING" "TO_ASSIGN"))
+      (when (and (member org-state '("PROCESSING" "TO_ASSIGN"))
+                 (not (plist-get talk :video-time)))
         (emacsconf-cache-video-data talk))
       (when (member org-state '("TO_CAPTION"))
         (unless (or noninteractive (org-entry-get (point) "CAPTIONER"))
