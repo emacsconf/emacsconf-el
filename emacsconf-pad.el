@@ -296,5 +296,157 @@ ${next-talk-list}
           (not (string= cached-last-modified
                         (number-to-string .data.lastEdited))))))))
 
+(defun emacsconf-pad-export-initial-content-for-hyperlists (dir &optional info)
+  (interactive (list (read-file-name "Output directory: " nil nil nil nil 'file-directory-p)))
+  (setq info (emacsconf-prepare-for-display (emacsconf-get-talk-info)))
+  (unless (file-directory-p dir)
+    (make-directory dir))
+  (mapc
+   (lambda (shift)
+     (with-temp-file (expand-file-name (concat (plist-get shift :id) ".html") dir)
+       (insert (emacsconf-pad-format-shift-hyperlist
+                (append
+                 (list
+                  :year
+                  emacsconf-year
+                  :track-id
+                  (plist-get
+                   (emacsconf-get-track (plist-get shift :track))
+                   :id)))
+                shift info))))
+   emacsconf-shifts))
+;; (emacsconf-pad-export-initial-content-for-hyperlists "/ssh:media:~/backstage/hyperlists")
+
+(defun emacsconf-pad-format-shift-hyperlist (shift info)
+  (concat
+   "<h1>" (plist-get shift :id) "</h1>"
+   (emacsconf-replace-plist-in-string
+    shift
+    "<p>Host: ${host}, Streamer: ${streamer}, IRC: ${irc}, Pad: ${pad}, Check-in: ${checkin}</p>")
+   (emacsconf-replace-plist-in-string
+    shift
+    "
+<strong>Setup</strong>
+<ul><li>[ ] ${checkin}: Open the index: https://media.emacsconf.org/${year}/backstage/index-${track-id}.html</li>
+<li>[ ] ${host}: Open the intro pad and the index: https://media.emacsconf.org/${year}/backstage/index-${track-id}.html</li>
+<li>[ ] ${irc}: Watch the #emacsconf-${track-id} channel</li>
+<li>[ ] ${pad}: Open the index: https://media.emacsconf.org/${year}/backstage/index-${track-id}.html</li>
+<li>[ ] ${streamer}: Start streaming with OBS
+<ul><li>[ ] Set up the local environment
+<ul><li>[? gen] export TRACK=gen; export TRACK_PORT=5905; export SSH_PORT=46668</li>
+<li>[? dev] export TRACK=dev; export TRACK_PORT=5906; export SSH_PORT=46668</li></ul></li>
+<li>[ ] Copy the password file: scp emacsconf-$TRACK@res.emacsconf.org:~/.vnc/passwd vnc-passwd-$TRACK -p $SSH_PORT</li>
+<li>[ ] Forward your local ports: ssh emacsconf-$TRACK@res.emacsconf.org -N -L $TRACK_PORT:127.0.0.1:$TRACK_PORT -p $SSH_PORT &</li>
+<li>[ ] Connect via VNC: xvncviewer 127.0.0.1:$TRACK_PORT -shared -geometry 1280x720 -passwd vnc-passwd-$TRACK &
+<ul>
+<li>[? Can't connect to VNC]: ssh emacsconf-$TRACK@res.emacsconf.org -p $SSH_PORT /home/emacsconf-$TRACK/bin/track-vnc</li>
+<li>[? Can't find OBS]: track-obs</li></ul></li>
+<li>[ ] Start recording (not streaming). (Alt-2, switch to workspace 2; Alt-Shift-2, move something to workspace 2).</li>
+<li>[ ] Watch the stream with MPV on your local system: mpv https://live0.emacsconf.org/emacsconf/$TRACK.webm &</li>
+<li>[ ] Check 480p: mpv https://live0.emacsconf.org/emacsconf/$TRACK-480p.webm &</li>
+<li>[ ] Test with a sample video or Q&A session: ssh emacsconf-$TRACK@res.emacsconf.org -p 46668 \"~/bin/track-mpv meetups &\"</li>
+</ul></li></ul>
+")
+   "<ul>"
+   (emacsconf-pad-shift-hyperlist
+    (list
+     :start (plist-get shift :start)
+     :end (plist-get shift :end)
+     :host (emacsconf-surround "HOST-" (plist-get shift :host) "" "HOST")
+     :stream (emacsconf-surround "STREAM-" (plist-get shift :streamer) "" "STREAM")
+     :irc-volunteer (emacsconf-surround "IRC-" (plist-get shift :irc) "" "IRC")
+     :checkin (emacsconf-surround "CHECKIN-" (plist-get shift :checkin) "" "CHECKIN")
+     :pad (emacsconf-surround "PAD-" (plist-get shift :pad) "" "PAD"))
+    (seq-filter
+     (lambda (talk) (string= (plist-get talk :track) (plist-get shift :track)))
+     (emacsconf-filter-talks-by-time (plist-get shift :start) (plist-get shift :end) info)))
+   "</ul>"))
+
+(defun emacsconf-pad-prepopulate-hyperlists ()
+  (interactive)
+  (let ((info (emacsconf-prepare-for-display (emacsconf-get-talk-info))))
+    (mapc (lambda (shift)
+            (let ((pad-id (format "private_%s" (plist-get shift :id))))
+              (emacsconf-pad-create-pad pad-id)
+              (emacsconf-pad-set-html
+               pad-id
+               (emacsconf-pad-format-shift-hyperlist shift info))))
+          emacsconf-shifts)))
+
+;; Related: emacsconf-talk-hyperlist
+(defun emacsconf-pad-talk-hyperlist (talk &optional do-insert)
+  (interactive (list (emacsconf-complete-talk-info) t))
+  (let* ((track-id (plist-get (emacsconf-get-track talk) :id))
+         (modified-talk
+          (apply
+           #'append
+           (list
+            :track-id track-id
+            :ssh  "ssh orga@res.emacsconf.org -p 46668 "
+            :ssh-audio (format "ex: ssh emacsconf-%s@res.emacsconf.org -p 46668 \"%s-vol 85%%\" (or %s-louder, %s-quieter)" track-id track-id track-id track-id))
+           talk
+           (mapcar (lambda (status)
+                     (list (intern (concat ":ssh-" (replace-regexp-in-string "_" "" (downcase status))))
+                           (format "ssh orga@res.emacsconf.org -p 46668 \"~/scripts/update-task-status.sh %s . %s\""
+                                   (plist-get talk :slug)
+                                   status)))
+                   '("PLAYING" "OPEN_Q" "CLOSED_Q"))))
+         (result
+          (emacsconf-replace-plist-in-string
+           modified-talk
+           (format "<li><strong>%s %s %s %s <a href=\"%s%s\">%s%s</a></strong>\n%s</li>"
+                   (format-time-string "%H:%M" (plist-get talk :start-time) emacsconf-timezone)
+                   (plist-get talk :track)
+                   (plist-get talk :slug)
+                   (plist-get talk :title)
+                   emacsconf-base-url
+                   (plist-get talk :url)
+                   emacsconf-base-url
+                   (plist-get talk :url)
+                   (pcase (or (plist-get talk :q-and-a) "")
+                     ((rx "live")
+                      "<ul>
+<li>[ ] ${checkin}: Check ${speakers-with-pronouns} (${irc}) into ${bbb-room} sometime beforehand and make them a moderator</li>
+<li>[ ] ${stream}: Display the in-between slide <a href=\"https://media.emacsconf.org/${year}/in-between/${slug}.png\">https://media.emacsconf.org/${year}/in-between/${slug}.png</a></li>
+<li>[ ] ${host}: Connect to the ${track} channel in Mumble and introduce the talk</li>
+<li>[ ] ${stream}: Start playing the talk: ${ssh-playing}</li>
+<li>[ ] ${host}: Join the Q&A room at <a href=\"${bbb-room}\">${bbb-room}</a> and open the pad at <a href=\"${pad-url}\">${pad-url}</a>; optionally open IRC for ${channel} (<a href=\"${webchat-url}\">${webchat-url}</a>)</li>
+<li>[ ] [? speaker missing?] ${host}: Let #emacsconf-org know so that we can text or call the speaker</li>
+<li>[ ] ${stream}: After the talk, open the Q&A window and the pad: ${ssh-closedq} </li>
+<li>[ ] ${stream}: Give the host the go-ahead via Mumble or #emacsconf-org</li>
+<li>[ ] ${host}: Start recording and read questions</li>
+<li>[ ] ${stream}: Adjust the audio levels as needed: ${ssh-audio}</li>
+<li>[ ] ${host}: Decide when to open the Q&A and let the streamer know</li>
+<li>[ ] ${stream}: Mark the Q&A as open: ${ssh-openq}</li>
+<li>[ ] ${host}: Announce that people can join using the URL on the talk page</li>
+<li>[? Open Q&A is still going on and it's about five minutes before the next talk]
+  <ul><li>[ ] ${host}: Let the speaker know about the time and that the Q&A can continue off-stream if people want to join</li></ul></li>
+<li>[? Open Q&A is still going on and it's about two minutes before the next talk]
+  <ul><li>[ ] ${host}: Announce that the Q&A will continue if people want to join the BBB room from the talk page, and the stream will now move to the next talk</li></ul></li>
+<li>[? Q&A is done early]
+  <ul>
+  <li>[ ] ${stream}: Mark the talk as archived: ${ssh} \"~/current/scripts/update-task-status.sh ${slug} . TO_ARCHIVE\"</li>
+</ul>
+<li>[ ] ${stream}: Close the Q&A windows and move on to the next talk</li></ul>
+")
+                     ((rx "irc")
+                      "
+<ul><li>[ ] ${stream}: Display the in-between slide <a href=\"https://media.emacsconf.org/${year}/in-between/${slug}.png\">https://media.emacsconf.org/${year}/in-between/${slug}.png</a></li>
+<li>[ ] ${host}: Connect to the ${track} channel in Mumble and introduce the talk</li>
+<li>[ ] ${stream}: ${ssh-playing}</li>
+<li>[ ] ${stream}: Open the IRC channel (${channel}) and the pad, and arrange the windows: ${ssh-closedq}</li>
+<li>[ ] ${stream}: When it's time for the next talk, close the Q&A windows and move on to the next talk</li></ul>
+")
+                     (_
+                      "<ul><li>[ ] ${stream}: Display the in-between slide <a href=\"https://media.emacsconf.org/${year}/in-between/${slug}.png\">https://media.emacsconf.org/${year}/in-between/${slug}.png</a></li>
+<li>[ ] ${host}: Connect to the ${track} channel in Mumble and introduce the talk</li>
+<li>[ ] ${stream}: Start the talk: ${ssh-playing}</li>
+<li>[ ] ${stream}: Open the IRC channel (${channel}) and the pad, and arrange the windows: ${ssh-closedq}</li>
+<li>[ ] ${stream}: When it's time for the next talk, close the Q&A windows and move on to the next talk</li>
+</ul>
+"))
+                   nil nil 1))))
+    (if do-insert (insert result))
+    result))
 (provide 'emacsconf-pad)
 ;;; emacsconf-pad.el ends here
