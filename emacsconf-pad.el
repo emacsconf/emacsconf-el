@@ -366,7 +366,9 @@ ${next-talk-list}
   (interactive)
   (let ((info (emacsconf-prepare-for-display (emacsconf-get-talk-info))))
     (mapc (lambda (shift)
-            (let ((pad-id (format "private_%s" (plist-get shift :id))))
+            (let ((pad-id (format "private_%s_%s"
+                                  emacsconf-private-pad-prefix
+                                  (plist-get shift :id))))
               (emacsconf-pad-create-pad pad-id)
               (emacsconf-pad-set-html
                pad-id
@@ -448,5 +450,6 @@ ${next-talk-list}
                    nil nil 1))))
     (if do-insert (insert result))
     result))
+
 (provide 'emacsconf-pad)
 ;;; emacsconf-pad.el ends here
