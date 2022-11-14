@@ -159,9 +159,12 @@
         :reply-to (or (org-entry-get-with-inheritance "REPLY_TO") (org-entry-get-with-inheritance "REPLY-TO"))
         :mail-followup-to (or (org-entry-get-with-inheritance "MAIL_FOLLOWUP_TO")
                               (org-entry-get-with-inheritance "MAIL-FOLLOWUP-TO"))
-        :body (replace-regexp-in-string "\n *," "\n" (buffer-substring-no-properties
-                                                      (progn (org-end-of-meta-data) (point))
-                                                      (org-end-of-subtree)))
+        :body (replace-regexp-in-string "\n *," "\n"
+                                        (buffer-substring-no-properties
+                                         (progn
+                                           (org-back-to-heading)
+                                           (org-end-of-meta-data) (point))
+                                         (org-end-of-subtree)))
         :function (when (org-entry-get-with-inheritance "FUNCTION")
                     (intern (org-entry-get-with-inheritance "FUNCTION")))))
 
@@ -178,7 +181,14 @@
               (progn
                 (goto-char char)
                 (emacsconf-mail-merge-get-template-from-subtree))
-            (error "Could not find template %s" id)))))))
+            ;; Try the conf.org file
+            (with-current-buffer (find-file-noselect emacsconf-org-file)
+              (setq char (org-find-property "EMAIL_ID" id))
+              (if char
+                  (progn
+                    (goto-char char)
+                    (emacsconf-mail-merge-get-template-from-subtree))
+                (error "Could not find template %s" id)))))))))
 
 (defun emacsconf-mail-merge-fill (string)
   "Fill in the values for STRING using the properties at point.

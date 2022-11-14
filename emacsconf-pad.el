@@ -451,5 +451,18 @@ ${next-talk-list}
     (if do-insert (insert result))
     result))
 
+(defun emacsconf-pad-prepopulate-intros ()
+  (interactive)
+  (emacsconf-pad-create-pad "intros")
+  (emacsconf-pad-set-html
+   "intros"
+   (concat "<p>https://media.emacsconf.org/2022/backstage/</p><ul>"
+           (mapconcat
+            (lambda (o)
+              (emacsconf-replace-plist-in-string
+               (append (list :full-url (concat emacsconf-base-url (plist-get o :url))) o)
+               "<li>${slug} - ${track}: ${title} (${speakers-with-pronouns}, Q&amp;A: ${q-and-a})<ul><li>${full-url}</li><li>Intro: </li></ul></li>"))
+            (emacsconf-prepare-for-display (emacsconf-get-talk-info)))
+           "</ul>")))
 (provide 'emacsconf-pad)
 ;;; emacsconf-pad.el ends here

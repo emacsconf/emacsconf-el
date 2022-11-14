@@ -530,6 +530,27 @@ ${pad-info}${status-info}${schedule-info}\n"
     ;; (insert "\n\n" (emacsconf-format-email-questions-and-comments talk) "\n")
     (insert "<!-- End of emacsconf-publish-before-page -->")))
 
+(defun emacsconf-format-transcript-from-list (subtitles paragraphs video-id &optional lang)
+  "Return subtitle directives for SUBTITLES split by PARAGRAPHS."
+  (when (stringp subtitles) (setq subtitles (subed-parse-file subtitles)))
+  (when (stringp paragraphs) (setq paragraphs (subed-parse-file paragraphs)))
+  (mapconcat
+   (lambda (sub)
+     (let ((msecs (elt sub 1)))
+       (format "[[!template %stext=\"%s\" start=\"%s\" video=\"%s\" id=\"subtitle\"%s]]"
+               (if (and paragraphs (>= msecs (elt (car paragraphs) 1)))
+                   (progn
+                     (while (and paragraphs (>= (elt sub 1) (elt (car paragraphs) 1)))
+                       (setq paragraphs (cdr paragraphs)))
+                     "new=\"1\" ")
+                 "")
+               (replace-regexp-in-string "\"" "&quot;" (elt sub 3))
+               (concat (format-seconds "%02h:%02m:%02s" (/ (floor msecs) 1000))
+                       "." (format "%03d" (mod (floor msecs) 1000)))
+               video-id
+               (emacsconf-surround " lang=\"" lang "\"" ""))))
+   subtitles "\n"))
+
 (defun emacsconf-format-transcript (talk)
   "Format the transcript for TALK, adding paragraph markers when possible."
   (require 'subed)
@@ -551,20 +572,8 @@ ${pad-info}${status-info}${schedule-info}\n"
 # Transcript
 
 "
-                (mapconcat (lambda (sub)
-                             (let ((msecs (elt sub 1)))
-                               (format "[[!template %stext=\"%s\" start=\"%s\" video=\"mainVideo-%s\" id=\"subtitle\"]]"
-                                       (if (and pars (>= msecs (elt (car pars) 1)))
-                                           (progn 
-                                             (while (and pars (>= (elt sub 1) (elt (car pars) 1)))
-                                               (setq pars (cdr pars)))
-                                             "new=\"1\" ")
-                                         "")
-                                       (replace-regexp-in-string "\"" "&quot;" (elt sub 3))
-                                       (concat (format-seconds "%02h:%02m:%02s" (/ (floor msecs) 1000))
-                                               "." (format "%03d" (mod (floor msecs) 1000)))
-                                       (plist-get talk :slug))))
-                           subtitles "\n")
+                (emacsconf-format-transcript-from-list
+                 subtitles pars (concat "mainVideo-" (plist-get talk :slug)))
                 "
 
 ")
