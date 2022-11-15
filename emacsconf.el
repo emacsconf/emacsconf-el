@@ -1250,9 +1250,26 @@ tracks with the ID in the cdr of that list."
     (if do-insert (insert result))
     result))
 
+(defun emacsconf-add-to-logbook (note)
+  "Add NOTE as a logbook entry for the current subtree."
+  (move-marker org-log-note-return-to (point))
+  (move-marker org-log-note-marker (point))
+  (with-temp-buffer
+    (insert note)
+    (let ((org-log-note-purpose 'note))
+      (org-store-log-note))))
+
+(defun emacsconf-add-to-talk-logbook (talk note)
+  "Add NOTE as a logbook entry for TALK."
+  (interactive (list (emacsconf-complete-talk) (read-string "Note: ")))
+  (save-excursion
+    (emacsconf-with-talk-heading talk
+      (emacsconf-add-to-logbook note))))
+
 (defun emacsconf-reload ()
   "Reload the emacsconf-el modules."
   (interactive)
   (mapc #'load-library '("emacsconf" "emacsconf-erc" "emacsconf-publish" "emacsconf-stream" "emacsconf-pad")))
+
 (provide 'emacsconf)
 ;;; emacsconf.el ends here
