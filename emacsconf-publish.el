@@ -228,7 +228,7 @@
      emacsconf-tracks)))
 
 (defun emacsconf-index-card-video (video-id video-file talk extensions &optional backstage)
-  (let* ((video-base (and video-file (file-name-base video-file)))
+  (let* ((video-base (and video-file (replace-regexp-in-string "reencoded\\|original" "main" (file-name-base video-file))))
          (chapter-info (and video-file
                             (emacsconf-make-chapter-strings
                              (expand-file-name
@@ -951,7 +951,8 @@ Entries are sorted chronologically, with different tracks interleaved."
                                    (if (plist-get f :caption-note) (concat "<div class=\"caption-note\">" (plist-get f :caption-note) "</div>") "")
                                    :files
                                    (emacsconf-publish-talk-files f files))))
-                    (format  "<li><strong><a href=\"%s%s\">%s</a></strong><br />%s (id:%s)<br />%s</li>"
+                    (format  "<li><a name=\"%s\"></a><strong><a href=\"%s%s\">%s</a></strong><br />%s (id:%s)<br />%s</li>"
+                             (plist-get f :slug)
                              emacsconf-base-url
                              (plist-get f :url)
                              (plist-get f :title)
@@ -972,7 +973,8 @@ Entries are sorted chronologically, with different tracks interleaved."
                           (if (plist-get f :captioner) (concat "<div class=\"caption-note\">Being captioned by " (plist-get f :captioner) "</div>") "")
                           :files
                           (emacsconf-publish-talk-files f files))))
-           (format  "<li><strong><a href=\"%s%s\">%s</a></strong><br />%s (id:%s)<br />%s</li>"
+           (format  "<li><a name=\"%s\"></a><strong><a href=\"%s%s\">%s</a></strong><br />%s (id:%s)<br />%s</li>"
+                    (plist-get f :slug)
                     emacsconf-base-url
                     (plist-get f :url)
                     (plist-get f :title)
@@ -986,7 +988,8 @@ Entries are sorted chronologically, with different tracks interleaved."
         (length (assoc-default "TO_STREAM" by-status))
         (emacsconf-sum :video-time (assoc-default "TO_STREAM" by-status))
         (mapconcat (lambda (f)
-                     (format  "<li><strong><a href=\"%s%s\">%s</a></strong><br />%s (id:%s)<br />%s</li>"
+                     (format  "<li><a name=\"%s\"></a><strong><a href=\"%s%s\">%s</a></strong><br />%s (id:%s)<br />%s</li>"
+                              (plist-get f :slug)
                               emacsconf-base-url
                               (plist-get f :url)
                               (plist-get f :title)
