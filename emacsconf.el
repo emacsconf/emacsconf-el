@@ -1271,5 +1271,16 @@ tracks with the ID in the cdr of that list."
   (interactive)
   (mapc #'load-library '("emacsconf" "emacsconf-erc" "emacsconf-publish" "emacsconf-stream" "emacsconf-pad")))
 
+(defun emacsconf-find-talk-file-in-cache (talk filename)
+  (interactive (let ((talk (emacsconf-complete-talk-info)))
+                 (list
+                  talk
+                  (completing-read "File: " (directory-files emacsconf-cache-dir t (plist-get talk :video-slug))))))
+  (find-file filename))
+
+(defun emacsconf-cache-find-file (filename)
+  (interactive (list (read-file-name "File: " (expand-file-name "./" emacsconf-cache-dir) nil t)))
+  (find-file (expand-file-name filename emacsconf-cache-dir)))
+
 (provide 'emacsconf)
 ;;; emacsconf.el ends here

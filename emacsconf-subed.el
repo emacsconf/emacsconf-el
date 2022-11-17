@@ -29,7 +29,7 @@
 
 (require 'subed)
 
-(defcustom emacsconf-subed-subtitle-max-length 50
+(defcustom emacsconf-subed-subtitle-max-length 60
   "Target number of characters."
   :group 'emacsconf
   :type 'integer)
@@ -39,16 +39,136 @@
   :group 'emacsconf
   :type 'integer)
 
+(defun emacsconf-combine-close-subtitles (subtitles &optional auto-space-msecs)
+  "Combine closely-spaced SUBTITLES for analysis.
+If a subtitle ends within AUTO-SPACE-MSECS of the previous one, concatenate them."
+  (setq auto-space-msecs (or auto-space-msecs 1000))
+  (let ((current (seq-copy (car subtitles)))
+        results)
+    (setq subtitles (cdr subtitles))
+    ;; if the subtitle ends within auto-space-msecs of the current one, combine it
+    (while subtitles
+      (if (< (elt (car subtitles) 1) (+ (elt current 2) auto-space-msecs))
+          (progn
+            (setf (elt current 2) (elt (car subtitles) 2))
+            (setf (elt current 3) (concat (elt current 3) " "
+                                          (propertize (elt (car subtitles) 3)
+                                                      :start (elt (car subtitles) 1)))))
+        (setq results (cons current results))
+        (setq current (seq-copy (car subtitles))))
+      (setq subtitles (cdr subtitles)))
+    (nreverse (cons current results))))
 
-(defun emacsconf-subed-fix-timestamps ()
-  "Change overlapping timestamps to the start of the next subtitle."
+;; (emacsconf-combine-close-subtitles (subed-parse-file "/home/sacha/proj/emacsconf/cache/emacsconf-2022-health--health-data-journaling-and-visualization-with-org-mode-and-gnuplot--david-otoole--main.vtt") 700)
+
+(defun emacsconf-last-string-match-before (regexp string before &optional after type)
+  "Find the last match of REGEXP in STRING before BEFORE position (exclusive).
+If AFTER is specified, start the search from there.
+TYPE can be 'end if you want the match end instead of the beginning."
+  (let (pos (found (string-match regexp string after)) result)
+    (while (and found (< found before))
+      (setq result (if (eq type 'end) (match-end 0) (match-beginning 0)))
+      (if (string-match regexp string (1+ found))
+          (setq found (match-end 0))
+        (setq found nil)))
+    result))
+
+;; (assert (= (emacsconf-last-string-match-before " " "012345 789 12345 7890" 12) 10))
+
+(defun emacsconf-split-text-based-on-heuristics (text limit)
+  "Split subtitle TEXT based on simple heuristics so that it fits in LIMIT."
+  (let ((position 0)
+        (current "")
+        (reversed (string-reverse text))
+        (case-fold-search t)
+        result new-position (next-limit limit))
+    ;; Treat sub as a bag of words
+    (while (< position (length text))
+      (let ((heuristic (delq
+                        nil
+                        (list
+                         (emacsconf-last-string-match-before "[,\\.\\?;]+ "
+                                                             text next-limit (1+ position) 'end)
+                         (emacsconf-last-string-match-before
+                          (concat "\\<" (regexp-opt (list "or how"
+                                                          "or that"
+                                                          "now that"
+                                                          "then"
+                                                          "but that"
+                                                          "now"
+                                                          "which"
+                                                          "when"
+                                                          "using"
+                                                          "of"
+                                                          "by"
+                                                          "and" "that" "so" "so in" "because" "but"
+                                                          "is" "how" "in" "or" "--" "than" "with" "to"
+                                                          "I"))
+                                  "\\>")
+                          text next-limit (1+ position))))))
+        (setq
+         new-position
+         (or
+          (and (< (length text) next-limit) (length text))
+          (and heuristic (apply #'max heuristic))
+          (emacsconf-last-string-match-before
+           " " text next-limit (1+ position) 'end)
+          (length text))))
+      (setq result (cons (string-trim (substring text position new-position))
+                         result))
+      (setq position new-position)
+      (setq next-limit (+ new-position limit)))
+    (setq result (cons (string-trim current) result))
+    (nreverse result)))
+
+(defun emacsconf-reflow-automatically ()
   (interactive)
-  (goto-char (point-max))
-  (let ((timestamp (subed-subtitle-msecs-start)))
-    (while (subed-backward-subtitle-time-start)
-      (when (> (subed-subtitle-msecs-stop) timestamp)
-        (subed-set-subtitle-time-stop timestamp))
-      (setq timestamp (subed-subtitle-msecs-start)))))
+  (let* ((subtitle-text-limit emacsconf-subed-subtitle-max-length)
+         (auto-space-msecs 700)
+         (subtitles
+          (mapconcat
+           (lambda (sub)
+             (string-join 
+              (emacsconf-split-text-based-on-heuristics (elt sub 3) subtitle-text-limit)
+              "\n"))
+           (emacsconf-combine-close-subtitles (subed-subtitle-list))
+           "\n")))
+    (find-file (concat (file-name-sans-extension (buffer-file-name)) ".txt"))
+    (erase-buffer)
+    (insert subtitles)
+    (goto-char (point-min))
+    (set-fill-column subtitle-text-limit)
+    (display-fill-column-indicator-mode 1)))
+
+(defun emacsconf-subed-make-chapter-file-based-on-comments ()
+  "Create a chapter file based on NOTE comments."
+  (interactive)
+  (let ((new-filename (concat (file-name-sans-extension (buffer-file-name)) "--chapters.vtt"))
+        (subtitles (subed-subtitle-list))
+        (subed-auto-play-media nil))
+    (when (or (not (file-exists-p new-filename))
+              (yes-or-no-p (format "%s exists. Overwrite? " new-filename)))
+      (subed-create-file
+       new-filename 
+       (emacsconf-subed-list-chapter-markers-based-on-comments
+        subtitles)
+       t))))
+
+(defun emacsconf-subed-list-chapter-markers-based-on-comments (subtitles)
+  "Make a list of subtitles based on which SUBTITLES have comments."
+  (let (result current)
+    (mapc
+     (lambda (o)
+       (if (elt o 4)
+           (progn
+             (when current (setq result (cons current result)))
+             (setq current
+                   (list nil (elt o 1) (elt o 2)
+                         (string-trim (replace-regexp-in-string "^NOTE[ \n]+" " " (elt o 4))))))
+         ;; update the end time to include the current subtitle
+         (when current (setf (elt current 2) (elt o 2)))))
+     subtitles)
+    (nreverse (cons current result))))
 
 (defun emacsconf-subed-mark-chapter (chapter-name)
   (interactive "MChapter: ")
@@ -126,7 +246,7 @@
     (emacsconf-subed-download-captions url new-file)
     (with-current-buffer (find-file new-file)
       (goto-char (point-min))
-      (emacsconf-subed-fix-timestamps)
+      (subed-trim-overlaps)
       (save-buffer))))
 
 (defun emacsconf-subed-copy-downloaded-captions ()

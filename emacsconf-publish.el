@@ -922,9 +922,13 @@ Entries are sorted chronologically, with different tracks interleaved."
   (interactive)
   (setq filename (or filename (expand-file-name "index.html" emacsconf-backstage-dir)))
   (setq emacsconf-info (emacsconf-get-talk-info))
+  (let ((emacsconf-schedule-svg-modify-functions '(emacsconf-schedule-svg-color-by-status)))
+    (with-temp-file (expand-file-name "schedule.svg" emacsconf-backstage-dir)
+      (svg-print (emacsconf-schedule-svg 800 200 emacsconf-info))))
+
   (with-temp-file filename
     (let* ((talks (seq-filter (lambda (o) (plist-get o :speakers))
-			      (emacsconf-active-talks (emacsconf-filter-talks emacsconf-info))))
+			                        (emacsconf-active-talks (emacsconf-filter-talks emacsconf-info))))
            (by-status (seq-group-by (lambda (o) (plist-get o :status)) talks))
            (files (directory-files emacsconf-backstage-dir)))
       (insert
@@ -935,6 +939,18 @@ Entries are sorted chronologically, with different tracks interleaved."
                (length (assoc-default "WAITING_FOR_PREREC" by-status))
                (emacsconf-sum :time (assoc-default "WAITING_FOR_PREREC" by-status))
                (length talks))
+       "<ul>"
+       (mapconcat
+        (lambda (status)
+          (concat "<li>" status ": " 
+                  (mapconcat (lambda (o) (format "<a href=\"#%s\">%s</a>"
+                                                 (plist-get o :slug)
+                                                 (plist-get o :slug)))
+                             (assoc-default status by-status)
+                             ", ")
+                  "</li>"))
+        '("TO_PROCESS" "PROCESSING" "TO_ASSIGN" "TO_CAPTION" "TO_STREAM"))
+       "</ul>"
        (let ((list (append
 		                (assoc-default "TO_ASSIGN" by-status)
 		                (assoc-default "TO_PROCESS" by-status)
@@ -1061,8 +1077,8 @@ Entries are sorted chronologically, with different tracks interleaved."
                   (emacsconf-public-talks (emacsconf-get-talk-info))
                   "\n")
        "</ol>"
-       (if (file-exists-p (expand-file-name "include-in-index.html" emacsconf-cache-dir))
-           (with-temp-buffer (insert-file-contents (expand-file-name "include-in-index.html" emacsconf-cache-dir)) (buffer-string))
+       (if (file-exists-p (expand-file-name "include-in-public-index.html" emacsconf-cache-dir))
+           (with-temp-buffer (insert-file-contents (expand-file-name "include-in-public-index.html" emacsconf-cache-dir)) (buffer-string))
          "")
        "</body></html>"))))
 
@@ -1119,6 +1135,7 @@ Entries are sorted chronologically, with different tracks interleaved."
        :md (mapconcat (lambda (chapter)
                         (concat
                          (format-seconds "%.2h:%z%.2m:%.2s" (floor (/ (elt chapter 1) 1000)))
+                         (format ".%03d" (mod (elt chapter 1) 1000))
                          " "
                          (elt chapter 3)
                          "\n"))
@@ -1128,8 +1145,9 @@ Entries are sorted chronologically, with different tracks interleaved."
                      (or target "")
                      (mapconcat
                       (lambda (chapter)
-                        (format "%s %s"
+                        (format "%s.%03d %s"
                                 (format-seconds "%.2h:%z%.2m:%.2s" (floor (/ (elt chapter 1) 1000)))
+                                (mod (elt chapter 1) 1000)
                                 (elt chapter 3)))
                       chapters
                       "\n"))))))
@@ -1394,25 +1412,33 @@ Entries are sorted chronologically, with different tracks interleaved."
 
 ;;; Video services
 
-(defun emacsconf-cache-all-video-data ()
-  (interactive)
-  (org-map-entries (lambda () (when (and (org-entry-get (point) "VIDEO_SLUG") (null (org-entry-get (point) "VIDEO_FILE_SIZE"))) (emacsconf-cache-video-data-for-entry)))))
+(defun emacsconf-cache-all-video-data (&optional force)
+  (interactive (list current-prefix-arg))
+  (mapc
+   (lambda (talk)
+     (when (and (plist-get talk :video-slug)
+                (or force (null (plist-get talk :video-file-size))))
+       (emacsconf-cache-video-data talk)))
+   (emacsconf-get-talk-info)))
+;; (emacsconf-cache-all-video-data t)
 (defvar emacsconf-cache-dir (expand-file-name "cache" (file-name-directory emacsconf-org-file)))
 (defun emacsconf-cache-video-data (talk)
   (interactive (list (emacsconf-complete-talk-info)))
-  (let ((main (expand-file-name (concat (plist-get talk :video-slug) "--main.webm") emacsconf-backstage-dir)))
+  (let ((main (expand-file-name (concat (plist-get talk :video-slug) "--main.webm")
+                                emacsconf-cache-dir)))
     (emacsconf-with-talk-heading talk
       (let* ((video-file-name (emacsconf-get-preferred-video (org-entry-get (point) "VIDEO_SLUG")))
-             (video-file (expand-file-name video-file-name emacsconf-cache-dir))
+             (video-file (and video-file-name (expand-file-name video-file-name emacsconf-cache-dir)))
              duration)
         (unless (file-exists-p main)
           (setq main video-file-name))
-        (org-entry-put (point) "VIDEO_FILE" (file-name-nondirectory video-file))
-        (org-entry-put (point) "VIDEO_FILE_SIZE" (file-size-human-readable (file-attribute-size (file-attributes video-file))))
-        (unless (plist-get talk :video-time)
-          (setq duration (/ (compile-media-get-file-duration-ms video-file) 1000))
-          (org-entry-put (point) "VIDEO_DURATION" (format-seconds "%m:%.2s" duration))
-          (org-entry-put (point) "VIDEO_TIME" (number-to-string (ceiling (/ duration 60)))))))))
+        (when video-file
+          (org-entry-put (point) "VIDEO_FILE" (file-name-nondirectory video-file))
+          (org-entry-put (point) "VIDEO_FILE_SIZE" (file-size-human-readable (file-attribute-size (file-attributes video-file))))
+          (unless (plist-get talk :video-time)
+            (setq duration (/ (compile-media-get-file-duration-ms video-file) 1000))
+            (org-entry-put (point) "VIDEO_DURATION" (format-seconds "%m:%.2s" duration))
+            (org-entry-put (point) "VIDEO_TIME" (number-to-string (ceiling (/ duration 60))))))))))
 
 (defvar emacsconf-youtube-channel-id "UCwuyodzTl_KdEKNuJmeo99A")
 (defun emacsconf-youtube-edit ()
