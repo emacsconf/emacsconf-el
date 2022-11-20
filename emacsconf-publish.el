@@ -953,11 +953,32 @@ Entries are sorted chronologically, with different tracks interleaved."
         '("TO_PROCESS" "PROCESSING" "TO_ASSIGN" "TO_CAPTION" "TO_STREAM"))
        "</ul>"
        (let ((list (append
-		                (assoc-default "TO_ASSIGN" by-status)
 		                (assoc-default "TO_PROCESS" by-status)
                     (assoc-default "PROCESSING" by-status)
                     (assoc-default "TO_AUTOCAP" by-status))))
-         (format "<h1>%s talk(s) to be captioned (%d minutes)</h1><p>You can e-mail <a href=\"mailto:sacha@sachachua.com\">sacha@sachachua.com</a> to call dibs on editing the captions for one of these talks. This year, we're experimenting with using OpenAI Whisper to provide auto-generated VTT that you can use as a starting point. If you're writing them from scratch, you can choose to include timing information, or we can probably figure them out afterwards with a forced alignment tool. Also, if you feel like making chapter markers, that's cool too. More info: <a href=\"https://media.emacsconf.org/2022/backstage/editing-captions.html\">Editing captions</a>, <a href=\"https://emacsconf.org/captioning/\">captioning tips</a></p><ul class=\"videos\">%s</ul>"
+         (format "<h1>%s talk(s) being processed (%d minutes)</h1>Not ready for captioning yet, but they will be eventually<ul class=\"videos\">%s</ul>"
+                 (length list)
+                 (emacsconf-sum :video-time list)
+                 (mapconcat
+                  (lambda (f)
+                    (setq f (append
+                             f
+                             (list :extra
+                                   (if (plist-get f :caption-note) (concat "<div class=\"caption-note\">" (plist-get f :caption-note) "</div>") "")
+                                   :files
+                                   (emacsconf-publish-talk-files f files))))
+                    (format  "<li><a name=\"%s\"></a><strong><a href=\"%s%s\">%s</a></strong><br />%s (id:%s)<br />%s</li>"
+                             (plist-get f :slug)
+                             emacsconf-base-url
+                             (plist-get f :url)
+                             (plist-get f :title)
+                             (plist-get f :speakers)
+                             (plist-get f :slug)
+                             (emacsconf-index-card f)))
+                  list
+                  "\n")))
+       (let ((list (assoc-default "TO_ASSIGN" by-status)))
+         (format "<h1>%s talk(s) to be captioned (%d minutes)</h1><p>You can e-mail <a href=\"mailto:sacha@sachachua.com\">sacha@sachachua.com</a> to call dibs on editing the captions for one of these talks. This year, we're experimenting with using OpenAI Whisper to provide auto-generated VTT that you can use as a starting point. If you're writing them from scratch, you can choose to include timing information, or we can probably figure them out afterwards with a forced alignment tool. More info: <a href=\"https://media.emacsconf.org/2022/backstage/editing-captions.html\">Editing captions</a>, <a href=\"https://emacsconf.org/captioning/\">captioning tips</a></p><ul class=\"videos\">%s</ul>"
                  (length list)
                  (emacsconf-sum :video-time list)
                  (mapconcat
@@ -979,7 +1000,7 @@ Entries are sorted chronologically, with different tracks interleaved."
                   list
                   "\n")))
        (format
-        "<h1>%d talk(s) being captioned (%s minutes)</h1><ul>%s</ul>"
+        "<h1>%d talk(s) being captioned (%s minutes)</h1>People are working on these ones, yay!<ul>%s</ul>"
         (length (assoc-default "TO_CAPTION" by-status))
         (emacsconf-sum :video-time (assoc-default "TO_CAPTION" by-status))
         (mapconcat
