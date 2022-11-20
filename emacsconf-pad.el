@@ -461,7 +461,7 @@ ${next-talk-list}
             (lambda (o)
               (emacsconf-replace-plist-in-string
                (append (list :full-url (concat emacsconf-base-url (plist-get o :url))) o)
-               "<li>${slug} - ${track}: ${title} (${speakers-with-pronouns}, Q&amp;A: ${q-and-a})<ul><li>${full-url}</li><li>Intro: </li></ul></li>"))
+               "<li>${slug} - ${track}: ${title} (${speakers-with-pronouns}, Q&amp;A: ${q-and-a})<ul><li>${full-url}</li><li>Intro: ${intro-note}</li></ul></li>"))
             (emacsconf-prepare-for-display (emacsconf-get-talk-info)))
            "</ul>")))
 (provide 'emacsconf-pad)

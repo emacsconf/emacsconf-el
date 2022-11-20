@@ -79,6 +79,11 @@
   :type 'file
   :group 'emacsconf)
 
+(defcustom emacsconf-emergency-contact nil
+  "Emergency contact information."
+  :type 'string
+  :group 'emacsconf)
+
 (defvar emacsconf-stream-base "https://live0.emacsconf.org/emacsconf/")
 (defvar emacsconf-chat-base "https://chat.emacsconf.org/")
 (defvar emacsconf-backstage-dir "/ssh:orga@media.emacsconf.org:/var/www/media.emacsconf.org/2022/backstage")
@@ -330,7 +335,7 @@
     ("TO_ARCHIVE" . "Q&A finished, IRC and pad will be archived on this page")
     ("TO_EXTRACT" . "Q&A to be extracted from the room recordings")
     ("DONE" . "All done")
-    ("CANCELLED" . "Talk cancelled")))
+    ("CANCELLED" . "Sorry, this talk has been cancelled")))
 
 (defun emacsconf-get-talk-categories (o)
   (org-narrow-to-subtree)
@@ -375,6 +380,7 @@
                        (:video-time "VIDEO_TIME")                       
                        (:video-file-size "VIDEO_FILE_SIZE")                       
                        (:video-duration "VIDEO_DURATION")
+                       (:stream-files "STREAM_FILES")
                        (:youtube-url "YOUTUBE_URL")                       
                        (:toobnix-url "TOOBNIX_URL")
                        ;; Captioning
@@ -532,6 +538,7 @@
     emacsconf-get-talk-categories
     emacsconf-get-talk-abstract-from-subtree
     emacsconf-add-talk-status
+    emacsconf-add-checkin-time
     emacsconf-add-timezone-conversions
     emacsconf-add-speakers-with-pronouns
     emacsconf-add-live-info))
@@ -542,6 +549,26 @@
               ((string= (plist-get o :pronouns) "nil") (plist-get o :speakers))
               ((string-match "(" (plist-get o :pronouns)) (plist-get o :pronouns))
               (t (format "%s (%s)" (plist-get o :speakers) (plist-get o :pronouns)))))
+  o)
+
+(defun emacsconf-add-checkin-time (o)
+  (unless (or (null (plist-get o :status))
+              (null (plist-get o :email))
+              (string= (plist-get o :status) "CANCELLED"))
+    (if (string= (plist-get o :status) "WAITING_FOR_PREREC")
+        (progn
+          (plist-put
+           o :checkin-label
+           "1 hour before the scheduled start of your talk, since you don't have a pre-recorded video")
+          (plist-put
+           o :checkin-time
+           (time-subtract (plist-get o :start-time) (seconds-to-time 3600))))
+      (plist-put o :checkin-label
+                 "30 minutes before the scheduled start of your Q&A, since you have a pre-recorded video")
+      (plist-put o :checkin-time
+                 (time-subtract (time-add (plist-get o :start-time)
+                                          (seconds-to-time (* 60 (string-to-number (plist-get o :video-time)))))
+                                (seconds-to-time (/ 3600 2))))))
   o)
 
 (defun emacsconf-add-live-info (o)
@@ -1031,7 +1058,8 @@ Filter by TRACK if given.  Use INFO as the list of talks."
   (let ((states
          '((open . "OPEN_Q UNSTREAMED_Q")
            (before . "TODO TO_REVIEW TO_ACCEPT WAITING_FOR_PREREC TO_PROCESS PROCESSING TO_AUTOCAP TO_ASSIGN TO_CAPTION TO_STREAM PLAYING CLOSED_Q")
-           (after . "TO_ARCHIVE TO_EXTRACT TO_FOLLOW_UP DONE"))))
+           (after . "TO_ARCHIVE TO_EXTRACT TO_FOLLOW_UP DONE")
+           (cancelled . "CANCELLED"))))
     (if (string-match "live" (or (plist-get talk :q-and-a) ""))
         (or (car (seq-find (lambda (state)
                              (member (plist-get talk :status) (split-string (cdr state))))
@@ -1067,15 +1095,20 @@ Filter by TRACK if given.  Use INFO as the list of talks."
     (org-map-entries (lambda () (org-entry-properties))
                      "volunteer+EMAIL={.}")))
 
+(defun emacsconf-volunteer-emails-for-completion (&optional info)
+  (mapcar (lambda (o)
+            (emacsconf-surround
+             (if (assoc-default "ITEM" o)
+                 (concat (assoc-default "ITEM" o) " <")
+               "<")
+             (assoc-default "EMAIL" o)
+             ">" ""))
+          (or info (emacsconf-get-volunteer-info))))
+
 (defun emacsconf-complete-volunteer (&optional info)
-  (setq info (or info (emacsconf-get-volunteer-info)))
+  (setq info (or info (emacsconf-get-volunteer-info info)))
   (let* ((choices
-          (mapcar (lambda (o)
-                    (string-join
-                     (delq nil
-                           (mapcar (lambda (f) (assoc-default f o 'string=)) '("ITEM" "EMAIL")))
-                     " - "))
-                  info))
+          (emacsconf-volunteer-emails-for-completion))
          (choice (completing-read
                   "Volunteer: " 
                   (lambda (string predicate action)
@@ -1084,6 +1117,14 @@ Filter by TRACK if given.  Use INFO as the list of talks."
                       (complete-with-action action choices string predicate))))))
     (elt info (seq-position choices choice))))
 
+(defun emacsconf-email-volunteers (volunteers)
+  (interactive
+   (list
+    (completing-read-multiple
+     "Volunteers: " (emacsconf-volunteer-emails-for-completion))))
+  (compose-mail (string-join volunteers ", ")))
+
+;;; Reflowing
 (defun emacsconf-reflow ()
   "Help reflow text files."
   (interactive)

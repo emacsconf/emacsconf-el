@@ -81,8 +81,9 @@
          (mail-func (plist-get template :function)))
     (funcall mail-func (emacsconf-mail-complete-email-group) template)))
 
-(defun emacsconf-mail-template-to-all ()
-  "Uses the current template to draft messages to all the speakers."
+(defun emacsconf-mail-template-to-all-groups ()
+  "Uses the current template to draft messages to all the speakers.
+Group by e-mail."
   (interactive)
   (let* ((template (if (org-entry-get (point) "EMAIL_ID")
                        (emacsconf-mail-merge-get-template-from-subtree)
@@ -93,12 +94,19 @@
                                  (member (plist-get o :slug)
                                          (split-string (plist-get template :slugs) " "))
                                t))
-                           (emacsconf-filter-talks (emacsconf-get-talk-info))))
+                           (emacsconf-prepare-for-display (emacsconf-filter-talks (emacsconf-get-talk-info)))))
          (grouped (emacsconf-mail-group-by-email info))
          (mail-func (plist-get template :function)))
     (mapc (lambda (group)
             (funcall mail-func group template))
           grouped)))
+
+(defun emacsconf-mail-log-message-when-sent (o message)
+  (add-hook 'message-sent-hook
+            `(lambda ()
+               (save-window-excursion
+                 (emacsconf-add-to-talk-logbook ,(plist-get o :slug) ,message)))
+            nil t))
 
 (defun emacsconf-mail-group-by-email (info)
   (seq-group-by (lambda (o) (plist-get o :email)) info))

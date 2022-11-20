@@ -183,12 +183,19 @@ Final files should be stored in /data/emacsconf/stream/YEAR/video-slug--main.web
 (defun emacsconf-stream-play-video (talk)
   (interactive (list (emacsconf-complete-talk-info)))
   (let ((info (tramp-dissect-file-name (emacsconf-stream-track-login talk))))
-    (call-process "ssh" nil nil t
-		  (concat (tramp-file-name-user info)
-			  "@" (tramp-file-name-host info))
-			  "-p" (tramp-file-name-port info)
-			  "nohup" "~/bin/track-mpv" (emacsconf-stream-get-filename talk) ">" "/dev/null"
-			  "2>&1" "&")))
+    (apply
+     #'call-process
+     (append
+      (list
+       "ssh" nil nil t
+		   (concat (tramp-file-name-user info)
+			         "@" (tramp-file-name-host info))
+		   "-p" (tramp-file-name-port info)
+		   "nohup" "~/bin/track-mpv")
+      (or (and (plist-get talk :stream-files)
+               (split-string-and-unquote (plist-get talk :stream-files)))
+          (list (emacsconf-stream-get-filename talk)))
+      (list ">" "/dev/null" "2>&1" "&")))))
 
 (defun emacsconf-stream-open-pad (talk)
   (interactive (list (emacsconf-complete-talk-info)))
@@ -196,8 +203,8 @@ Final files should be stored in /data/emacsconf/stream/YEAR/video-slug--main.web
         (async-shell-command-buffer 'new-buffer))
     (shell-command
      (concat "nohup firefox -new-window "
-	     (shell-quote-argument (plist-get talk :pad-url))
-	     " > /dev/null 2>&1 & "))))
+	           (shell-quote-argument (plist-get talk :pad-url))
+	           " > /dev/null 2>&1 & "))))
 
 (defun emacsconf-stream-join-qa (talk)
   "Join the Q&A for TALK.

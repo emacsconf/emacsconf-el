@@ -24,7 +24,9 @@
 
 ;;; Code:
 
-(defvar emacsconf-schedule-strategies nil "List of scheduling functions.
+(defvar emacsconf-schedule-strategies
+  '(emacsconf-schedule-allocate-video-time-rounded-to-five)
+  "List of scheduling functions.
 Each function should take the info and manipulate it as needed, returning the new info.")
 
 (defvar emacsconf-schedule-max-time 30)
@@ -111,8 +113,8 @@ Each function should take the info and manipulate it as needed, returning the ne
                   (plist-get o :title)))))
           info))
 
-(defun emacsconf-schedule-validate-and-summarize (schedule)
-  (let ((validation-results (emacsconf-schedule-validate-time-constraints schedule))
+(defun emacsconf-schedule-validate-and-summarize (schedule &optional info)
+  (let ((validation-results (emacsconf-schedule-validate-time-constraints schedule info))
         (sched (emacsconf-schedule-summarize schedule)))
     (append
      (list (list (format "%d talks" (length (emacsconf-filter-talks arranged)))))
@@ -317,14 +319,14 @@ Each function should take the info and manipulate it as needed, returning the ne
           `((transform . ,(format "translate(%d,%d)" x label-margin)))
           (dom-node
            'line
-           `((stroke . "lightgray")
+           `((stroke . "darkgray")
              (x1 . 0)
              (y1 . 0)
              (x2 . 0)
              (y2 . ,(- height label-margin label-margin))))
           (dom-node
            'text
-           `((fill . "darkgray")
+           `((fill . "black")
              (x . 0)
              (y . ,(- height 2 label-margin))
              (font-size . 10)
@@ -364,20 +366,21 @@ Each function should take the info and manipulate it as needed, returning the ne
                        :tracks (emacsconf-by-track (cdr o)))))
              days))))
 
-(defun emacsconf-schedule-svg-color-by-status (o node &optional parent)
-  (dom-set-attribute node 'fill
-                     (pcase (plist-get o :status)
-                       ((rx (or "TO_PROCESS"
-                                "PROCESSING"
-                                "TO_AUTOCAP"))
-                        "palegoldenrod")
-                       ((rx (or "TO_ASSIGN"))
-                        "yellow")
-                       ((rx (or "TO_CAPTION"))
-                        "lightgreen")
-                       ((rx (or "TO_STREAM"))
-                        "green")
-                       (t "gray"))))
+(defun emacsconf-schedule-svg-color-by-status (o node &optional _)
+  (unless (plist-get o :invalid)
+    (dom-set-attribute node 'fill
+                       (pcase (plist-get o :status)
+                         ((rx (or "TO_PROCESS"
+                                  "PROCESSING"
+                                  "TO_AUTOCAP"))
+                          "palegoldenrod")
+                         ((rx (or "TO_ASSIGN"))
+                          "yellow")
+                         ((rx (or "TO_CAPTION"))
+                          "lightgreen")
+                         ((rx (or "TO_STREAM"))
+                          "green")
+                         (t "gray")))))
 
 (defun emacsconf-schedule-svg-days (width height days)
   (let ((svg (svg-create width height :background "white"))
@@ -452,6 +455,20 @@ Each function should take the info and manipulate it as needed, returning the ne
   (mapcar (lambda (o)
             (when (plist-get o :video-time)
               (plist-put o :time (plist-get o :video-time)))
+            o)
+          info))
+
+(defun emacsconf-schedule-round-up-to (x y)
+  "Return X rounded up to the nearest Y."
+  (+ x (% (- y (% x y)) y)))
+;; (assert (= (emacsconf-schedule-round-up-to 13 5) 15))
+;; (assert (= (emacsconf-schedule-round-up-to 15 5) 15))
+;; (assert (= (emacsconf-schedule-round-up-to 16 5) 20))
+
+(defun emacsconf-schedule-allocate-video-time-round-up-to-five (info)
+  (mapcar (lambda (o)       ; 1 + 4, 2 + 3, 3 + 2, 4 + 1, 0 + 0, 5 + 0
+            (when (plist-get o :video-time)
+              (plist-put o :time (number-to-string (emacsconf-schedule-round-up-to (string-to-number (plist-get o :video-time)) 5))))
             o)
           info))
 
@@ -569,26 +586,37 @@ Both start and end time are tested."
             (list (match-string 2 avail) nil)
           (list nil (match-string 2 avail)))))))
 
-(defun emacsconf-schedule-validate (sched)
+(defun emacsconf-schedule-validate-all-talks-present (sched &optional list)
   (let* ((sched-slugs (mapcar (lambda (o) (plist-get o :slug))
                               (emacsconf-filter-talks sched)))
-         (diff (delq nil
-                     (seq-difference
-                      (mapcar (lambda (o) (plist-get o :slug))
-                              (seq-remove (lambda (o)
-                                            (string= (plist-get o :status) "CANCELLED"))
-                                          (let ((emacsconf-talk-info-functions '(emacsconf-get-talk-info-from-properties)))
-                                            (emacsconf-get-talk-info))))
-                      sched-slugs)))
+         (diff (delq
+                nil
+                (seq-difference
+                 (mapcar
+                  (lambda (o) (plist-get o :slug))
+                  (seq-remove
+                   (lambda (o)
+                     (string= (plist-get o :status) "CANCELLED"))
+                   (let ((emacsconf-talk-info-functions '(emacsconf-get-talk-info-from-properties)))
+                     (or list (emacsconf-get-talk-info)))))
+                 sched-slugs))))
+    (when diff
+      (list (concat "Missing talks: " (string-join diff ", "))))))
+
+(defun emacsconf-schedule-validate-no-duplicates (sched)
+  (let* ((sched-slugs (mapcar (lambda (o) (plist-get o :slug))
+                              (emacsconf-filter-talks sched)))
          (dupes (seq-filter (lambda (o) (> (length (cdr o)) 1))
                             (seq-group-by #'identity sched-slugs))))
-    (append
-     (emacsconf-schedule-validate-time-constraints sched)
-     (emacsconf-schedule-validate-live-q-and-a-sessions-are-staggered sched)
-     (when diff
-       (list (concat "Missing talks: " (string-join diff ", "))))
-     (when dupes
-       (list (concat "Duplicate talks: " (mapconcat 'car dupes ", ")))))))
+    (when dupes
+      (list (concat "Duplicate talks: " (mapconcat 'car dupes ", "))))))
+
+(defun emacsconf-schedule-validate (sched &optional info)
+  (append
+   (emacsconf-schedule-validate-time-constraints sched)
+   (emacsconf-schedule-validate-live-q-and-a-sessions-are-staggered sched)
+   (emacsconf-schedule-validate-all-talks-present sched info)
+   (emacsconf-schedule-validate-no-duplicates sched)))
 
 (defun emacsconf-schedule-inflate-tracks (tracks schedule)
   (mapcar
@@ -607,13 +635,20 @@ Both start and end time are tested."
      day)
    tracks))
 
+(defvar emacsconf-schedule-expected-talks nil "If non-nil, a list of slugs to validate against.")
 (defmacro emacsconf-schedule-test (filename &rest varlist)
+  "Write the proposed schedule to FILENAME using the variables in VARLIST.
+If emacsconf-schedule-apply is non-nil, update `emacsconf-org-file' and the wiki."
   (declare (debug t))
   `(let* (,@varlist)
      (let* ((schedule (emacsconf-schedule-prepare arranged))
-            (validation (or (emacsconf-schedule-validate schedule) "")))
+            (info (if emacsconf-schedule-expected-talks
+                      (emacsconf-schedule-inflate-sexp emacsconf-schedule-expected-talks)
+                    (emacsconf-get-talk-info)))
+            (validation (or (emacsconf-schedule-validate schedule info) "")))
        (with-temp-file ,filename
          (svg-print (emacsconf-schedule-svg 800 200 schedule)))
+       (clear-image-cache)
        (mapconcat (lambda (o) (format "- %s\n" o)) (append validation (list (format "[[file:%s]]" filename)))))))
 
 (defun emacsconf-schedule-format-summary-row (o)
