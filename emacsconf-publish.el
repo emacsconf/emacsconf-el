@@ -1690,7 +1690,7 @@ ${title-info}
           (plist-put track :webchat (concat emacsconf-chat-base "?join=" (plist-get track :webchat-channels)))
           (plist-put track :channel (concat "#emacsconf-" (plist-get track :id))))
         emacsconf-tracks)
-  (let* ((info (sort (emacsconf-get-talk-info) #'emacsconf-sort-by-scheduled))
+  (let* ((info (emacsconf-prepare-for-display (emacsconf-get-talk-info)))
          (emacsconf-publishing-phase 'schedule)
          (emacsconf-use-absolute-url t))
     (when emacsconf-directory

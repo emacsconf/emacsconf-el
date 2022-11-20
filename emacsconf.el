@@ -565,10 +565,11 @@
            (time-subtract (plist-get o :start-time) (seconds-to-time 3600))))
       (plist-put o :checkin-label
                  "30 minutes before the scheduled start of your Q&A, since you have a pre-recorded video")
-      (plist-put o :checkin-time
-                 (time-subtract (time-add (plist-get o :start-time)
-                                          (seconds-to-time (* 60 (string-to-number (plist-get o :video-time)))))
-                                (seconds-to-time (/ 3600 2))))))
+      (when (plist-get o :video-time)
+        (plist-put o :checkin-time
+                   (time-subtract (time-add (plist-get o :start-time)
+                                            (seconds-to-time (* 60 (string-to-number (plist-get o :video-time)))))
+                                  (seconds-to-time (/ 3600 2)))))))
   o)
 
 (defun emacsconf-add-live-info (o)
