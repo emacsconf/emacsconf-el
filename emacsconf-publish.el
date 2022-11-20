@@ -298,7 +298,7 @@
 size=\"${video-file-size}\" duration=\"${video-duration}\" other_resources=\"\"\"${other-files}${toobnix-info}\"\"\"]]
 ${chapter-list}
 "
-            "<video controls preload=\"metadata\" poster=\"${poster}\" id=\"${video-id}\"><source src=\"${source-src}\" />${captions}${chapter-track}</video>${chapter-list}")
+            "<video controls preload=\"none\" poster=\"${poster}\" id=\"${video-id}\"><source src=\"${source-src}\" />${captions}${chapter-track}</video>${chapter-list}")
         "The video for \"${title}\" will be posted here when available. You can also subscribe to the <a href=\"https://lists.gnu.org/mailman/listinfo/emacsconf-discuss\">emacsconf-discuss mailing list</a> for updates."))
      :resources
      (emacsconf-replace-plist-in-string
@@ -410,7 +410,7 @@ resources."
             (plist-get track :id)
             (plist-get track :id))))
 
-(defvar emacsconf-publish-include-pads nil "When non-nil, include Etherpad info.")
+(defvar emacsconf-publish-include-pads t "When non-nil, include Etherpad info.")
 
 (defun emacsconf-format-talk-schedule-info (o)
   (let ((friendly (concat "/" emacsconf-year "/talks/" (plist-get o :slug) ))
@@ -434,10 +434,11 @@ resources."
                        (format "Pad: <https://pad.emacsconf.org/%s-%s>  \n" emacsconf-year (plist-get o :slug))
                      "")
                    :status-info
-                   (if (member emacsconf-publishing-phase '(program schedule)) (format "Status: %s  \n" (plist-get o :status-label)) "")     
+                   (if (member emacsconf-publishing-phase '(program schedule)) (format "Status: %s  \n" (plist-get o :status-label)) "")
                    :schedule-info
                    (if (and (member emacsconf-publishing-phase '(program schedule))
-                            (not (emacsconf-talk-all-done-p o)))
+                            (not (emacsconf-talk-all-done-p o))
+                            (not (string= (plist-get o :status) "CANCELLED")))
                        (let ((start (org-timestamp-to-time (org-timestamp-split-range timestamp)))
                              (end (org-timestamp-to-time (org-timestamp-split-range timestamp t))))
                          (format
@@ -489,7 +490,7 @@ ${pad-info}${status-info}${schedule-info}\n"
 (defun emacsconf-publish-before-page (talk &optional info)
   "Info included before the abstract."
   (interactive (list (emacsconf-complete-talk-info)))
-  (setq info (or info (emacsconf-get-talk-info)))
+  (setq info (or info (emacsconf-prepare-for-display (emacsconf-get-talk-info))))
   (when (plist-get talk :public) (emacsconf-publish-captions-in-wiki talk))
   (with-temp-file (expand-file-name (format "%s-before.md" (plist-get talk :slug))
                                     (expand-file-name "info" (expand-file-name emacsconf-year emacsconf-directory)))
@@ -1435,7 +1436,7 @@ Entries are sorted chronologically, with different tracks interleaved."
         (when video-file
           (org-entry-put (point) "VIDEO_FILE" (file-name-nondirectory video-file))
           (org-entry-put (point) "VIDEO_FILE_SIZE" (file-size-human-readable (file-attribute-size (file-attributes video-file))))
-          (unless (plist-get talk :video-time)
+          (unless (plist-get talk :video-duration)
             (setq duration (/ (compile-media-get-file-duration-ms video-file) 1000))
             (org-entry-put (point) "VIDEO_DURATION" (format-seconds "%m:%.2s" duration))
             (org-entry-put (point) "VIDEO_TIME" (number-to-string (ceiling (/ duration 60))))))))))
