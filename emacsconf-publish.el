@@ -1008,7 +1008,11 @@ Entries are sorted chronologically, with different tracks interleaved."
            (setq f (append
                     f
                     (list :extra
-                          (if (plist-get f :captioner) (concat "<div class=\"caption-note\">Being captioned by " (plist-get f :captioner) "</div>") "")
+                          
+                          (concat "<div class=\"caption-note\">"
+                                  (emacsconf-surround "Being captioned by " (plist-get f :captioner) " " "")
+                                  (emacsconf-surround "Note: " (plist-get f :caption-note) "" "")
+                                  "</div>")
                           :files
                           (emacsconf-publish-talk-files f files))))
            (format  "<li><a name=\"%s\"></a><strong><a href=\"%s%s\">%s</a></strong><br />%s (id:%s)<br />%s</li>"
