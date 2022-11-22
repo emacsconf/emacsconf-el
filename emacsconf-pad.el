@@ -343,7 +343,8 @@ ${next-talk-list}
       (concat
        "
 <strong>Setup</strong>
-<ul><li>[ ] ${checkin}: Open the index: https://media.emacsconf.org/${year}/backstage/index-${track-id}.html</li>
+<ul>
+<li>[ ] ${checkin}: Open the index: https://media.emacsconf.org/${year}/backstage/index-${track-id}.html</li>
 <li>[ ] ${host}: Open the intro pad and the index: https://media.emacsconf.org/${year}/backstage/index-${track-id}.html</li>
 <li>[ ] ${irc}: Watch the #emacsconf-${track-id} channel</li>
 <li>[ ] ${pad}: Open the index: https://media.emacsconf.org/${year}/backstage/index-${track-id}.html</li>
@@ -364,7 +365,7 @@ ${next-talk-list}
 </ul></li>
 <li>[ ] ${coord}: ssh -t orga@live0.emacsconf.org 'screen -S restream-${track-id}-youtube /home/orga/restream-${track-id}-youtube.sh' and then confirm</li>
 <li>[ ] ${coord}: ssh -t orga@live0.emacsconf.org 'screen -S restream-${track-id}-toobnix /home/orga/restream-${track-id}-toobnix.sh' and then confirm</li>
-<li>[ ] ${coord}: update the status page on live.emacsconf.org</li>
+<li>[ ] ${coord}: update the status page on live.emacsconf.org by changing emacsconf-tracks and calling emacsconf-stream-update-status-page</li>
 </ul>
 "
        "<ul>"
@@ -394,7 +395,7 @@ ${next-talk-list}
 <ul>
 <li>[ ] ${coord}: stop the restream-${track-id}-youtube screen on live0</li>
 <li>[ ] ${coord}: stop the restream-${track-id}-toobnix screen on live0</li>
-<li>[ ] ${coord}: update the status page on live.emacsconf.org</li>
+<li>[ ] ${coord}: update the status page on live.emacsconf.org by changing emacsconf-tracks and calling emacsconf-stream-update-status-page</li>
 </ul>"))
      )))
 
