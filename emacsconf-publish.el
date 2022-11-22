@@ -1811,12 +1811,27 @@ when the host has opened the Q&A.</p>
 ;; (assert (eq (emacsconf-get-bbb-state '(:status "OPEN_Q")) 'open))
 ;; (assert (eq (emacsconf-get-bbb-state '(:status "TO_ARCHIVE")) 'after))
 
-(defun emacsconf-publish-bbb-redirect (talk)
+
+(defun emacsconf-publish-bbb-static-redirects ()
+  "Create emergency redirects that can be copied over the right location."
+  (mapc (lambda (state)
+          (let ((emacsconf-publish-current-dir
+                 (expand-file-name
+                  state
+                  (expand-file-name "redirects" emacsconf-stream-asset-dir))))
+            (unless (file-directory-p emacsconf-publish-current-dir)
+              (make-directory emacsconf-publish-current-dir t))
+            (mapc
+             (lambda (talk)
+               (emacsconf-publish-bbb-redirect talk (intern state)))
+             (emacsconf-prepare-for-display (emacsconf-get-talk-info)))))
+        '("before" "open" "after")))
+(defun emacsconf-publish-bbb-redirect (talk &optional status)
   (interactive (list (emacsconf-complete-talk-info)))
   (let ((bbb-filename (expand-file-name (format "bbb-%s.html" (plist-get talk :slug))
                                         emacsconf-publish-current-dir))
         (bbb-redirect-url (concat "https://media.emacsconf.org/" emacsconf-year "/current/bbb-" (plist-get talk :slug) ".html"))
-        (status (emacsconf-bbb-status (if (boundp 'org-state) (append (list :status org-state) talk) talk))))
+        (status (or status (emacsconf-bbb-status (if (boundp 'org-state) (append (list :status org-state) talk) talk)))))
     (with-temp-file bbb-filename
       (insert
        (emacsconf-replace-plist-in-string
