@@ -951,7 +951,7 @@ Entries are sorted chronologically, with different tracks interleaved."
                              (assoc-default status by-status)
                              ", ")
                   "</li>"))
-        '("TO_PROCESS" "PROCESSING" "TO_ASSIGN" "TO_CAPTION" "TO_STREAM"))
+        '("TO_PROCESS" "PROCESSING" "TO_ASSIGN" "TO_CAPTION" "TO_STREAM") "")
        "</ul>"
        (let ((list (append
 		                (assoc-default "TO_PROCESS" by-status)
