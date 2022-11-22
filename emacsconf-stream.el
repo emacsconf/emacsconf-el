@@ -463,5 +463,141 @@ This uses the BBB room if available, or the IRC channel if not."
 ;;           :channel "emacsconf-gen"
 ;;           :qa-info "https://emacsconf.org/current/community/room/")
 ;;  )
+
+;; Updates live.emacsconf.org
+(defvar emacsconf-stream-live-index "/ssh:orga@front0.emacsconf.org:/var/www/live.emacsconf.org/index.html")
+
+(defun emacsconf-stream-shift-days ()
+  "Return a label for the conference days."
+  (let ((start
+         (date-to-time (car (sort (mapcar (lambda (o) (plist-get o :start))
+                                          emacsconf-shifts)
+                                  'string<))))
+        (end
+         (date-to-time (car (last (sort (mapcar (lambda (o) (plist-get o :end))
+                                                emacsconf-shifts)
+                                        'string<))))))
+    (if (string= (format-time-string "%Y-%m-%d" start emacsconf-timezone)
+                 (format-time-string "%Y-%m-%d" end emacsconf-timezone))
+        (format-time-string "%A, %b %-d, %Y"
+                            start emacsconf-timezone)
+      (concat
+       (format-time-string "%b %-d (%a)"
+                           start emacsconf-timezone)
+       " to "
+       (format-time-string "%b %-d (%a), %Y"
+                           end emacsconf-timezone)))))
+
+(defvar emacsconf-status-timezones '("US/Eastern" "UTC" "Europe/Berlin"))
+(defun emacsconf-stream-update-status-page ()
+  (interactive)
+  (with-temp-file emacsconf-stream-live-index
+    (insert
+     (emacsconf-replace-plist-in-string
+      (list :name emacsconf-name
+            :year emacsconf-year
+            :base-url emacsconf-base-url
+            :days (emacsconf-stream-shift-days)
+            :timezone-info
+            (mapconcat (lambda (zone) (concat "<th>" zone "</th>"))
+                       emacsconf-status-timezones "")
+            :stream-info
+            (mapconcat
+             (lambda (track)
+               (emacsconf-replace-plist-in-string
+                (append (list :stream-base emacsconf-stream-base)
+                        track)
+                "<tr><td>${id}</td><td><a href=\"${stream-base}${id}.webm\">${stream-base}${id}.webm</a></td></tr>
+<tr><td>${id}-480p</td><td><a href=\"${stream-base}${id}-480p.webm\">${stream-base}${id}-480p.webm</a></td></tr>"))
+             emacsconf-tracks "\n")
+            :watch-info
+            (mapconcat
+             (lambda (track)
+               (let ((start-time (date-to-time (concat emacsconf-date "T" (plist-get track :start) emacsconf-timezone-offset))))
+                 (emacsconf-replace-plist-in-string
+                  (append
+                   (list
+                    :time-info
+                    (mapconcat
+                     (lambda (zone)
+                       (format-time-string "<td>%l:%M %p %Z</td>" start-time zone))
+                     emacsconf-status-timezones
+                     ""))
+                   track)
+                  "<tr>
+            <td><a href=\"${watch}\"><strong>${name}</strong></a></td><td class=\"status-${status}\">${status}</td>${time-info}
+</tr>")))
+             emacsconf-tracks "\n")
+            )
+      "<!doctype html>
+<html lang=\"en\">
+  <head>
+    <meta charset=\"utf-8\">
+    <meta name=viewport content=\"width=device-width, initial-scale=1\">
+    <meta name=\"description\" content=\"${name} Livestreams\"/>
+    <title>${name} ${year} ~ Live</title>
+    <link rel=\"stylesheet\" href=\"/style.css\" />
+  </head>
+  <body>
+    <header>
+      <h1><a href=\"${base-url}${year}/\">${name} ${year}</a> Livestreams</h1>
+      <h3>December 3 (Saturday) and 4 (Sunday), 2022</h3>
+    </header>
+    <main>
+      <table>
+        <thead>
+          <tr>
+            <th>track</th>
+            <th>status</th>
+${timezone-info}
+          </tr>
+        </thead>
+        <tbody>
+${watch-info}
+        </tbody>
+      </table>
+      <p>
+        Click on the track names above to watch the stream in your browser.
+      </p>
+      <h4>Watching the streams directly</h4>
+      <p>
+        You can also watch the streams in any media player that supports streaming.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>track</th>
+            <th>stream address</th>
+          </tr>
+        </thead>
+        <tbody>
+${stream-info}
+        </tbody>
+      </table>
+      <p>
+        Depending on which media player you use, you may enter the stream address
+        in a graphical user interface or provide it as an argument to the program
+        when launching it from the terminal.
+      </p>
+      <p>
+        Examples:
+      </p>
+<pre>
+mpv URL
+vlc URL
+ffplay URL
+</pre>
+    </main>
+    <footer>
+      <p>
+        If you experience any disruptions, please check our status page at
+        <a href=\"//status.emacsconf.org\">status.emacsconf.org</a> for updates
+        on the status of various parts of our infrastructure, and instructions
+        on how to get in touch with us about disruptions.
+      </p>
+    </footer>
+  </body>
+</html>
+"))))
 (provide 'emacsconf-stream)
 ;;; emacsconf-stream.el ends here

@@ -347,7 +347,7 @@ Each function should take the info and manipulate it as needed, returning the ne
                        "green")))
 
 (defun emacsconf-schedule-svg (width height &optional info)
-  (setq info (or info (emacsconf-get-talk-info)))
+  (setq info (emacsconf-prepare-for-display (or info (emacsconf-get-talk-info))))
   (let ((days (seq-group-by (lambda (o)
                               (format-time-string "%Y-%m-%d" (plist-get o :start-time) emacsconf-timezone))
                             (sort (seq-filter (lambda (o)

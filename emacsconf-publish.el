@@ -862,7 +862,8 @@ Entries are sorted chronologically, with different tracks interleaved."
                          :title (plist-get o :title)
                          :url (concat "/" (plist-get o :url))
                          :speakers (plist-get o :speakers)
-                         :q-and-a (plist-get o :q-and-a))
+                         :q-and-a (plist-get o :q-and-a)
+                         :pad (plist-get o :pad-url))
                         (unless (eq emacsconf-publishing-phase 'program)
                           (list
                            :track (plist-get o :track)
@@ -1611,11 +1612,13 @@ Entries are sorted chronologically, with different tracks interleaved."
                  :end-info(emacsconf-surround " - <span class=\"sched-end\">" (plist-get talk :end) "</span>" "")
                  :track-info (emacsconf-surround (format " <span class=\"sched-track %s\">" (or (plist-get talk :track) "")) (plist-get talk :track) "</span>" "")
                  :q-info  (emacsconf-surround " <span class=\"sched-q-and-a\">Q&amp;A: " (plist-get talk :q-and-a) "</span>; " "")
+                 :pad-info (emacsconf-surround " <span class=\"sched-pad\"> <a href=\""  
+                                               (plist-get talk :pad-url) "\">Etherpad</a></span>; " "")
                  :slug-info (emacsconf-surround " <span class=\"sched-slug\">id:" (plist-get talk :slug) "</span>" "")
                  :speaker-info (emacsconf-surround " <div class=\"sched-speakers\">" (plist-get talk :speakers-with-pronouns) "</div>" "")
                  :resources-info (emacsconf-surround "<ul class=\"resources\">" (plist-get talk :resources) "</ul>" ""))) 
    "<div data-start=\"${startutc}\" data-end=\"${endutc}\" class=\"sched-entry track-${track}\">
-<div class=\"sched-meta\"><span class=\"sched-time\">${start-info}${end-info}</span>${track-info}${q-info}${slug-info}</div>
+<div class=\"sched-meta\"><span class=\"sched-time\">${start-info}${end-info}</span>${track-info}${pad-info}${q-info}${slug-info}</div>
 <div class=\"sched-title\"><a href=\"${base-url}${url}\">${title}</a></div>
 ${speaker-info}
 ${resources-info}
@@ -1745,7 +1748,30 @@ ${title-info}
 <pre>mpv https://live0.emacsconf.org:9001/emacsconf/gen.webm
 vlc https://live0.emacsconf.org:9001/emacsconf/gen.webm
 ffplay https://live0.emacsconf.org:9001/emacsconf/gen.webm
-</pre>"
+</pre>
+
+<p>If you experience any disruptions, try reloading the page you're using
+to watch the video. If that still doesn't work, please check our
+status page at <a href=\"https://status.emacsconf.org\">https://status.emacsconf.org</a> for updates on the
+status of various parts of our infrastructure, and instructions on how
+to get in touch with us about disruptions.</p>
+
+<p>If you prefer, you can watch the livestream via Toobnix:
+<a href=\"https://toobnix.org/w/7t9X8eXuSby8YpyEKTb4aj\">General track</a>,
+<a href=\"https://toobnix.org/w/w6K77y3bNMo8xsNuqQeCcD\">Development track</a>.
+Pre-recorded videos and replays will also be available on Toobnix in
+the <a href=\"https://toobnix.org/c/emacsconf\">EmacsConf channel</a>.</p>
+
+<p>To participate in the Q&A, please check the talk page for the Q&A
+details, including the Etherpad link, IRC channel, and optionally
+a BigBlueButton room (BBB) for Q&A. If you plan to participate in
+Q&A in the BigBlueButton room, please use headphones or earphones
+in order to minimize audio feedback. The link on the talk page
+will take you to a waiting room that will automatically refresh
+when the host has opened the Q&A.</p>
+
+"
+
                 "</body></html>"))
       (mapc (lambda (track)
               (make-directory (expand-file-name (format "%s/watch/%s" emacsconf-year (plist-get track :id)) emacsconf-publish-watch-directory) t)
