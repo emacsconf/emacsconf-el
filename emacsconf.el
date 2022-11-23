@@ -100,9 +100,8 @@
 (defun emacsconf-backstage-dired ()
   (interactive)
   (dired emacsconf-backstage-dir "-tl"))
-(defun emacsconf-res-dired ()
-  (interactive)
-  (dired emacsconf-res-dir "-tl"))
+(defun emacsconf-res-dired () (interactive) (dired emacsconf-res-dir "-tl"))
+(defun emacsconf-media-dired () (interactive) (dired emacsconf-public-media-directory "-tl"))
 (defun emacsconf-cache-dired ()
   (interactive)
   (dired emacsconf-cache-dir "-tl"))
@@ -574,6 +573,15 @@
   o)
 
 (defun emacsconf-add-live-info (o)
+  (plist-put o :absolute-url (concat emacsconf-base-url (plist-get o :url)))
+  (plist-put o :in-between-url (format "%s%s/in-between/%s.png"
+                                emacsconf-media-base-url
+                                emacsconf-year
+                                (plist-get o :slug)))
+  (plist-put o :qa-slide-url (format "%s%s/in-between/%s.png"
+                                     emacsconf-media-base-url
+                                     emacsconf-year
+                                     (plist-get o :slug)))
   (let ((track (emacsconf-get-track (plist-get o :track))))
     (when track
       (plist-put o :watch-url (concat emacsconf-base-url emacsconf-year "/watch/" (plist-get track :id))))
@@ -581,13 +589,19 @@
     (plist-put o :webchat-url (concat emacsconf-chat-base "?join=emacsconf," (plist-get track :channel)))
     (plist-put o :bbb-backstage (concat emacsconf-media-base-url emacsconf-year "/backstage/current/room/" (plist-get o :slug)))
     (cond
-     ((string-match "live" (or (plist-get o :q-and-a) ""))
+     ((string= (or (plist-get o :q-and-a) "") "")
+      (plist-put o :qa-info "none")
+      (plist-put o :qa-link "none"))
+     ((string-match "live" (plist-get o :q-and-a))
       (plist-put o :bbb-redirect (format "https://emacsconf.org/current/%s/room/" (plist-get o :slug)))
       (plist-put o :qa-info (plist-get o :bbb-redirect))
       (plist-put o :qa-link (format "<a href=\"%s\">live</a>" (plist-get o :bbb-redirect))))
-     ((string-match "IRC" (or (plist-get o :q-and-a) ""))
+     ((string-match "IRC" (plist-get o :q-and-a))
       (plist-put o :qa-info (concat (emacsconf-surround "nick: " (plist-get o :irc) ", " "")
                                     (plist-get o :channel)))
+      (plist-put o :qa-link (format "<a href=\"%s\">%s</a>" (plist-get o :webchat-url) (plist-get o :qa-info))))
+     ((string-match "Mumble" (plist-get o :q-and-a))
+      (plist-put o :qa-info "Moderated via Mumble, ask questions via pad or IRC")
       (plist-put o :qa-link (format "<a href=\"%s\">%s</a>" (plist-get o :webchat-url) (plist-get o :qa-info))))
      (t (plist-put o :qa-info "none")
         (plist-put o :qa-link "none")))
@@ -1245,64 +1259,6 @@ tracks with the ID in the cdr of that list."
 (defun emacsconf-indent-string (s width)
   "Indent S by WIDTH spaces."
   (replace-regexp-in-string "\\(^\\)[ \t]*\\S-" (make-string width ?\s) s nil nil 1))
-
-(defun emacsconf-shift-hyperlist (params talks &optional do-insert)
-  "Use PARAMS to personalize the shift hyperlist."
-  (mapconcat (lambda (talk)
-               (emacsconf-talk-hyperlist (append (assoc-default (plist-get (emacsconf-get-track talk) :id)
-                                                                params)
-                                                 talk)
-                                         do-insert))
-             talks))
-
-(defun emacsconf-talk-hyperlist (talk &optional do-insert)
-  (interactive (list (emacsconf-complete-talk-info) t))
-  (let ((result
-         (emacsconf-replace-plist-in-string
-          talk
-          (format "- %s %s %s %s\n%s"
-                  (format-time-string "%H:%M" (plist-get talk :start-time) emacsconf-timezone)
-                  (plist-get talk :track)
-                  (plist-get talk :slug)
-                  (plist-get talk :title)
-                  (replace-regexp-in-string
-                   "\\(^\\)[ \t]*\\S-" "  " 
-                   (pcase (or (plist-get talk :q-and-a) "")
-                     ((rx "live")
-                      "- [ ] ${checkin}: Check ${speakers-with-pronouns} (${irc}) into BBB room sometime beforehand
-- [ ] ${stream}: Display the in-between slide
-- [ ] ${host}: Connect to the ${track} channel in Mumble and introduce the talk
-- [ ] ${stream}: [[elisp:(emacsconf-update-talk-status \"${slug}\" \".\" \"PLAYING\")][Play the talk]]
-- [ ] ${host}: Join the Q&A room and open the pad; optionally open IRC for ${channel}
-- [ ] [? speaker missing?] ${host}: Let #emacsconf-org know so that we can text or call the speaker
-- [ ] ${stream}: After the talk, [[elisp:(emacsconf-update-talk-status \"${slug}\" \".\" \"CLOSED_Q\")][open the Q&A window and the pad]], give the host the go-ahead via Mumble or #emacsconf-org
-- [ ] ${host}: Start recording and read questions
-- [ ] ${host}: [[elisp:(emacsconf-update-talk-status \"${slug}\" \".\" \"OPEN_Q\")][Decide when to open the Q&A]] and announce that people can join using the URL on the talk page
-- [? Open Q&A is still going on and it's about five minutes before the next talk]
-  - [ ] ${host}: Let the speaker know about the time and that the Q&A can continue off-stream if people want to join
-- [? Open Q&A is still going on and it's about two minutes before the next talk]
-  - [ ] ${host}: Announce that the Q&A will continue if people want to join the BBB room from the talk page, and the stream will now move to the next talk
-- [? Q&A is done]
-  - [ ] ${host}: [[elisp:(emacsconf-update-talk-status \"${slug}\" \".\" \"TO_ARCHIVE\")][Mark talk as to archive]], close Q&A windows
-- [ ] ${stream}: Close the Q&A windows and move on to the next talk
-")
-                     ((rx "irc")
-                      "- [ ] ${stream}: Display the in-between slide
-- [ ] ${host}: Connect to the ${track} channel in Mumble and introduce the talk
-- [ ] ${stream}: [[elisp:(emacsconf-update-talk-status \"${slug}\" \".\" \"PLAYING\")][Start talk]]
-- [ ] ${stream}: [[elisp:(emacsconf-update-talk-status \"${slug}\" \".\" \"OPEN_Q\")][Open the IRC channel (${channel}) and the pad]]
-- [ ] ${stream}: When it's time for the next talk, close the Q&A windows and move on to the next talk
-")
-                     (_
-                      "- [ ] ${stream}: Display the in-between slide
-- [ ] ${host}: Connect to the ${track} channel in Mumble and introduce the talk
-- [ ] ${stream}: [[elisp:(emacsconf-update-talk-status \"${slug}\" \".\" \"PLAYING\")][Start talk]]
-- [ ] ${stream}: [[elisp:(emacsconf-update-talk-status \"${slug}\" \".\" \"OPEN_Q\")][Open the IRC channel (${channel}) and the pad]]
-- [ ] ${stream}: When it's time for the next talk, close the Q&A windows and move on to the next talk
-"))
-                   nil nil 1)))))
-    (if do-insert (insert result))
-    result))
 
 (defun emacsconf-add-to-logbook (note)
   "Add NOTE as a logbook entry for the current subtree."

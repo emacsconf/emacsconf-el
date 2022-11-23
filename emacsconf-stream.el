@@ -151,11 +151,23 @@ while OTHER-FILENAME will be displayed at other times."
        (plist-get talk :overlay-url)
        (plist-get talk :overlay-bottom)))))
 
+(defun emacsconf-stream-open-in-between-slide (talk)
+  (interactive (list (emacsconf-complete-talk-info)))
+  (let ((default-directory (emacsconf-stream-track-login talk)))
+    (shell-command (concat "firefox " (plist-get talk :in-between-url) "&"))))
+
+(defun emacsconf-stream-open-qa-slide (talk)
+  (interactive (list (emacsconf-complete-talk-info)))
+  (let ((default-directory (emacsconf-stream-track-login talk)))
+    (shell-command (concat "firefox " (plist-get talk :qa-slide-url) "&"))))
+
 (defun emacsconf-stream-open-qa-windows-on-change (talk)
   (interactive (list (emacsconf-complete-talk-info)))
   (when (or (not (boundp 'org-state)) (string= org-state "CLOSED_Q"))
-    (let ((default-directory (emacsconf-stream-track-login talk)))
-      (save-window-excursion
+    (save-window-excursion
+      (if (or (null (plist-get talk :q-and-a))
+              (string-match "Mumble" (plist-get talk :q-and-a)))
+          (emacsconf-stream-open-in-between-slide talk)
         (emacsconf-stream-open-pad talk)
         (emacsconf-stream-join-qa talk)
         (shell-command "i3-msg 'layout splith'")))))
@@ -169,8 +181,17 @@ while OTHER-FILENAME will be displayed at other times."
 (defun emacsconf-stream-play-talk-on-change (talk)
   "Play the talk."
   (when (string= org-state "PLAYING")
-    (save-window-excursion
-      (emacsconf-stream-play-video talk))))
+    (if (plist-get talk :video-file)
+        (save-window-excursion
+          (emacsconf-stream-play-video talk))
+      (let ((default-directory (emacsconf-stream-track-login talk))
+            (async-shell-command-buffer 'new-buffer))
+        (save-window-excursion
+          (shell-command
+           (concat "nohup firefox -new-window "
+	                 (shell-quote-argument
+	                  (plist-get talk :bbb-room))
+	                 " > /dev/null 2>&1 & ")))))))
 
 (defun emacsconf-stream-get-filename (talk)
   "Return the local filename for the video file for TALK.
@@ -210,16 +231,24 @@ Final files should be stored in /data/emacsconf/stream/YEAR/video-slug--main.web
   "Join the Q&A for TALK.
 This uses the BBB room if available, or the IRC channel if not."
   (interactive (list (emacsconf-complete-talk-info)))
-  (let ((default-directory (emacsconf-stream-track-login talk))
-        (async-shell-command-buffer 'new-buffer))
-    (save-window-excursion
-      (shell-command
-       (concat "nohup firefox -new-window "
-	             (shell-quote-argument
-	              (if (string-match (plist-get talk :q-and-a) "IRC")
-                    (plist-get talk :webchat-url)
-                  (plist-get talk :bbb-room)))
-	             " > /dev/null 2>&1 & ")))))
+  (if (and (null (plist-get talk :video-file))
+           (string-match "live" (plist-get talk :q-and-a)))
+      ;; do nothing, streamer should already be in the room
+      (let ((default-directory (emacsconf-stream-track-login talk))
+            (async-shell-command-buffer 'new-buffer))
+        (save-window-excursion
+          (shell-command
+           (concat "nohup firefox -new-window "
+	                 (shell-quote-argument
+                    (pcase (plist-get talk :q-and-a)
+                      ((or nil "" (rx "Mumble"))
+                       (plist-get talk :qa-slide-url))
+                      ((rx "live")
+                       (plist-get talk :bbb-backstage))
+                      ((rx "IRC")
+                       (plist-get talk :webchat-url))
+                      (_ (plist-get talk :qa-slide-url))))
+	                 " > /dev/null 2>&1 & "))))))
 
 (defun emacsconf-stream-join-chat (talk)
   "Join the IRC chat for TALK."

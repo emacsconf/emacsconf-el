@@ -95,6 +95,7 @@
     (emacsconf-publish-info-pages)
     (emacsconf-generate-main-schedule)
     (emacsconf-ical-generate-all)
+    (emacsconf-publish-schedule-org-files)
     (emacsconf-publish-watch-pages)
     (when (functionp 'emacsconf-pentabarf-generate)
       (emacsconf-pentabarf-generate))))
@@ -150,6 +151,56 @@
       (emacsconf-replace-plist-in-string
        talk
        "<div class=\"vid\">${video-html}<div>${extra}</div>${resources}${chapter-list}</div>"))))
+
+;; (emacsconf-publish-format-track-as-org (car emacsconf-tracks) "US/Eastern")
+;; (emacsconf-get-talk-info)
+(defun emacsconf-publish-format-track-as-org (track tz &optional info)
+  (setq info (or info (emacsconf-prepare-for-display (emacsconf-get-talk-info))))
+  (concat
+   "** " (plist-get track :name) "  :" (plist-get track :id) ":\n:PROPERTIES:\n:CATEGORY: " (plist-get track :id) "\n:END:\n"
+   (mapconcat
+    (lambda (talk)
+      (concat
+       "*** " (plist-get talk :title) "\n"
+       "<" (format-time-string
+                       (cdr org-time-stamp-formats)
+                       (plist-get talk :start-time)
+                       tz)
+       ">\n"
+       (emacsconf-surround "- " (plist-get talk :speakers-with-pronouns) "\n" "")
+       (emacsconf-surround "- " (plist-get talk :absolute-url) "\n" "")
+       (emacsconf-surround "- Etherpad: " (plist-get talk :pad-url) "\n" "")
+       (emacsconf-surround "- Q&A: " (plist-get talk :qa-info) "\n" "")
+       (emacsconf-surround "\n" (plist-get talk :intro-note) "\n" "")))
+    (emacsconf-filter-talks-by-track track info)
+    "\n")))
+
+(defun emacsconf-publish-schedule-org-for-timezone (timezone &optional info)
+  (interactive (list (completing-read "Timezone: " emacsconf-timezones)))
+  (let ((new-filename (expand-file-name
+                       (concat "schedule-"
+                               (replace-regexp-in-string
+                                "[^a-z]+" "-"
+                                (downcase timezone))
+                               ".org")
+                       (expand-file-name "schedules"
+                                         emacsconf-public-media-directory))))
+    (unless (file-directory-p (file-name-directory new-filename))
+      (make-directory (file-name-directory new-filename)))
+    (with-temp-file new-filename
+      (insert
+       "* " emacsconf-name " " emacsconf-year "\n\nTimes are in " timezone " timezone. You can find this file and other calendars at "
+       emacsconf-media-base-url emacsconf-year "/schedules/ .\n\n"
+       (mapconcat (lambda (track)
+                    (emacsconf-publish-format-track-as-org track timezone info))
+                  emacsconf-tracks
+                  "\n")))))
+
+(defun emacsconf-publish-schedule-org-files (&optional info)
+  (interactive)
+  (setq info (or info (emacsconf-prepare-for-display (emacsconf-get-talk-info))))
+  (mapc (lambda (tz) (emacsconf-publish-schedule-org-for-timezone tz info))
+        emacsconf-timezones))
 
 (defun emacsconf-publish-format-res-talks (info)
   (mapconcat
