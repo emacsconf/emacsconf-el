@@ -386,10 +386,11 @@
                        ;; Captioning
                        (:captioner "CAPTIONER")
                        (:caption-note "CAPTION_NOTE")
-                       (:intro-note "INTRO_NOTE")
                        ;; Conference
                        (:check-in "CHECK_IN")
                        (:public "PUBLIC")
+                       (:intro-note "INTRO_NOTE")
+                       (:hyperlist-note "HYPERLIST_NOTE")
                        ;; Extraction
                        (:qa-youtube "QA_YOUTUBE")
                        (:qa-toobnix "QA_TOOBNIX")
@@ -578,6 +579,7 @@
       (plist-put o :watch-url (concat emacsconf-base-url emacsconf-year "/watch/" (plist-get track :id))))
     (plist-put o :channel (plist-get track :channel))
     (plist-put o :webchat-url (concat emacsconf-chat-base "?join=emacsconf," (plist-get track :channel)))
+    (plist-put o :bbb-backstage (concat emacsconf-media-base-url emacsconf-year "/backstage/current/room/" (plist-get o :slug)))
     (cond
      ((string-match "live" (or (plist-get o :q-and-a) ""))
       (plist-put o :bbb-redirect (format "https://emacsconf.org/current/%s/room/" (plist-get o :slug)))
@@ -967,8 +969,7 @@
 ;; (emacsconf-ansible-load-vars (expand-file-name "prod-vars.yml" emacsconf-ansible-directory))
 ;;; Tracks
 (defvar emacsconf-tracks
-  '(
-    (:name "General" :color "peachpuff" :id "gen" :channel "emacsconf-gen"
+  '((:name "General" :color "peachpuff" :id "gen" :channel "emacsconf-gen"
            :watch "https://live.emacsconf.org/2022/watch/gen/"
 				   :tramp "/ssh:emacsconf-gen@res.emacsconf.org#46668:"
            :start "09:00" :end "17:00"

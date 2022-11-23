@@ -412,12 +412,38 @@ ${next-talk-list}
            talk)
    (pcase (or (plist-get talk :q-and-a) "")
      ((rx "live")
-      "<li><strong>${time}</strong> <em>${checkin}:</em> Double-check ${speakers} checked into ${bbb-room}; let #emacsconf-org know if not</li>")
+      "<li><strong>${time}</strong> <em>${checkin}:</em> By this time, ${speakers} should be checked into ${bbb-backstage} and set as moderator(s); let #emacsconf-org know if they're missing</li>")
      ((rx "IRC")
       "<li><strong>${time}</strong> <em>${checkin}:</em> Double-check ${speakers} in ${channel}; let #emacsconf-org know if not</li>")
      ((rx "Mumble")
       "<li><strong>${time}</strong> <em>${checkin}:</em> Double-check ${speakers} on Mumble; let #emacsconf-org know if not</li>")
      (_ ""))))
+
+(defun emacsconf-pad-prepopulate-checkins (&optional info)
+  (interactive)
+  (setq info (or info (emacsconf-prepare-for-display info)))
+  (mapc (lambda (day)
+          (let ((pad-id (concat "checkin-" (downcase (format-time-string "%a" (plist-get (cadr day) :checkin-time))))))
+            (emacsconf-create-pad)
+            (emasconf-set-pad)
+            (concat "<ul>"
+                    (mapconcat
+                     (lambda (talk)
+                       (emacsconf-pad-format-checkin-hyperlist talk)
+                       )
+                     (seq-sort
+                      (lambda (a b)
+                        (time-less-p (plist-get a :checkin-time)
+                                     (plist-get b :checkin-time)))
+                      (seq-filter (lambda (talk) (plist-get talk :checkin-time)) info))
+                     "\n")
+                    "</ul>"))
+          )
+        (seq-group-by (lambda (talk)
+                        (format-time-string "%A, %b %-e, %Y" (plist-get talk :checkin-time)))
+                      info))))
+
+  )
 
 (defun emacsconf-pad-prepopulate-shift-hyperlist (shift &optional info)
   (interactive (list (completing-read "Shift: "
@@ -464,7 +490,7 @@ ${next-talk-list}
          (result
           (emacsconf-replace-plist-in-string
            modified-talk
-           (format "<li><strong>%s export SLUG=%s %s <a href=\"%s%s\">%s%s</a></strong>\n%s</li>"
+           (format "<li><strong>%s export SLUG=%s %s <a href=\"%s%s\">%s%s</a></strong>\n<ul>%s%s</ul></li>"
                    (format-time-string "%H:%M" (plist-get talk :start-time) emacsconf-timezone)
                    (plist-get talk :slug)
                    (plist-get talk :title)
@@ -472,11 +498,12 @@ ${next-talk-list}
                    (plist-get talk :url)
                    emacsconf-base-url
                    (plist-get talk :url)
+                   (emacsconf-surround
+                    "<div><strong>" (plist-get talk :hyperlist-note) "</strong></div>"
+                    "")
                    (pcase (or (plist-get talk :q-and-a) "")
                      ((rx "live")
-                      "<ul>
-<li>[ ] ${checkin}: Check ${speakers-with-pronouns} (${irc}) into ${bbb-room} sometime beforehand and make them a moderator</li>
-<li>[ ] ${stream}: Display the in-between slide <a href=\"https://media.emacsconf.org/${year}/in-between/${slug}.png\">https://media.emacsconf.org/${year}/in-between/${slug}.png</a></li>
+                      "<li>[ ] ${stream}: Display the in-between slide <a href=\"https://media.emacsconf.org/${year}/in-between/${slug}.png\">https://media.emacsconf.org/${year}/in-between/${slug}.png</a></li>
 <li>[ ] ${host}: Connect to the ${mumble} channel in Mumble and introduce the talk: <strong>${intro-note}</strong></li>
 <li>[ ] ${stream}: Start playing the talk: ${ssh-playing}</li>
 <li>[ ] ${host}: Join the Q&A room at <a href=\"${bbb-room}\">${bbb-room}</a> and open the pad at <a href=\"${pad-url}\">${pad-url}</a>; optionally open IRC for ${channel} (<a href=\"${webchat-url}\">${webchat-url}</a>)</li>
@@ -496,23 +523,21 @@ ${next-talk-list}
   <ul>
   <li>[ ] ${stream}: Mark the talk as archived: ${ssh} \"~/current/scripts/update-task-status.sh ${slug} . TO_ARCHIVE\"</li>
 </ul>
-<li>[ ] ${stream}: Close the Q&A windows and move on to the next talk</li></ul>
+<li>[ ] ${stream}: Close the Q&A windows and move on to the next talk</li>
 ")
                      ((rx "irc")
-                      "
-<ul><li>[ ] ${stream}: Display the in-between slide <a href=\"https://media.emacsconf.org/${year}/in-between/${slug}.png\">https://media.emacsconf.org/${year}/in-between/${slug}.png</a></li>
+                      "<li>[ ] ${stream}: Display the in-between slide <a href=\"https://media.emacsconf.org/${year}/in-between/${slug}.png\">https://media.emacsconf.org/${year}/in-between/${slug}.png</a></li>
 <li>[ ] ${host}: Connect to the ${mumble} channel in Mumble and introduce the talk</li>
 <li>[ ] ${stream}: ${ssh-playing}</li>
 <li>[ ] ${stream}: Open the IRC channel (${channel}) and the pad, and arrange the windows: ${ssh-closedq}</li>
-<li>[ ] ${stream}: When it's time for the next talk, close the Q&A windows and move on to the next talk</li></ul>
+<li>[ ] ${stream}: When it's time for the next talk, close the Q&A windows and move on to the next talk</li>
 ")
                      (_
-                      "<ul><li>[ ] ${stream}: Display the in-between slide <a href=\"https://media.emacsconf.org/${year}/in-between/${slug}.png\">https://media.emacsconf.org/${year}/in-between/${slug}.png</a></li>
+                      "<li>[ ] ${stream}: Display the in-between slide <a href=\"https://media.emacsconf.org/${year}/in-between/${slug}.png\">https://media.emacsconf.org/${year}/in-between/${slug}.png</a></li>
 <li>[ ] ${host}: Connect to the ${mumble} channel in Mumble and introduce the talk</li>
 <li>[ ] ${stream}: Start the talk: ${ssh-playing}</li>
 <li>[ ] ${stream}: Open the IRC channel (${channel}) and the pad, and arrange the windows: ${ssh-closedq}</li>
 <li>[ ] ${stream}: When it's time for the next talk, close the Q&A windows and move on to the next talk</li>
-</ul>
 "))))))
     (if do-insert (insert result))
     result))
