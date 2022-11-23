@@ -114,7 +114,7 @@
   (with-temp-file (expand-file-name "emacsconf.ics"
                                     (or emacsconf-ical-public-directory
                                         (expand-file-name emacsconf-year emacsconf-directory)))
-    (insert (emacsconf-format-as-ical (or info (emacsconf-get-talk-info))))))
+    (insert (emacsconf-format-as-ical (emacsconf-prepare-for-display (or info (emacsconf-get-talk-info)))))))
 
 (defun emacsconf-ical-generate-tracks (&optional info)
   (interactive)
@@ -125,6 +125,6 @@
                                                 (or emacsconf-ical-public-directory
                                                     (expand-file-name emacsconf-year emacsconf-directory)))
                 (insert (emacsconf-format-as-ical (cdr entry)))))))
-        (seq-group-by (lambda (o) (plist-get o :track)) (or info (emacsconf-get-talk-info)))))
+        (seq-group-by (lambda (o) (plist-get o :track)) (emacsconf-prepare-for-display (or info (emacsconf-get-talk-info))))))
 
 (provide 'emacsconf-ical)
