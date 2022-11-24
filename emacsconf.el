@@ -385,6 +385,7 @@
                        ;; Captioning
                        (:captioner "CAPTIONER")
                        (:caption-note "CAPTION_NOTE")
+                       (:captions-edited "CAPTIONS_EDITED")
                        ;; Conference
                        (:check-in "CHECK_IN")
                        (:public "PUBLIC")
@@ -516,6 +517,10 @@
               (split-string "PLAYING CLOSED_Q OPEN_Q UNSTREAMED_Q TO_ARCHIVE TO_EXTRACT TO_FOLLOW_UP DONE"))
       (plist-put o :public t))
   o)
+
+(defun emacsconf-talk-live-p (talk)
+  "Return non-nil if TALK is ready to be published."
+  (plist-get talk :public))
 
 (defun emacsconf-test-public-states ()
   (let ((states (split-string (replace-regexp-in-string "(.*?)" "" "TODO(t) TO_REVIEW TO_ACCEPT TO_CONFIRM WAITING_FOR_PREREC(w) TO_PROCESS(p) TO_AUTOCAP(y) TO_ASSIGN(a) TO_CAPTION(c) TO_STREAM(s) PLAYING(m) CLOSED_Q(q) OPEN_Q(o) UNSTREAMED_Q(u) TO_ARCHIVE TO_EXTRACT TO_FOLLOW_UP"))))
@@ -1089,6 +1094,14 @@ Filter by TRACK if given.  Use INFO as the list of talks."
             (throw 'error "Unknown talk BBB state"))
       'irc)))
 
+(defun emacsconf-captions-edited-p (filename)
+  "Return non-nil if FILENAME has been edited and is okay for inclusion."
+  (and (file-exists-p filename)
+       (with-temp-buffer
+         (insert-file-contents filename)
+         (goto-char (point-min))
+         (re-search-forward "captioned by" (line-end-position) t))))
+
 (defvar emacsconf-bbb-base-url "https://bbb.emacsverse.org/" "Include trailing slash.")
 (defun emacsconf-bbb-room-title-list (&optional info)
   (delq nil
@@ -1205,13 +1218,16 @@ Filter by TRACK if given.  Use INFO as the list of talks."
                  #'emacsconf-org-after-todo-state-change  t)))
 
 (defvar emacsconf-todo-hooks
-  '((emacsconf-stream-play-talk-on-change "gen") ;; play the talk - dev will be managed separately
-    (emacsconf-stream-open-qa-windows-on-change "gen")
+  '((emacsconf-stream-play-talk-on-change "gen" "dev")
+    (emacsconf-stream-open-qa-windows-on-change "gen" "dev")
     ;; emacsconf-erc-announce-on-change ;; announce via ERC
     emacsconf-publish-media-files-on-change
-    emacsconf-publish-bbb-redirect
-    emacsconf-publish-backstage-org-on-state-change ;; update the backstage index
-    emacsconf-stream-update-talk-info-on-change ;; write to the talk text
+    ;; emacsconf-publish-bbb-redirect
+    emacsconf-publish-update-talk
+    ;; emacsconf-publish-backstage-org-on-state-change ;; update the backstage index
+    
+    emacsconf-stream-update-talk-info-on-change
+    ;; write to the talk text
     )
   "Functions to run when the todo state changes.
 They will be called with TALK.")
