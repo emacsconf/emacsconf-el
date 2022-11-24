@@ -323,14 +323,17 @@ ${next-talk-list}
   (let* ((prefixed (list
                     :start (plist-get shift :start)
                     :end (plist-get shift :end)
+                    :base-url emacsconf-base-url
                     :year emacsconf-year
-                    :host (emacsconf-surround "HOST-" (plist-get shift :host) "" "HOST")
-                    :stream (emacsconf-surround "STREAM-" (plist-get shift :streamer) "" "STREAM")
-                    :irc-volunteer (emacsconf-surround "IRC-" (plist-get shift :irc) "" "IRC")
+                    :host (format "<em>%s</em>"
+                                  (emacsconf-surround "HOST-" (plist-get shift :host) "" "HOST"))
+                    :stream (format "<em>%s</em>"
+                                    (emacsconf-surround "STREAM-" (plist-get shift :streamer) "" "STREAM"))
+                    :irc-volunteer (format "<em>%s</em>" (emacsconf-surround "IRC-" (plist-get shift :irc) "" "IRC"))
                     :track-id (plist-get (emacsconf-get-track (plist-get shift :track)) :id)
-                    :checkin (emacsconf-surround "CHECKIN-" (plist-get shift :checkin) "" "CHECKIN")
-                    :pad (emacsconf-surround "PAD-" (plist-get shift :pad) "" "PAD")
-                    :coord (emacsconf-surround "COORD-" (plist-get shift :coord) "" "COORD")
+                    :checkin (format "<em>%s</em>" (emacsconf-surround "CHECKIN-" (plist-get shift :checkin) "" "CHECKIN"))
+                    :pad (format "<em>%s</em>" (emacsconf-surround "PAD-" (plist-get shift :pad) "" "PAD"))
+                    :coord (format "<em>%s</em>" (emacsconf-surround "COORD-" (plist-get shift :coord) "" "COORD"))
                     :checkin-pad (concat emacsconf-pad-base "checkin-" (downcase (format-time-string "%a" (date-to-time (plist-get shift :start)))))))
          (shift-talks
           (mapcar (lambda (o) (append prefixed o))
@@ -352,12 +355,14 @@ ${next-talk-list}
       prefixed
       (concat
        "
+<p>Ctrl-5 is the shortcut for striking through on Etherpad.</p>
+
 <strong>Setup</strong>
 <ul>
-<li>[ ] <em>${checkin}:</em> Open ${checkin-pad}</li>
-<li>[ ] <em>${irc-volunteer}:</em> Watch the #emacsconf-${track-id} channel</li>
-<li>[ ] <em>${pad}:</em> Open the index: https://media.emacsconf.org/${year}/backstage/index-${track-id}.html</li>
-<li>[ ] <em>${stream}:</em> Start streaming with OBS
+<li>[ ] ${checkin}: Open ${checkin-pad}</li>
+<li>[ ] ${irc-volunteer}: Watch the #emacsconf-${track-id} channel and open ${base-url}${year}/talks for links to the pads</li>
+<li>[ ] ${pad}: Open ${base-url}${year}/talks for links to the pads</li>
+<li>[ ] ${stream}: Start recording with OBS
 <ul><li>[ ] Set up the local environment
 <ul><li>[? gen] export TRACK=gen; export TRACK_PORT=5905; export SSH_PORT=46668</li>
 <li>[? dev] export TRACK=dev; export TRACK_PORT=5906; export SSH_PORT=46668</li></ul></li>
@@ -367,15 +372,21 @@ ${next-talk-list}
 <ul>
 <li>[? Can't connect to VNC]: ssh emacsconf-$TRACK@res.emacsconf.org -p $SSH_PORT /home/emacsconf-$TRACK/bin/track-vnc</li>
 <li>[? Can't find OBS]: track-obs</li></ul></li>
+<li>[ ] Start background music via SSH or VNC: ~/bin/start-background-music
+<ul><li>[? No audio device]:
+<ul><li><em>pulseaudio -k; pulseaudio --start</em></li>
+<li>quit OBS</li>
+<li><em>track-obs</em></li></ul></li>
 <li>[ ] Start recording (not streaming). (Alt-2, switch to workspace 2; Alt-Shift-2, move something to workspace 2).</li>
 <li>[ ] Watch the stream with MPV on your local system: mpv https://live0.emacsconf.org/emacsconf/$TRACK.webm &</li>
-<li>[ ] Check 480p: mpv https://live0.emacsconf.org/emacsconf/$TRACK-480p.webm &</li>
+<li>[ ] Check 480p by viewing it : mpv https://live0.emacsconf.org/emacsconf/$TRACK-480p.webm &</li>
 <li>[ ] Confirm that the streaming user has connected to Mumble, is in the ${channel} channel, and can hear what we say on Mumble.</li>
-<li>[ ] Test with a sample video or Q&A session: ssh emacsconf-$TRACK@res.emacsconf.org -p 46668 \"~/bin/track-mpv meetups &\"</li>
+<li>[ ] Test with a sample video or Q&A session. You can run this command on your local system if you want to do things off-screen: <strong>ssh emacsconf-$TRACK@res.emacsconf.org -p 46668 \"~/bin/track-mpv meetups &\"</strong></li>
+<li>[ ] ${stream}: Restart the background music via SSH or VNC: <em>~/bin/start-background-music</em>  . The background music should automatically get killed when the talks start, but if it doesn't, you can stop it with: <em>screen -S background -X quit</em></li>
 </ul></li>
-<li>[ ] <em>${coord}:</em> ssh -t orga@live0.emacsconf.org 'screen -S restream-${track-id}-youtube /home/orga/restream-${track-id}-youtube.sh' and then confirm</li>
-<li>[ ] <em>${coord}:</em> ssh -t orga@live0.emacsconf.org 'screen -S restream-${track-id}-toobnix /home/orga/restream-${track-id}-toobnix.sh' and then confirm</li>
-<li>[ ] <em>${coord}:</em> update the status page on live.emacsconf.org by changing emacsconf-tracks and calling emacsconf-stream-update-status-page</li>
+<li>[ ] ${coord}: ssh -t orga@live0.emacsconf.org 'screen -S restream-${track-id}-youtube /home/orga/restream-${track-id}-youtube.sh' and then confirm</li>
+<li>[ ] ${coord}: ssh -t orga@live0.emacsconf.org 'screen -S restream-${track-id}-toobnix /home/orga/restream-${track-id}-toobnix.sh' and then confirm</li>
+<li>[ ] ${coord}: update the status page on live.emacsconf.org by changing emacsconf-tracks and calling emacsconf-stream-update-status-page</li>
 </ul>
 "
        "<strong>Talks</strong>
@@ -389,10 +400,10 @@ ${next-talk-list}
        "</ul>"
        "Teardown
 <ul>
-<li>[ ] <em>${stream}:</em> stop recording</li>
-<li>[ ] <em>${coord}:</em> stop the restream-${track-id}-youtube screen on live0: <strong>screen -S restream-${track-id}-youtube -X quit</strong></li>
-<li>[ ] <em>${coord}:</em> stop the restream-${track-id}-toobnix screen on live0: <strong>screen -S restream-${track-id}-toobnix -X quit</strong></li>
-<li>[ ] <em>${coord}:</em> update the status page on live.emacsconf.org by changing emacsconf-tracks and calling emacsconf-stream-update-status-page</li>
+<li>[ ] ${stream}: stop recording</li>
+<li>[ ] ${coord}: stop the restream-${track-id}-youtube screen on live0: <strong>screen -S restream-${track-id}-youtube -X quit</strong></li>
+<li>[ ] ${coord}: stop the restream-${track-id}-toobnix screen on live0: <strong>screen -S restream-${track-id}-toobnix -X quit</strong></li>
+<li>[ ] ${coord}: update the status page on live.emacsconf.org by changing emacsconf-tracks and calling emacsconf-stream-update-status-page</li>
 </ul>"))
      )))
 
@@ -405,11 +416,11 @@ ${next-talk-list}
            talk)
    (pcase (or (plist-get talk :q-and-a) "")
      ((rx "live")
-      "<li>[ ] <strong>${time}</strong> <em>${checkin}:</em> ${speakers} should be checked into ${bbb-backstage} and set as moderator(s) for talk time of ${start}</li>")
+      "<li>[ ] <strong>${time}</strong> ${checkin}: ${speakers} should be checked into ${bbb-backstage} and set as moderator(s) for talk time of ${start}</li>")
      ((rx "IRC")
-      "<li>[ ] <strong>${time}</strong> <em>${checkin}:</em> ${speakers} should be in #${channel} (${irc-nick}) for talk time of ${start}</li>")
+      "<li>[ ] <strong>${time}</strong> ${checkin}: ${speakers} should be in #${channel} (${irc-nick}) for talk time of ${start}</li>")
      ((rx "Mumble")
-      "<li>[ ] <strong>${time}</strong> <em>${checkin}:</em> ${speakers} should be Mumble for talk time of ${start}</li>")
+      "<li>[ ] <strong>${time}</strong> ${checkin}: ${speakers} should be Mumble for talk time of ${start}</li>")
      (_ ""))))
 
 (defun emacsconf-pad-prepopulate-checkins (&optional info)

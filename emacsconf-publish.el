@@ -930,6 +930,7 @@ Entries are sorted chronologically, with different tracks interleaved."
                          :speakers (plist-get o :speakers)
                          :q-and-a (plist-get o :q-and-a)
                          :qa-link (plist-get o :qa-link)
+                         :watch (plist-get o :watch-url)
                          :note
                          (string-join
                           (delq nil
@@ -1714,7 +1715,7 @@ This video is available under the terms of the Creative Commons Attribution-Shar
    (mapconcat (lambda (track)
                 (emacsconf-replace-plist-in-string
                  track
-                 "<tr><td><a href=\"/${year}/watch/${id}\">${name}</a></td><td><a href=\"${webchat}\">${channel}</a></td><td><a href=\"${stream}\">${stream}</a></td><td><a href=\"${480p}\">${id}-480p.webm</a></tr>"))
+                 "<tr><td><div class=\"sched-track ${name}\"><a href=\"/${year}/watch/${id}\">${name}</a></div></td><td><a href=\"${webchat}\">${channel}</a></td><td><a href=\"${stream}\">${stream}</a></td><td><a href=\"${480p}\">${id}-480p.webm</a></tr>"))
               emacsconf-tracks
               "\n")
    "</table>\n\n"

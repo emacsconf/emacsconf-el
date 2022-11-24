@@ -600,7 +600,7 @@
      ((string-match "live" (plist-get o :q-and-a))
       (plist-put o :bbb-redirect (format "https://emacsconf.org/current/%s/room/" (plist-get o :slug)))
       (plist-put o :qa-info (plist-get o :bbb-redirect))
-      (plist-put o :qa-link (format "<a href=\"%s\">live</a>" (plist-get o :bbb-redirect))))
+      (plist-put o :qa-link (format "<a href=\"%s\">BBB</a>" (plist-get o :bbb-redirect))))
      ((string-match "IRC" (plist-get o :q-and-a))
       (plist-put o :qa-info (concat (emacsconf-surround "nick: " (plist-get o :irc) ", " "")
                                     (plist-get o :channel)))
