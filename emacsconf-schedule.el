@@ -642,16 +642,24 @@ Both start and end time are tested."
   "Write the proposed schedule to FILENAME using the variables in VARLIST.
 If emacsconf-schedule-apply is non-nil, update `emacsconf-org-file' and the wiki."
   (declare (debug t))
-  `(let* (,@varlist)
-     (let* ((schedule (emacsconf-schedule-prepare arranged))
-            (info (if emacsconf-schedule-expected-talks
-                      (emacsconf-schedule-inflate-sexp emacsconf-schedule-expected-talks)
-                    (emacsconf-get-talk-info)))
-            (validation (or (emacsconf-schedule-validate schedule info) "")))
-       (with-temp-file ,filename
-         (svg-print (emacsconf-schedule-svg 800 200 schedule)))
-       (clear-image-cache)
-       (mapconcat (lambda (o) (format "- %s\n" o)) (append validation (list (format "[[file:%s]]" filename)))))))
+  `(prog1
+     (let* (,@varlist)
+       (let* ((schedule (emacsconf-schedule-prepare arranged))
+              (info (if emacsconf-schedule-expected-talks
+                        (emacsconf-schedule-inflate-sexp emacsconf-schedule-expected-talks)
+                      (emacsconf-get-talk-info)))
+              (validation (or (emacsconf-schedule-validate schedule info) "")))
+         (when (and (boundp 'emacsconf-schedule-apply) emacsconf-schedule-apply)
+           (emacsconf-schedule-update-from-info schedule))
+         (with-temp-file ,filename
+           (svg-print (emacsconf-schedule-svg 800 200 schedule)))
+         (clear-image-cache)
+         (mapconcat (lambda (o) (format "- %s\n" o)) (append validation (list (format "[[file:%s]]" filename))))))
+     (when (and (boundp 'emacsconf-schedule-apply) emacsconf-schedule-apply)
+       (emacsconf-publish-before-pages)
+       (emacsconf-publish-schedule)
+       ;; (emacsconf-update-schedule)
+       )))
 
 (defun emacsconf-schedule-format-summary-row (o)
   (pcase emacsconf-focus

@@ -589,9 +589,11 @@
                                      (plist-get o :slug)))
   (let ((track (emacsconf-get-track (plist-get o :track))))
     (when track
-      (plist-put o :watch-url (concat emacsconf-base-url emacsconf-year "/watch/" (plist-get track :id))))
+      (plist-put o :watch-url (concat emacsconf-base-url emacsconf-year "/watch/" (plist-get track :id)))
+      (plist-put o :webchat-url (concat emacsconf-chat-base "?join=emacsconf,"
+                                      (replace-regexp-in-string "#" ""
+                                                                (plist-get track :channel)))))
     (plist-put o :channel (plist-get track :channel))
-    (plist-put o :webchat-url (concat emacsconf-chat-base "?join=emacsconf," (plist-get track :channel)))
     (plist-put o :bbb-backstage (concat emacsconf-media-base-url emacsconf-year "/backstage/current/room/" (plist-get o :slug)))
     (cond
      ((string= (or (plist-get o :q-and-a) "") "")
@@ -602,12 +604,17 @@
       (plist-put o :qa-info (plist-get o :bbb-redirect))
       (plist-put o :qa-link (format "<a href=\"%s\">BBB</a>" (plist-get o :bbb-redirect))))
      ((string-match "IRC" (plist-get o :q-and-a))
-      (plist-put o :qa-info (concat (emacsconf-surround "nick: " (plist-get o :irc) ", " "")
-                                    (plist-get o :channel)))
+      (plist-put o :qa-info (concat "#" (plist-get o :channel) 
+                                    (emacsconf-surround ", speaker nick: " (plist-get o :irc) "")))
       (plist-put o :qa-link (format "<a href=\"%s\">%s</a>" (plist-get o :webchat-url) (plist-get o :qa-info))))
      ((string-match "Mumble" (plist-get o :q-and-a))
       (plist-put o :qa-info "Moderated via Mumble, ask questions via pad or IRC")
       (plist-put o :qa-link (format "<a href=\"%s\">%s</a>" (plist-get o :webchat-url) (plist-get o :qa-info))))
+     ((string-match "pad" (plist-get o :q-and-a))
+      (plist-put o :qa-info "Etherpad")
+      (plist-put o :qa-link (format "<a href=\"%s\">%s</a>"
+                                    (plist-get o :pad-url)
+                                    (plist-get o :qa-info))))
      (t (plist-put o :qa-info "none")
         (plist-put o :qa-link "none")))
     (plist-put o :pad-url (format "https://pad.emacsconf.org/%s-%s" emacsconf-year (plist-get o :slug)))
