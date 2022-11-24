@@ -241,7 +241,7 @@ This uses the BBB room if available, or the IRC channel if not."
            (concat "nohup firefox -new-window "
 	                 (shell-quote-argument
                     (pcase (plist-get talk :q-and-a)
-                      ((or nil "" (rx "Mumble"))
+                      ((or 'nil "" (rx "Mumble"))
                        (plist-get talk :qa-slide-url))
                       ((rx "live")
                        (plist-get talk :bbb-backstage))
