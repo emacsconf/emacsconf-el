@@ -492,8 +492,11 @@ resources."
                              ""))
                    :pad-info
                    (if emacsconf-publish-include-pads
-                       (format "Pad: <https://pad.emacsconf.org/%s-%s>  \n" emacsconf-year (plist-get o :slug))
+                       (format "Etherpad: <https://pad.emacsconf.org/%s-%s>  \n" emacsconf-year (plist-get o :slug))
                      "")
+                   :irc-info
+                   (format "Discuss on IRC: [#%s](%s)  \n" (plist-get o :channel)
+                           (plist-get o :webchat-url))
                    :status-info
                    (if (member emacsconf-publishing-phase '(program schedule)) (format "Status: %s  \n" (plist-get o :status-label)) "")
                    :schedule-info
@@ -517,7 +520,7 @@ resources."
      (concat
       "[[!toc  ]]
 Format: ${format}
-${pad-info}${status-info}${schedule-info}\n" 
+${pad-info}${irc-info}${status-info}${schedule-info}\n" 
       (if (plist-get o :alternate-apac)
           (format "[[!inline pages=\"internal(%s/inline-alternate)\" raw=\"yes\"]]  \n" emacsconf-year)
         "")
@@ -560,7 +563,8 @@ ${pad-info}${status-info}${schedule-info}\n"
     (let ((is-live (emacsconf-talk-live-p talk)))
       (when is-live (emacsconf-publish-captions-in-wiki talk))
       (when (eq emacsconf-publishing-phase 'schedule)
-        (insert "\n"
+        (insert "\nThe following image shows where the talk is in the schedule for "
+                (format-time-string "%a %Y-%m-%d" (plist-get talk :start-time) emacsconf-timezone) ". Solid lines show talks with Q&A via BigBlueButton. Lashed lines show talks with Q&A via IRC or Etherpad."
                 (format "<div class=\"schedule-in-context schedule-svg-container\" data-slug=\"%s\">\n" (plist-get talk :slug))           
                 (let* ((width 800) (height 150)
                        (talk-date (format-time-string "%Y-%m-%d" (plist-get talk :start-time) emacsconf-timezone))
@@ -1820,12 +1824,15 @@ ${title-info}
       "<div>${brief}</div>
 <div class=\"pad-output\"></div>
 <hr size=\"1\"><div>" (emacsconf-publish-page-nav nav "chat") " | ${stream-nav}</div>"
-"<div>Chat: <a href=\"${webchat}\">${channel}</a> on libera.chat</div>
+      "<div>Chat: <a href=\"${webchat}\">${channel}</a> on libera.chat</div>
 
 <div class=\"chat-iframe\" data-track=\"${id}\"></div>
 <iframe src=\"${webchat}\" height=\"600\" width=\"100%\"></iframe>
 <hr size=\"1\"><div>" (emacsconf-publish-page-nav nav "sched") " | ${stream-nav}</div>"
-"
+      "
+<ul>Legend:
+<li>Solid lines: Q&A will be through a BigBlueButton room (you can ask questions there or through IRC/Etherpad)</li>
+<li>Dashed lines: Q&A will be over IRC or the Etherpad, or the speaker will follow up afterwards</li></ul>
 <div>${sched}</div>
 <div>${talks}</div>
 "))))
