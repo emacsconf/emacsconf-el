@@ -473,6 +473,39 @@ ${next-talk-list}
             (emacsconf-pad-prepopulate-shift-hyperlists info))
           emacsconf-shifts)))
 
+(defun emacsconf-pad-expand-intro (talk)
+  (cond
+   ((null (plist-get talk :speakers))
+    (format "Next up, we have \"%s\"." (plist-get talk :title)))
+   ((plist-get talk :intro-note)
+    (format "The next talk is called \"%s\". %s" (plist-get talk :title)
+            (plist-get talk :intro-note)))
+   (t
+    (let ((pronoun (pcase (plist-get talk :pronouns)
+                     ((rx "she") "She")
+                     ((rx "they") "They")
+                     ((rx "she") "He")
+                     (_ (or (plist-get talk :pronouns) "")))))
+      (format "The next talk is called \"%s\"\", by %s.%s" (plist-get talk :title)
+              (replace-regexp-in-string ", \\([^,]+\\)$"
+                                        ", and \\1"
+                                        (plist-get talk :speakers))
+              (pcase (plist-get talk :q-and-a)
+                ((or 'nil "") "")
+                ((rx "after") " We'll collect questions via Etherpad and IRC to send to the speaker, and we'll post the speaker's answers on the talk page afterwards.")
+                ((rx "IRC")
+                 (format " %s will answer questions via IRC in the #%s channel."
+                         pronoun
+                         (plist-get talk :channel)))
+                ((rx "Mumble")
+                 (format " %s will answer questions via Etherpad."
+                         pronoun
+                         ))
+                ((rx "live")
+                 (format " %s will answer questions via BigBlueButton. You can join using the URL from the talk page or ask questions through Etherpad or IRC."
+                         pronoun
+                         ))))))))
+
 ;; Related: emacsconf-talk-hyperlist
 (defun emacsconf-pad-talk-hyperlist (talk &optional do-insert)
   (interactive (list (emacsconf-complete-talk-info) t))
@@ -484,6 +517,13 @@ ${next-talk-list}
            (list
             :year emacsconf-year
             :track-id track-id
+            :intro-note
+            (emacsconf-pad-expand-intro talk)
+            (if (plist-get talk :intro-note)
+                (format "The next talk is called \"%s\". %s" (plist-get talk :title)
+                        (plist-get talk :intro-note))
+              (format "The next talk is called \"%s\", by %s." (plist-get talk :title)
+                      (plist-get talk :speakers)))
             :media-base emacsconf-media-base-url
             :mumble (concat emacsconf-id "-" track-id)
             :next-talk-in-5 (if next-talk (format-time-string "%H:%M" (time-subtract (plist-get next-talk :start-time) (seconds-to-time 300)) emacsconf-timezone) "")
@@ -580,13 +620,16 @@ ${next-talk-list}
   (emacsconf-pad-create-pad "intros")
   (emacsconf-pad-set-html
    "intros"
-   (concat "<p>https://media.emacsconf.org/2022/backstage/</p><ul>"
+   (concat "<p>https://media.emacsconf.org/2022/backstage/</p>
+This page is for easy reference and recording. Please make sure any changes here are reflected in the INTRO_NOTE property of the talk.
+<ul>"
            (mapconcat
             (lambda (o)
               (emacsconf-replace-plist-in-string
-               (append (list :full-url (concat emacsconf-base-url (plist-get o :url))) o)
-               "<li>${slug} - ${track}: ${title} (${speakers-with-pronouns}, Q&amp;A: ${q-and-a})<ul><li>${full-url}</li><li>Intro: ${intro-note}</li></ul></li>"))
+               (append (list :intro-note (emacsconf-pad-expand-intro o)) o)
+               "<li>${slug} - ${track}: ${title} (${speakers-with-pronouns}, Q&amp;A: ${q-and-a})<ul><li>${absolute-url}</li><li>Intro: ${intro-note}</li></ul></li>"))
             (emacsconf-prepare-for-display (emacsconf-get-talk-info)))
            "</ul>")))
+
 (provide 'emacsconf-pad)
 ;;; emacsconf-pad.el ends here
