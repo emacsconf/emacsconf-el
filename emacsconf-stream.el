@@ -628,5 +628,76 @@ ffplay URL
   </body>
 </html>
 "))))
+
+;;; Clock and display
+
+(defvar emacsconf-stream-track "General")
+(defvar emacsconf-stream-clock-buffer "*emacsconf*")
+(defvar emacsconf-stream-clock-timer nil)
+(defun emacsconf-stream-display-clock-and-countdown (&optional time message)
+  "TIME is HH:MM."
+  (interactive "MTime: \nMMessage: ")
+  (switch-to-buffer (get-buffer-create emacsconf-stream-clock-buffer))
+  (erase-buffer)
+  (when (string= time "") (setq time nil))
+  (when (string= message "") (setq message nil))
+  (let* ((hhmm (and time (diary-entry-time time)))
+         (target (and time
+                      (time-to-seconds (date-to-time
+                                        (concat (format-time-string "%Y-%m-%d" nil emacsconf-timezone)
+                                                "T"
+                                                (format "%02d:%02d:00"
+                                                        (/ hhmm 100)
+                                                        (% hhmm 100))
+                                                emacsconf-timezone-offset))))))
+    (face-remap-add-relative 'default :height 300)
+    (insert
+     (propertize
+      "CURRENT"
+      'face '(:weight bold :height 600)
+      'emacsconf-time (lambda () (format-time-string "%H:%M:%S %Z" nil emacsconf-timezone)))
+     " (" emacsconf-timezone ")\n"
+     (propertize (concat "Track: " emacsconf-stream-track "\n")
+                 'face '(:height 400))
+     "IRC: #" (plist-get (emacsconf-get-track emacsconf-stream-track) :channel) "\n"
+     "\n"
+     (if time (propertize
+               "TO-GO"
+               'emacsconf-time
+               (lambda ()
+                 (let ((seconds-to-go (- target
+                                         (time-to-seconds (current-time)))))
+                   (if (> (or seconds-to-go 0) 0)
+                       (concat
+                        (format-seconds "%.2h:%z%.2m:%.2s"
+                                        seconds-to-go)
+                        " to go" (if message ": " ""))
+                     ""))))
+       "")
+     (or message ""))
+    (when (timerp emacsconf-stream-clock-timer) (cancel-timer emacsconf-stream-clock-timer))
+    (emacsconf-stream-update-time)
+    (setq emacsconf-stream-clock-timer (run-at-time t 1 #'emacsconf-stream-update-time))))
+
+(defun emacsconf-stream-update-time ()
+  (if (get-buffer emacsconf-stream-clock-buffer)
+      (when (get-buffer-window emacsconf-stream-clock-buffer)
+        (with-current-buffer emacsconf-stream-clock-buffer
+          (save-excursion
+            (goto-char (point-min))
+            (let (match)
+              (while (setq match (text-property-search-forward 'emacsconf-time))
+                (goto-char (prop-match-beginning match))
+                (add-text-properties
+                 (prop-match-beginning match)
+                 (prop-match-end match)
+                 (list 'display
+                       (funcall (get-text-property
+                                 (prop-match-beginning match)
+                                 'emacsconf-time))))
+                (goto-char (prop-match-end match)))))))
+    (when (timerp emacsconf-stream-clock-timer)
+      (cancel-timer emacsconf-stream-clock-timer))))
+
 (provide 'emacsconf-stream)
 ;;; emacsconf-stream.el ends here
