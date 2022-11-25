@@ -30,7 +30,7 @@
   :type 'string
   :group 'emacsconf)
 
-(defcustom emacsconf-main-extensions '(".webm" "--main.webm" "--main.org" ".org" ".odp" ".pdf" ".el" "--compressed56.webm" "--main.vtt" "--main_fr.vtt" "--main_ja.vtt" "--chapters.vtt" "--main--chapters.vtt" "--script.fountain")
+(defcustom emacsconf-main-extensions '(".webm" "--main.webm" "--main.org" ".org" ".odp" ".pdf" ".el" "--compressed56.webm" "--main.vtt" "--main_fr.vtt" "--main_ja.vtt" "--main_es.vtt" "--chapters.vtt" "--main--chapters.vtt" "--script.fountain")
   "Extensions to list on public pages."
   :type '(repeat string)
   :group 'emacsconf)
@@ -1243,7 +1243,7 @@ Entries are sorted chronologically, with different tracks interleaved."
   (let ((chapters (subed-parse-file filename)))
     (when chapters
       (list
-       :track (format "<track kind=\"chapters\" label=\"Chapters\" src=\"%s\"\" />"
+       :track (format "<track kind=\"chapters\" label=\"Chapters\" src=\"%s\" />"
                       (concat (or track-base-url "") (file-name-nondirectory filename)))
        :md (mapconcat (lambda (chapter)
                         (concat
@@ -1279,9 +1279,9 @@ Entries are sorted chronologically, with different tracks interleaved."
             (format "<track label=\"%s\" kind=\"captions\" srclang=\"%s\" src=\"%s\" />"
                     (cdr lang)
                     (car lang)
-                    (concat (or track-base-url "") (file-name-nondirectory lang-file))))
-        ""))
-    '(("fr" . "French") ("ja" . "Japanese"))
+                    (concat (or track-base-url "") (file-name-nondirectory lang-file)))
+          "")))
+    '(("fr" . "French") ("ja" . "Japanese") ("es" . "Spanish"))
     "")))
 
 (defun emacsconf-link-file-formats (video-slug extensions)
