@@ -577,15 +577,21 @@
 (defun emacsconf-add-checkin-time (o)
   (unless (or (null (plist-get o :status))
               (null (plist-get o :email))
-              (string= (plist-get o :status) "CANCELLED"))
+              (string= (plist-get o :status) "CANCELLED")
+              (string-match "after" (plist-get o :q-and-a)))
     (if (string= (plist-get o :status) "WAITING_FOR_PREREC")
-        (progn
-          (plist-put
-           o :checkin-label
-           "1 hour before the scheduled start of your talk, since you don't have a pre-recorded video")
-          (plist-put
-           o :checkin-time
-           (time-subtract (plist-get o :start-time) (seconds-to-time 3600))))
+        (plist-put o :live-time
+                   (plist-get o :start-time))
+      (progn
+        (plist-put
+         o :checkin-label
+         "1 hour before the scheduled start of your talk, since you don't have a pre-recorded video")
+        (plist-put
+         o :checkin-time
+         (time-subtract (plist-get o :start-time) (seconds-to-time 3600))))
+      (plist-put o :live-time
+                 (time-add (plist-get o :start-time)
+                           (seconds-to-time (* 60 (string-to-number (plist-get o :video-time))))))
       (plist-put o :checkin-label
                  "30 minutes before the scheduled start of your Q&A, since you have a pre-recorded video")
       (when (plist-get o :video-time)
@@ -1017,11 +1023,13 @@
            :watch "https://live.emacsconf.org/2022/watch/gen/"
 				   :tramp "/ssh:emacsconf-gen@res.emacsconf.org#46668:"
            :start "09:00" :end "17:00"
+           :vnc-port "5905"
            :status "offline")
     (:name "Development" :color "skyblue" :id "dev" :channel "emacsconf-dev"
            :watch "https://live.emacsconf.org/2022/watch/dev/"
 				   :tramp "/ssh:emacsconf-dev@res.emacsconf.org#46668:"
            :start "09:00" :end "17:00"
+           :vnc-port "5906"
            :status "offline")))
 
 (defvar emacsconf-shifts (list (list :id "sat-am-gen" :track "General" :start "2022-12-03T08:00:00-0500" :end "2022-12-03T12:00:00-0500" :host "zaeph" :streamer "corwin" :checkin "sachac" :irc "sachac" :pad "publicvoit" :coord "sachac") (list :id "sat-pm-gen" :track "General" :start "2022-12-03T13:00:00-0500" :end "2022-12-03T18:00:00-0500" :host "zaeph" :streamer "corwin" :checkin "FlowyCoder" :irc "dto" :pad "publicvoit" :coord "sachac") (list :id "sat-am-dev" :track "Development" :start "2022-12-03T08:00:00-0500" :end "2022-12-03T12:00:00-0500" :host "bandali" :streamer "bandali" :checkin "sachac" :irc "dto" :coord "sachac") (list :id "sat-pm-dev" :track "Development" :start "2022-12-03T13:00:00-0500" :end "2022-12-03T18:00:00-0500" :host "vetrivln" :streamer "bandali" :checkin "FlowyCoder" :irc "vetrivln" :coord "sachac") (list :id "sun-am-gen" :track "General" :start "2022-12-04T08:00:00-0500" :end "2022-12-04T12:00:00-0500" :host "zaeph" :streamer "corwin" :checkin "sachac" :irc "sachac" :pad "publicvoit" :coord "sachac") (list :id "sun-pm-gen" :track "General" :start "2022-12-04T13:00:00-0500" :end "2022-12-04T18:00:00-0500" :host "zaeph" :streamer "jman" :checkin "FlowyCoder" :irc "dto" :pad "publicvoit" :coord "sachac") (list :id "sun-am-dev" :track "Development" :start "2022-12-04T08:00:00-0500" :end "2022-12-04T12:00:00-0500" :host "bandali" :streamer "bandali" :checkin "sachac" :irc "dto" :coord "sachac") (list :id "sun-pm-dev" :track "Development" :start "2022-12-04T13:00:00-0500" :end "2022-12-04T18:00:00-0500" :host "vetrivln" :streamer "bandali" :checkin "FlowyCoder" :irc "vetrivln" :coord "sachac"))
