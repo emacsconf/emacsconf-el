@@ -91,6 +91,24 @@
 (defvar emacsconf-res-dir (format "/ssh:orga@res.emacsconf.org:/data/emacsconf/%s" emacsconf-year))
 (defvar emacsconf-media-extensions '("webm" "mkv" "mp4" "webm" "avi" "ts" "ogv" "wav" "ogg" "mp3"))
 (defvar emacsconf-ftp-upload-dir "/ssh:orga@media.emacsconf.org:/srv/ftp/anon/upload-here")
+(defvar emacsconf-notebook
+  (expand-file-name
+   "index.org"
+   (expand-file-name "organizers-notebook"
+                     (expand-file-name emacsconf-year emacsconf-directory))))
+
+(defun emacsconf-prep-agenda ()
+  (interactive)
+  (let* ((org-agenda-custom-commands
+         `(("a" "Agenda"
+            ((tags-todo "-PRIORITY=\"C\"-SCHEDULED={.}-nextyear"
+                        ((org-agenda-files (list ,emacsconf-notebook))))
+             (agenda ""
+                     ((org-agenda-files (list ,emacsconf-notebook))
+                      (org-agenda-span 7)))
+             )))))
+      (org-agenda nil "a")))
+
 (defun emacsconf-ftp-upload-dired ()
   (interactive)
   (dired emacsconf-ftp-upload-dir "-tl"))
