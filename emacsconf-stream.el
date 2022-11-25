@@ -634,6 +634,8 @@ ffplay URL
 (defvar emacsconf-stream-track "General")
 (defvar emacsconf-stream-clock-buffer "*emacsconf*")
 (defvar emacsconf-stream-clock-timer nil)
+(declare-function 'diary-entry-time "diary-lib")
+(declare-function 'text-property-search-forward "text-property-search")
 (defun emacsconf-stream-display-clock-and-countdown (&optional time message)
   "TIME is HH:MM."
   (interactive "MTime: \nMMessage: ")
