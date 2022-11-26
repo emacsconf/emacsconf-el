@@ -1721,8 +1721,8 @@ This video is available under the terms of the Creative Commons Attribution-Shar
    "<table width=\"100%\"><tr><th>Watch page</th><th>IRC channel (libera.chat)</th><th>Alternative for streaming player</th><th>Low res</th></tr>\n"
    (mapconcat (lambda (track)
                 (emacsconf-replace-plist-in-string
-                 track
-                 "<tr><td><div class=\"sched-track ${name}\"><a href=\"/${year}/watch/${id}\">${name}</a></div></td><td><a href=\"${webchat}\">${channel}</a></td><td><a href=\"${stream}\">${stream}</a></td><td><a href=\"${480p}\">${id}-480p.webm</a></tr>"))
+                 (append (list :year emacsconf-year) track)
+                 "<tr><td><div class=\"sched-track ${name}\"><a href=\"/${year}/watch/${id}\">${name}</a></div></td><td><a href=\"${webchat-url}\">${channel}</a></td><td><a href=\"${stream}\">${stream}</a></td><td><a href=\"${480p}\">${id}-480p.webm</a></tr>"))
               emacsconf-tracks
               "\n")
    "</table>\n\n"
@@ -1827,10 +1827,10 @@ ${title-info}
       "<div>${brief}</div>
 <div class=\"pad-output\"></div>
 <hr size=\"1\"><div>" (emacsconf-publish-page-nav nav "chat") " | ${stream-nav}</div>"
-      "<div>Chat: <a href=\"${webchat}\">${channel}</a> on libera.chat</div>
+      "<div>Chat: <a href=\"${webchat-url}\">${channel}</a> on libera.chat</div>
 
 <div class=\"chat-iframe\" data-track=\"${id}\"></div>
-<iframe src=\"${webchat}\" height=\"600\" width=\"100%\"></iframe>
+<iframe src=\"${webchat-url}\" height=\"600\" width=\"100%\"></iframe>
 <hr size=\"1\"><div>" (emacsconf-publish-page-nav nav "sched") " | ${stream-nav}</div>"
       "
 <ul>Legend:
@@ -1845,10 +1845,11 @@ ${title-info}
   (interactive)
   (let ((tracks
          (mapcar (lambda (track)
-                   (append (list :year emacsconf-year          
-                                 :stream (concat emacsconf-stream-base (plist-get track :id) ".webm")          
-                                 :stream-hires (concat emacsconf-stream-base (plist-get track :id) ".webm")          
-                                 :480p (concat emacsconf-stream-base (plist-get track :id) "-480p.webm"))
+                   (append (list
+                            :year emacsconf-year          
+                            :stream (concat emacsconf-stream-base (plist-get track :id) ".webm")          
+                            :stream-hires (concat emacsconf-stream-base (plist-get track :id) ".webm")          
+                            :480p (concat emacsconf-stream-base (plist-get track :id) "-480p.webm"))
                            track))
                  emacsconf-tracks)))
     (let* ((info (emacsconf-prepare-for-display (emacsconf-get-talk-info)))
@@ -1878,9 +1879,9 @@ ${title-info}
       <p>
         Examples:
       </p>
-<pre>mpv https://live0.emacsconf.org:9001/emacsconf/gen.webm
-vlc https://live0.emacsconf.org:9001/emacsconf/gen.webm
-ffplay https://live0.emacsconf.org:9001/emacsconf/gen.webm
+<pre>mpv https://live0.emacsconf.org/gen.webm
+vlc https://live0.emacsconf.org/gen.webm
+ffplay https://live0.emacsconf.org/gen.webm
 </pre>
 
 <p>If you experience any disruptions, try reloading the page you're using
