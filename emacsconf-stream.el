@@ -179,31 +179,38 @@ while OTHER-FILENAME will be displayed at other times."
       (emacsconf-stream-set-talk-info talk))))
 
 (defun emacsconf-stream-play-intro-maybe (talk)
+  (interactive (list (emacsconf-complete-talk-info)))
   (when (file-exists-p
          (expand-file-name (concat (plist-get talk :slug) ".webm")
                            (expand-file-name "intros" emacsconf-stream-asset-dir)))
-    (emacsconf-stream-play-video
-     (append
-      talk
-      :stream-files
-      (expand-file-name (concat (plist-get talk :slug) ".webm")
-                        (expand-file-name "intros" emacsconf-stream-asset-dir))))))
+    (let ((info (tramp-dissect-file-name (emacsconf-stream-track-login talk))))
+      (apply
+       #'call-process
+       (append
+        (list
+         "ssh" nil nil t
+		     (concat (tramp-file-name-user info)
+			           "@" (tramp-file-name-host info))
+		     "-p" (tramp-file-name-port info)
+		     "nohup" "~/bin/track-mpv" (concat "~/assets/intros/" (plist-get talk :slug) ".webm"))
+        (list ">" "/dev/null" "2>&1" "&"))))))
 
 (defun emacsconf-stream-play-talk-on-change (talk)
   "Play the talk."
-  (when (string= org-state "PLAYING")
+  (interactive (list (emacsconf-complete-talk-info)))
+  (when (or (not (boundp 'org-state)) (string= org-state "PLAYING"))
     (if (plist-get talk :video-file)
         (save-window-excursion
           (emacsconf-stream-play-video talk))
       (let ((default-directory (emacsconf-stream-track-login talk))
             (async-shell-command-buffer 'new-buffer))
         (save-window-excursion
-          (emacsconf-stream-play-video talk)
           (shell-command
            (concat "nohup firefox -new-window "
 	                 (shell-quote-argument
 	                  (plist-get talk :bbb-room))
-	                 " > /dev/null 2>&1 & ")))))))
+	                 " > /dev/null 2>&1 & "))
+          (emacsconf-stream-play-intro-maybe talk))))))
 
 (defun emacsconf-stream-get-filename (talk)
   "Return the local filename for the video file for TALK.
