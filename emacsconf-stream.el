@@ -178,6 +178,17 @@ while OTHER-FILENAME will be displayed at other times."
     (save-window-excursion
       (emacsconf-stream-set-talk-info talk))))
 
+(defun emacsconf-stream-play-intro-maybe (talk)
+  (when (file-exists-p
+         (expand-file-name (concat (plist-get talk :slug) ".webm")
+                           (expand-file-name "intros" emacsconf-stream-asset-dir)))
+    (emacsconf-stream-play-video
+     (append
+      talk
+      :stream-files
+      (expand-file-name (concat (plist-get talk :slug) ".webm")
+                        (expand-file-name "intros" emacsconf-stream-asset-dir))))))
+
 (defun emacsconf-stream-play-talk-on-change (talk)
   "Play the talk."
   (when (string= org-state "PLAYING")
@@ -187,6 +198,7 @@ while OTHER-FILENAME will be displayed at other times."
       (let ((default-directory (emacsconf-stream-track-login talk))
             (async-shell-command-buffer 'new-buffer))
         (save-window-excursion
+          (emacsconf-stream-play-video talk)
           (shell-command
            (concat "nohup firefox -new-window "
 	                 (shell-quote-argument
@@ -214,7 +226,9 @@ Final files should be stored in /data/emacsconf/stream/YEAR/video-slug--main.web
 		   "-p" (tramp-file-name-port info)
 		   "nohup" "~/bin/track-mpv")
       (or (and (plist-get talk :stream-files)
-               (split-string-and-unquote (plist-get talk :stream-files)))
+               (if (stringp (plist-get talk :stream-files))
+                   (split-string-and-unquote (plist-get talk :stream-files))
+                 (plist-get talk :stream-files)))
           (list (plist-get talk :slug)))
       (list ">" "/dev/null" "2>&1" "&")))))
 
