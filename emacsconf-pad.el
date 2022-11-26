@@ -367,10 +367,7 @@ ${next-talk-list}
 <li>[ ] ${irc-volunteer}: Watch the #emacsconf-${track-id} channel and open ${base-url}${year}/talks for links to the pads</li>
 <li>[ ] ${pad}: Open ${base-url}${year}/talks for links to the pads</li>
 <li>[ ] ${stream}: Start recording with OBS
-<ul><li>[ ] Set up the local environment
-<ul><li>[? gen] <strong>export TRACK=gen; export TRACK_PORT=5905; export SSH_PORT=${ssh-port}</strong></li>
-<li>[? dev] <strong>export TRACK=dev; export TRACK_PORT=5906; export SSH_PORT=${ssh-port}</strong></li></ul></li>
-<li>[ ] Copy the password file: <strong>scp emacsconf-${track-id}@res.emacsconf.org:~/.vnc/passwd vnc-passwd-${track-id} -p ${ssh-port}</strong></li>
+<li>[ ] Copy the password file if you don't already have it: <strong>scp emacsconf-${track-id}@res.emacsconf.org:~/.vnc/passwd vnc-passwd-${track-id} -p ${ssh-port}</strong></li>
 <li>[ ] Forward your local ports: <strong>ssh emacsconf-${track-id}@res.emacsconf.org -N -L ${vnc-port}:127.0.0.1:${vnc-port} -p ${ssh-port} &</strong></li>
 <li>[ ] Connect via VNC: <strong>xvncviewer 127.0.0.1:${vnc-port} -shared -geometry 1280x720 -passwd vnc-passwd-${track-id} &</strong>
 <ul>
