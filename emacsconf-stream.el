@@ -215,7 +215,7 @@ Final files should be stored in /data/emacsconf/stream/YEAR/video-slug--main.web
 		   "nohup" "~/bin/track-mpv")
       (or (and (plist-get talk :stream-files)
                (split-string-and-unquote (plist-get talk :stream-files)))
-          (list (emacsconf-stream-get-filename talk)))
+          (list (plist-get talk :slug)))
       (list ">" "/dev/null" "2>&1" "&")))))
 
 (defun emacsconf-stream-open-pad (talk)
