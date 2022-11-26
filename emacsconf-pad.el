@@ -549,11 +549,6 @@ ${bbb-checklist}</li>")
             :track-id track-id
             :intro-note
             (emacsconf-pad-expand-intro talk)
-            (if (plist-get talk :intro-note)
-                (format "The next talk is called \"%s\". %s" (plist-get talk :title)
-                        (plist-get talk :intro-note))
-              (format "The next talk is called \"%s\", by %s." (plist-get talk :title)
-                      (plist-get talk :speakers)))
             :media-base emacsconf-media-base-url
             :mumble (concat emacsconf-id "-" track-id)
             :next-talk-in-5 (if next-talk (format-time-string "%H:%M" (time-subtract (plist-get next-talk :start-time) (seconds-to-time 300)) emacsconf-timezone) "")
@@ -583,9 +578,13 @@ ${bbb-checklist}</li>")
                    
                    (concat
                     (emacsconf-surround "<li><strong>" (plist-get talk :hyperlist-note) "</strong></li>" "")
-                    "<li>[ ] ${stream}: Display the in-between slide: ${ssh-track} and run <em>firefox ${in-between-url} &</em></li>
+                    (if (file-exists-p
+                         (expand-file-name (concat (plist-get talk :slug) ".webm") (expand-file-name "intros" emacsconf-stream-asset-dir)))
+                        "<li>This talk has a recorded intro that should automatically play when you mark the talk as playing. If it doesn't play, go to the ~/assets/intros directory and use track-mpv to play the video file.</li>"
+                      "<li>[ ] ${stream}: Display the in-between slide: ${ssh-track} and run <em>firefox ${in-between-url} &</em></li>
 <li>[ ] ${host}: Connect to the ${mumble} channel in Mumble and introduce the talk: <strong>${intro-note}</strong></li>
-"
+")
+                    
                     (if (plist-get talk :video-file)
                         "<li>[ ] ${stream}: Mark the talk as playing: ${ssh-playing} and confirm that it plays. If it doesn't play, go to the ~/stream directory and use track-mpv to play the video file.</li>"
                       "<li>[ ] ${stream}: <strong>LIVE talk:</strong> Mark the talk as playing: ${ssh-playing} and arrange windows (backup URL for BBB if it doesn't open: ${bbb-backstage}). Adjust audio as needed</li>")
