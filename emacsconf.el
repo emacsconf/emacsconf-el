@@ -1256,7 +1256,7 @@ Filter by TRACK if given.  Use INFO as the list of talks."
     emacsconf-erc-announce-on-change ;; announce via ERC
     emacsconf-publish-media-files-on-change
     emacsconf-publish-bbb-redirect
-    ;; emacsconf-publish-update-talk
+    emacsconf-publish-update-talk
     emacsconf-publish-backstage-org-on-state-change ;; update the backstage index
     emacsconf-stream-update-talk-info-on-change
     ;; write to the talk text
