@@ -84,7 +84,7 @@
   :type 'string
   :group 'emacsconf)
 
-(defvar emacsconf-stream-base "https://live0.emacsconf.org/emacsconf/")
+(defvar emacsconf-stream-base "https://live0.emacsconf.org/")
 (defvar emacsconf-chat-base "https://chat.emacsconf.org/")
 (defvar emacsconf-backstage-dir "/ssh:orga@media.emacsconf.org:/var/www/media.emacsconf.org/2022/backstage")
 (defvar emacsconf-upload-dir "/ssh:orga@media.emacsconf.org:/srv/upload")
@@ -1019,18 +1019,24 @@
 ;; (emacsconf-ansible-load-vars (expand-file-name "prod-vars.yml" emacsconf-ansible-directory))
 ;;; Tracks
 (defvar emacsconf-tracks
-  '((:name "General" :color "peachpuff" :id "gen" :channel "emacsconf-gen"
+  `((:name "General" :color "peachpuff" :id "gen" :channel "emacsconf-gen"
            :watch "https://live.emacsconf.org/2022/watch/gen/"
 				   :tramp "/ssh:emacsconf-gen@res.emacsconf.org#46668:"
+           :webchat-url "https://chat.emacsconf.org/?join=emacsconf,emacsconf-gen"
+           :stream ,(concat emacsconf-stream-base "gen.webm")
+           :480p ,(concat emacsconf-stream-base "gen-480p.webm")
            :start "09:00" :end "17:00"
            :vnc-port "5905"
            :status "offline")
-    (:name "Development" :color "skyblue" :id "dev" :channel "emacsconf-dev"
-           :watch "https://live.emacsconf.org/2022/watch/dev/"
-				   :tramp "/ssh:emacsconf-dev@res.emacsconf.org#46668:"
-           :start "09:00" :end "17:00"
-           :vnc-port "5906"
-           :status "offline")))
+   (:name "Development" :color "skyblue" :id "dev" :channel "emacsconf-dev"
+          :watch "https://live.emacsconf.org/2022/watch/dev/"
+				  :webchat-url "https://chat.emacsconf.org/?join=emacsconf,emacsconf-dev"
+           :tramp "/ssh:emacsconf-dev@res.emacsconf.org#46668:"
+          :stream ,(concat emacsconf-stream-base "dev.webm")
+          :480p ,(concat emacsconf-stream-base "dev-480p.webm")
+          :start "09:00" :end "17:00"
+          :vnc-port "5906"
+          :status "offline")))
 
 (defvar emacsconf-shifts (list (list :id "sat-am-gen" :track "General" :start "2022-12-03T08:00:00-0500" :end "2022-12-03T12:00:00-0500" :host "zaeph" :streamer "corwin" :checkin "sachac" :irc "sachac" :pad "publicvoit" :coord "sachac") (list :id "sat-pm-gen" :track "General" :start "2022-12-03T13:00:00-0500" :end "2022-12-03T18:00:00-0500" :host "zaeph" :streamer "corwin" :checkin "FlowyCoder" :irc "dto" :pad "publicvoit" :coord "sachac") (list :id "sat-am-dev" :track "Development" :start "2022-12-03T08:00:00-0500" :end "2022-12-03T12:00:00-0500" :host "bandali" :streamer "bandali" :checkin "sachac" :irc "dto" :coord "sachac") (list :id "sat-pm-dev" :track "Development" :start "2022-12-03T13:00:00-0500" :end "2022-12-03T18:00:00-0500" :host "vetrivln" :streamer "bandali" :checkin "FlowyCoder" :irc "vetrivln" :coord "sachac") (list :id "sun-am-gen" :track "General" :start "2022-12-04T08:00:00-0500" :end "2022-12-04T12:00:00-0500" :host "zaeph" :streamer "corwin" :checkin "sachac" :irc "sachac" :pad "publicvoit" :coord "sachac") (list :id "sun-pm-gen" :track "General" :start "2022-12-04T13:00:00-0500" :end "2022-12-04T18:00:00-0500" :host "zaeph" :streamer "jman" :checkin "FlowyCoder" :irc "dto" :pad "publicvoit" :coord "sachac") (list :id "sun-am-dev" :track "Development" :start "2022-12-04T08:00:00-0500" :end "2022-12-04T12:00:00-0500" :host "bandali" :streamer "bandali" :checkin "sachac" :irc "dto" :coord "sachac") (list :id "sun-pm-dev" :track "Development" :start "2022-12-04T13:00:00-0500" :end "2022-12-04T18:00:00-0500" :host "vetrivln" :streamer "bandali" :checkin "FlowyCoder" :irc "vetrivln" :coord "sachac"))
   "Shift information derived from the organizer's notebook.")
@@ -1257,7 +1263,7 @@ Filter by TRACK if given.  Use INFO as the list of talks."
     emacsconf-publish-bbb-redirect
     emacsconf-stream-update-talk-info-on-change
     emacsconf-publish-media-files-on-change
-    emacsconf-publish-update-talk
+    ;; emacsconf-publish-update-talk  ;; skipping this for now, I'll do this locally
     emacsconf-publish-backstage-org-on-state-change ;; update the backstage index
     ;; write to the talk text
     )
