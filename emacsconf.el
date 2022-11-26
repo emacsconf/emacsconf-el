@@ -1254,11 +1254,11 @@ Filter by TRACK if given.  Use INFO as the list of talks."
   '((emacsconf-stream-play-talk-on-change "gen" "dev")
     (emacsconf-stream-open-qa-windows-on-change "gen" "dev")
     emacsconf-erc-announce-on-change ;; announce via ERC
-    emacsconf-publish-media-files-on-change
     emacsconf-publish-bbb-redirect
+    emacsconf-stream-update-talk-info-on-change
+    emacsconf-publish-media-files-on-change
     emacsconf-publish-update-talk
     emacsconf-publish-backstage-org-on-state-change ;; update the backstage index
-    emacsconf-stream-update-talk-info-on-change
     ;; write to the talk text
     )
   "Functions to run when the todo state changes.
