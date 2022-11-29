@@ -149,7 +149,8 @@ Each function should take the info and manipulate it as needed, returning the ne
                   (setq date (format-time-string "%Y-%m-%d" (date-to-time start-prop)))
                 (setq start-prop  (concat date " " start-prop)))
               (list
-               :scheduled (format-time-string (cdr org-time-stamp-formats) (date-to-time start-prop))
+               :scheduled (format-time-string (cdr org-time-stamp-formats) (date-to-time start-prop)
+                                              emacsconf-timezone)
                :start-time (date-to-time start-prop)
                :fixed-time t))
             (when track-prop

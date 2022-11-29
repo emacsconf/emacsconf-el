@@ -456,8 +456,7 @@ ${bbb-checklist}</li>")
   (setq info (or info (emacsconf-prepare-for-display (emacsconf-get-talk-info))))
   (mapc
    (lambda (day)
-     (let ((pad-id (concat "checkin-" (downcase (format-time-string "%a" (plist-get (cadr day) :checkin-time)))))
-           )
+     (let ((pad-id (concat "checkin-" (downcase (format-time-string "%a" (plist-get (cadr day) :checkin-time))))))
        (emacsconf-pad-create-pad pad-id)
        (emacsconf-pad-set-html
         pad-id
@@ -648,7 +647,6 @@ ${bbb-checklist}</li>")
 <ul><li>Backup link to pad: ${pad-url}</li>
 <li>Backup link to #${channel}: ${webchat-url}</li></ul></li>
 <li>[ ] ${stream}: Update the task status (no visible changes): ${ssh-openq}</li>
-<li>[ ] ${stream}: Confirm BBB redirect at ${bbb-redirect} goes to BBB room, let host know</li>
 <li>[ ] ${host}: Announce that people can ask questions in the ${channel} IRC channel.</li>
 ")
                       ((rx "Mumble")
@@ -656,7 +654,7 @@ ${bbb-checklist}</li>")
 <li>[ ] ${stream}: Bring the speaker's Mumble login over to the ${channel} channel in Mumble. Confirm that Mumble is audible and adjust audio as needed: ssh emacsconf-${track-id}@res.emacsconf.org -p 46668 \"mum-vol 85%%\" (or mum-louder, mum-quieter)</li>
 <li>[ ] ${stream}: Mark the Q&A as closed: ${ssh-closedq} . This should display the QA slide (backup: ${ssh-track} and run <em>firefox ${qa-slide-url} &</em>)</li>
 <li>[ ] ${stream}: Update the task status (no visible changes): ${ssh-openq}</li>
-<li>[ ] ${stream}: Confirm BBB redirect at ${bbb-redirect} goes to BBB room, let host know</li>
+
 <li>[ ] ${host}: Announce that people can ask questions in the pad or on the ${channel} IRC channel.</li>
 ")
                       ((rx "after")

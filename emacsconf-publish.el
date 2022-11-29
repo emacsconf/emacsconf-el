@@ -1630,25 +1630,21 @@ This video is available under the terms of the Creative Commons Attribution-Shar
   (interactive)
   (let* ((slug (org-entry-get (point) "VIDEO_SLUG"))
          (video-file (emacsconf-get-preferred-video slug))
-         (wiki-captions-directory (expand-file-name "captions" (expand-file-name emacsconf-year emacsconf-directory)))
-         (new-captions-file (expand-file-name (concat slug "--main.vtt") wiki-captions-directory)))
+         (wiki-captions-directory (expand-file-name "captions" (expand-file-name emacsconf-year emacsconf-directory))))
     (org-entry-put (point) "PUBLIC" "1")
     (when (file-exists-p video-file)
       (emacsconf-youtube-edit)      
-      (emacsconf-toobnix-edit)
-      (emacsconf-cache-video-data-for-entry)
-      (emacsconf-update-talk)
-      (when (file-exists-p (expand-file-name (concat slug ".md")  wiki-captions-directory))
-        (with-current-buffer (find-file-noselect (file-exists (expand-file-name (concat slug ".md")  wiki-captions-directory)))
-          (magit-stage-file (buffer-file-name))))
+      (emacsconf-toobnix-edit) 
+      (emacsconf-publish-update-talk (emacsconf-get-talk-info-for-subtree))
       (mapc
        (lambda (suffix)
          (when (file-exists-p (expand-file-name (concat slug suffix) emacsconf-cache-dir))
-           (copy-file (expand-file-name (concat slug suffix) emacsconf-cache-dir)
-                      (expand-file-name (concat slug suffix) wiki-captions-directory)t)
-           (with-current-buffer (find-file-noselect (expand-file-name (concat slug suffix) wiki-captions-directory))
-             (magit-stage-file (buffer-file-name)))))
-       '("--main.vtt" "--chapters.vtt" "--main_ja.vtt" "--main_fr.vtt"))
+					 (let ((default-directory wiki-captions-directory))
+						 (copy-file (expand-file-name (concat slug suffix) emacsconf-cache-dir)
+												(expand-file-name (concat slug suffix) wiki-captions-directory)
+												t)
+						 (call-process "git" nil nil nil "add" (concat slug suffix)))))
+       '("--main.vtt" "--chapters.vtt" "--main_ja.vtt" "--main_fr.vtt" "--main_es.vtt"))
       (magit-status-setup-buffer emacsconf-directory)
       (when (and emacsconf-public-media-directory slug (> (length (string-trim slug)) 0)
                  ;; TODO: make this customizable
@@ -1678,12 +1674,7 @@ This video is available under the terms of the Creative Commons Attribution-Shar
   `(progn
      ,@body
      (let ((default-directory emacsconf-directory))
-       (if (featurep 'magit)
-           (progn
-             (magit-with-toplevel
-               (magit-stage-1 "-u" magit-buffer-diff-files))
-             (magit-status-setup-buffer))
-         (shell-command "git add -u"))
+       (shell-command "git add -u")
        ;; (when noninteractive
        ;;   (call-process "git" nil nil nil "commit" "-m" (if (stringp (car body))
        ;;                                                       (car body)

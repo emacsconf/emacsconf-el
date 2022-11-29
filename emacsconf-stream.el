@@ -168,7 +168,6 @@ while OTHER-FILENAME will be displayed at other times."
       (if (or (null (plist-get talk :q-and-a))
               (string-match "Mumble" (plist-get talk :q-and-a)))
           (emacsconf-stream-open-in-between-slide talk)
-        (emacsconf-stream-open-pad talk)
         (emacsconf-stream-join-qa talk)
         (shell-command "i3-msg 'layout splith'")))))
 
@@ -178,58 +177,60 @@ while OTHER-FILENAME will be displayed at other times."
     (save-window-excursion
       (emacsconf-stream-set-talk-info talk))))
 
-(defun emacsconf-stream-play-intro-maybe (talk)
-  (interactive (list (emacsconf-complete-talk-info)))
+(defun emacsconf-stream-track-ssh (talk &rest commands)
+  "SSH to the track account for TALK and run COMMANDS.
+This might be more reliable than using TRAMP to call file processes,
+especially when two things need to happen close together."
+	(setq talk (emacsconf-resolve-talk talk))
   (let ((info (tramp-dissect-file-name (emacsconf-stream-track-login talk))))
     (apply
-     #'call-process
-     (append
-      (list
-       "ssh" nil nil t
-		   (concat (tramp-file-name-user info)
-			         "@" (tramp-file-name-host info))
-		   "-p" (tramp-file-name-port info)
-		   "nohup")
-      (list "intro" (plist-get talk :slug))
-      (list ">" "/dev/null" "2>&1" "&")))))
+     #'start-process
+     (delq nil
+					 (append
+						(list
+						 (concat "ssh-" (plist-get (emacsconf-get-track talk) :id))
+						 (concat "*" (plist-get talk :track) "*") "ssh"
+						 (concat (tramp-file-name-user info)
+										 "@" (tramp-file-name-host info))
+						 "-p" (tramp-file-name-port info)
+						 (format "DISPLAY=%s" (plist-get (emacsconf-get-track talk) :vnc-display))
+						 "nohup")
+						(if (listp (car commands)) (car commands) commands))))))
+
+(defun emacsconf-stream-play-intro (talk)
+  "Play the recorded intro or display the in-between slide for TALK."
+  (interactive (list (emacsconf-complete-talk-info)))
+  (setq talk (emacsconf-resolve-talk talk))
+  (emacsconf-stream-track-ssh talk "intro" (plist-get talk :slug))) 
 
 (defun emacsconf-stream-play-talk-on-change (talk)
   "Play the talk."
   (interactive (list (emacsconf-complete-talk-info)))
+  (setq talk (emacsconf-resolve-talk talk))
   (when (or (not (boundp 'org-state)) (string= org-state "PLAYING"))
-    (let ((info (tramp-dissect-file-name (emacsconf-stream-track-login talk))))
-    (apply
-     #'call-process
-     (append
-      (list
-       "ssh" nil nil t
-		   (concat (tramp-file-name-user info)
-			         "@" (tramp-file-name-host info))
-		   "-p" (tramp-file-name-port info) 
-       (format "DISPLAY=%s" (plist-get (emacsconf-get-track talk) :vnc-display))
-       "nohup")
-      (cond
-       ((and
-         (plist-get talk :recorded-intro)
-         (plist-get talk :video-file)) ;; recorded intro and recorded talk
-        (message "should automatically play intro and recording")
-        (list "play" (plist-get talk :slug))) ;; todo deal with stream files
-       ((and
-         (plist-get talk :recorded-intro)
-         (null (plist-get talk :video-file))) ;; recorded intro and live talk; play the intro and join BBB
-        (message "should automatically play intro; join %s" (plist-get talk :bbb-backstage))
-        (list "intro" (plist-get talk :slug)))
-       ((and
-         (null (plist-get talk :recorded-intro))
-         (plist-get talk :video-file)) ;; live intro and recorded talk, show slide and use Mumble; manually play talk
-        (message "should show intro slide; play %s afterwards" (plist-get talk :slug))
-        (list "intro" (plist-get talk :slug)))
-       ((and
-         (null (plist-get talk :recorded-intro))
-         (null (plist-get talk :video-file))) ;; live intro and live talk, join the BBB
-        (message "join %s for live intro and talk" (plist-get talk :bbb-backstage))
-        (list "bbb" (plist-get talk :slug))))
-      (list "&"))))))
+    (emacsconf-stream-track-ssh
+     talk
+     (cond
+      ((and
+        (plist-get talk :recorded-intro)
+        (plist-get talk :video-file)) ;; recorded intro and recorded talk
+       (message "should automatically play intro and recording")
+       (list "play-with-intro" (plist-get talk :slug))) ;; todo deal with stream files
+      ((and
+        (plist-get talk :recorded-intro)
+        (null (plist-get talk :video-file))) ;; recorded intro and live talk; play the intro and join BBB
+       (message "should automatically play intro; join %s" (plist-get talk :bbb-backstage))
+       (list "intro" (plist-get talk :slug)))
+      ((and
+        (null (plist-get talk :recorded-intro))
+        (plist-get talk :video-file)) ;; live intro and recorded talk, show slide and use Mumble; manually play talk
+       (message "should show intro slide; play %s afterwards" (plist-get talk :slug))
+       (list "intro" (plist-get talk :slug)))
+      ((and
+        (null (plist-get talk :recorded-intro))
+        (null (plist-get talk :video-file))) ;; live intro and live talk, join the BBB
+       (message "join %s for live intro and talk" (plist-get talk :bbb-backstage))
+       (list "bbb" (plist-get talk :slug)))))))
 
 (defun emacsconf-stream-get-filename (talk)
   "Return the local filename for the video file for TALK.
@@ -241,65 +242,79 @@ Final files should be stored in /data/emacsconf/stream/YEAR/video-slug--main.web
 
 (defun emacsconf-stream-play-video (talk)
   (interactive (list (emacsconf-complete-talk-info)))
-  (let ((info (tramp-dissect-file-name (emacsconf-stream-track-login talk))))
-    (apply
-     #'call-process
-     (append
-      (list
-       "ssh" nil nil t
-		   (concat (tramp-file-name-user info)
-			         "@" (tramp-file-name-host info))
-		   "-p" (tramp-file-name-port info)
-		   "nohup" "~/bin/track-mpv")
-      (or (and (plist-get talk :stream-files)
-               (if (stringp (plist-get talk :stream-files))
-                   (split-string-and-unquote (plist-get talk :stream-files))
-                 (plist-get talk :stream-files)))
-          (list (plist-get talk :slug)))
-      (list ">" "/dev/null" "2>&1" "&")))))
+  (setq talk (emacsconf-resolve-talk talk))
+  (emacsconf-stream-track-ssh
+   talk
+   (append
+    (list
+     "play"
+     (plist-get talk :slug))
+    (if (stringp (plist-get talk :stream-files))
+        (split-string-and-unquote (plist-get talk :stream-files))
+      (plist-get talk :stream-files)))))
+
+(defun emacsconf-stream-play-video-file (talk filename)
+  (interactive (list (emacsconf-complete-talk-info)))
+  (setq talk (emacsconf-resolve-talk talk))
+  (apply
+   #'emacsconf-stream-track-ssh
+   talk
+   "overlay"
+   (plist-get talk :slug))
+  (apply
+   #'emacsconf-stream-track-ssh
+   talk
+   "mpv"
+   filename))
 
 (defun emacsconf-stream-open-pad (talk)
   (interactive (list (emacsconf-complete-talk-info)))
-  (let ((default-directory (emacsconf-stream-track-login talk))
-        (async-shell-command-buffer 'new-buffer))
-    (shell-command
-     (concat "nohup firefox -new-window "
-	           (shell-quote-argument (plist-get talk :pad-url))
-	           " > /dev/null 2>&1 & "))))
+	(setq talk (emacsconf-resolve-talk talk))
+	(emacsconf-stream-track-ssh
+	 talk
+	 "firefox"
+	 (plist-get talk :pad-url)))
+
+(defun emacsconf-stream-bbb (talk)
+	"Open the BBB room for TALK."
+	(interactive (list (emacsconf-complete-talk-info)))
+	(setq talk (emacsconf-resolve-talk talk))
+	(emacsconf-stream-track-ssh talk "bbb" (plist-get talk :slug)))
 
 (defun emacsconf-stream-join-qa (talk)
   "Join the Q&A for TALK.
 This uses the BBB room if available, or the IRC channel if not."
   (interactive (list (emacsconf-complete-talk-info)))
   (if (and (null (plist-get talk :video-file))
-           (string-match "live" (plist-get talk :q-and-a)))
-      ;; do nothing, streamer should already be in the room
-      (let ((default-directory (emacsconf-stream-track-login talk))
-            (async-shell-command-buffer 'new-buffer))
-        (save-window-excursion
-          (shell-command
-           (concat "nohup firefox -new-window "
-	                 (shell-quote-argument
-                    (pcase (plist-get talk :q-and-a)
-                      ((or 'nil "" (rx "Mumble"))
-                       (plist-get talk :qa-slide-url))
-                      ((rx "live")
-                       (plist-get talk :bbb-backstage))
-                      ((rx "IRC")
-                       (plist-get talk :webchat-url))
-                      (_ (plist-get talk :qa-slide-url))))
-	                 " > /dev/null 2>&1 & "))))))
+					 (string-match "live" (plist-get talk :q-and-a)))
+			(emacsconf-stream-track-ssh
+			 talk
+			 "firefox"
+			 "-new-window"
+			 (plist-get talk :pad-url)) 
+		(emacsconf-stream-track-ssh
+		 talk
+		 "firefox"
+		 "-new-window"
+		 (pcase (plist-get talk :q-and-a)
+			 ((or 'nil "" (rx "Mumble"))
+				(plist-get talk :qa-slide-url))
+			 ((rx "live")
+				(plist-get talk :bbb-backstage))
+			 ((rx "IRC")
+				(plist-get talk :webchat-url))
+			 ((rx "pad")
+				(plist-get talk :pad-url))
+			 (_ (plist-get talk :qa-slide-url))))))
 
 (defun emacsconf-stream-join-chat (talk)
   "Join the IRC chat for TALK."
   (interactive (list (emacsconf-complete-talk-info)))
-  (let ((default-directory (emacsconf-stream-track-login talk))
-        (async-shell-command-buffer 'new-buffer))
-    (shell-command
-     (concat "nohup firefox -new-window "
-	     (shell-quote-argument
-	      (plist-get talk :webchat-url))
-	     " > /dev/null 2>&1 & "))))
+	(setq talk (emacsconf-resolve-talk talk))
+	(emacsconf-stream-track-ssh
+	 talk
+	 "firefox"
+	 (plist-get talk :webchat-url)))
 
 (defun emacsconf-stream-write-talk-overlay-svgs (talk video-filename other-filename)
   (setq talk (emacsconf-stream-add-talk-props talk))
@@ -501,21 +516,6 @@ This uses the BBB room if available, or the IRC channel if not."
 	    (org-todo "PLAYING"))))
       (message "Done %s" talk)
       (undo-boundary))))
-
-
-(defun emacsconf-stream-schedule-timers (&optional info)
-  (interactive)
-  (setq info (emacsconf-filter-talks (or info (emacsconf-get-talk-info))))
-  (cancel-function-timers #'emacsconf-stream-handle-talk-timer)
-  (let ((now (current-time)))
-    (mapc (lambda (talk)
-            (when (and (time-less-p now (plist-get talk :start-time)))
-              (run-at-time
-               (time-to-seconds (time-subtract (plist-get talk :start-time) now))
-               nil
-               #'emacsconf-stream-handle-talk-timer
-               talk)))
-          info)))
 
 (defun emacsconf-stream-generate-assets-for-talk (talk)
   (interactive (list (emacsconf-complete-talk-info)))
@@ -740,6 +740,83 @@ ffplay URL
                 (goto-char (prop-match-end match)))))))
     (when (timerp emacsconf-stream-clock-timer)
       (cancel-timer emacsconf-stream-clock-timer))))
+
+;;; Timers
+
+(defvar emacsconf-stream-timers nil "List of timers for easy reference")
+
+(defun emacsconf-stream-cancel-timer (id)
+	"Cancel a timer by ID."
+	(interactive (list
+								(completing-read
+								 "ID: "
+								 (lambda (string pred action)
+									  (if (eq action 'metadata)
+												`(metadata (display-sort-function . ,#'identity))
+											(complete-with-action action
+																						(sort
+																						 (seq-filter (lambda (o)
+																													 (and (timerp (cdr o))
+																																(not (timer--triggered (cdr o)))))
+																												 emacsconf-stream-timers)
+																						 (lambda (a b) (string< (car a) (car b))))
+																						string pred))))))
+	(when (timerp (assoc-default id emacsconf-stream-timers))
+		(cancel-timer (assoc-default id emacsconf-stream-timers))
+		(setq emacsconf-stream-timers
+					(delq (assoc id emacsconf-stream-timers)
+								(seq-filter (lambda (o)
+															(and (timerp (cdr o))
+																	 (not (timer--triggered (cdr o)))))
+														emacsconf-stream-timers)))))
+
+(defun emacsconf-stream-schedule-talk-status-change (talk time new-status)
+	"Schedule a one-off timer for TALK at TIME to set it to NEW-STATUS."
+	(interactive (list (emacsconf-complete-talk-info)
+										 (read-string "Time: ")
+										 (completing-read "Status: " (mapcar 'car emacsconf-status-types))))
+	(require 'diary-lib)
+	(setq talk (emacsconf-resolve-talk talk))
+	(let* ((converted
+					(cond
+					 ((listp time) time)
+					 ((timer-duration time) (timer-relative-time nil (timer-duration time)))
+					 (t														; HH:MM
+						(date-to-time (concat (format-time-string "%Y-%m-%d" nil emacsconf-timezone)
+																	"T"
+																	(string-pad time 5 ?0 t) 
+																	emacsconf-timezone-offset)))))
+				 (timer-id (concat (format-time-string "%m-%dT%H:%M" converted)
+													 "-"
+													 (plist-get talk :slug)
+													 "-"
+													 new-status)))
+		(emacsconf-stream-cancel-timer timer-id) 
+		(add-to-list 'emacsconf-stream-timers
+									(cons
+									 timer-id
+									 (run-at-time time converted #'emacsconf-update-talk-status-with-hooks (plist-get talk :slug) "." new-status)))))
+
+(defun emacsconf-stream-schedule-timers (&optional info)
+	"Schedule PLAYING for the rest of talks and CLOSED_Q for recorded talks."
+  (interactive)
+	(emacsconf-stream-cancel-all-timers)
+  (setq info (emacsconf-prepare-for-display (emacsconf-filter-talks (or info (emacsconf-get-talk-info)))))
+  (let ((now (current-time)))
+    (mapc (lambda (talk)
+            (when (and (time-less-p now (plist-get talk :start-time)))
+							(emacsconf-stream-schedule-talk-status-change talk (plist-get talk :start-time) "PLAYING"))
+						(when (and
+									 (plist-get talk :video-file)
+									 (plist-get talk :qa-time)
+									 (time-less-p now (plist-get talk :qa-time)))
+							(emacsconf-stream-schedule-talk-status-change talk (plist-get talk :qa-time) "CLOSED_Q")))
+          info)))
+
+(defun emacsconf-stream-cancel-all-timers ()
+	(interactive)
+	(cancel-function-timers #'emacsconf-update-talk-status-with-hooks)
+	(setq emacsconf-stream-timers nil))
 
 (provide 'emacsconf-stream)
 ;;; emacsconf-stream.el ends here

@@ -533,8 +533,11 @@
              (or (assoc-default (plist-get o :status) 
                                 emacsconf-status-types 'string= "")
                  (plist-get o :status)))
-  (if (member (plist-get o :status)
-              (split-string "PLAYING CLOSED_Q OPEN_Q UNSTREAMED_Q TO_ARCHIVE TO_EXTRACT TO_FOLLOW_UP DONE"))
+  (if (or
+			 (member (plist-get o :status)
+							 (split-string "PLAYING CLOSED_Q OPEN_Q UNSTREAMED_Q TO_ARCHIVE TO_EXTRACT TO_FOLLOW_UP DONE"))
+			 (time-less-p (plist-get o :start-time)
+										(current-time)))
       (plist-put o :public t))
   o)
 
@@ -581,45 +584,52 @@
               (null (plist-get o :email))
               (string= (plist-get o :status) "CANCELLED")
               (string-match "after" (plist-get o :q-and-a)))
-    (if (string= (plist-get o :status) "WAITING_FOR_PREREC")
-        (plist-put o :live-time
-                   (plist-get o :start-time))
-      (progn
-        (plist-put
-         o :checkin-label
-         "1 hour before the scheduled start of your talk, since you don't have a pre-recorded video")
-        (plist-put
-         o :checkin-time
-         (time-subtract (plist-get o :start-time) (seconds-to-time 3600))))
-      (plist-put o :live-time
-                 (time-add (plist-get o :start-time)
-                           (seconds-to-time (* 60 (string-to-number (plist-get o :video-time))))))
+    (if (null (plist-get o :video-file))
+				(progn
+					(plist-put o :live-time (plist-get o :start-time))
+					(plist-put o :qa-time (plist-get o :live-time))
+					(plist-put
+					 o :checkin-label
+					 "1 hour before the scheduled start of your talk, since you don't have a pre-recorded video")
+					(plist-put
+					 o :checkin-time
+					 (seconds-to-time (time-subtract (plist-get o :start-time) (seconds-to-time 3600)))))
+			(plist-put o :live-time
+                 (seconds-to-time
+									(time-add (plist-get o :start-time)
+														(seconds-to-time (* 60 (string-to-number (plist-get o :video-time)))))))
+			(plist-put o :qa-time
+                 (plist-get o :live-time))      
+			
       (plist-put o :checkin-label
                  "30 minutes before the scheduled start of your Q&A, since you have a pre-recorded video")
       (when (plist-get o :video-time)
         (plist-put o :checkin-time
-                   (time-subtract (time-add (plist-get o :start-time)
-                                            (seconds-to-time (* 60 (string-to-number (plist-get o :video-time)))))
-                                  (seconds-to-time (/ 3600 2)))))))
+                   (seconds-to-time
+										(time-subtract (time-add (plist-get o :start-time)
+																						 (seconds-to-time (* 60 (string-to-number (plist-get o :video-time)))))
+																	 (seconds-to-time (/ 3600 2))))))))
   o)
 
 (defun emacsconf-add-live-info (o)
   (plist-put o :absolute-url (concat emacsconf-base-url (plist-get o :url)))
   (plist-put o :in-between-url (format "%s%s/in-between/%s.png"
-                                emacsconf-media-base-url
-                                emacsconf-year
-                                (plist-get o :slug)))
+																			 emacsconf-media-base-url
+																			 emacsconf-year
+																			 (plist-get o :slug)))
   (plist-put o :qa-slide-url (format "%s%s/in-between/%s.png"
                                      emacsconf-media-base-url
                                      emacsconf-year
                                      (plist-get o :slug)))
+	(plist-put o :intro-expanded (emacsconf-pad-expand-intro o))
   (let ((track (emacsconf-get-track (plist-get o :track))))
     (when track
       (plist-put o :watch-url (concat emacsconf-base-url emacsconf-year "/watch/" (plist-get track :id)))
       (plist-put o :webchat-url (concat emacsconf-chat-base "?join=emacsconf,"
                                         (replace-regexp-in-string "#" ""
-                                                                  (plist-get track :channel)))))
-    (plist-put o :channel (plist-get track :channel))
+                                                                  (plist-get track :channel))))
+			(plist-put o :track-id (plist-get track :id))) 
+		(plist-put o :channel (plist-get track :channel))
     (plist-put o :bbb-backstage (concat emacsconf-media-base-url emacsconf-year "/backstage/current/room/" (plist-get o :slug)))
     (cond
      ((string= (or (plist-get o :q-and-a) "") "")
@@ -733,6 +743,10 @@
     (while cur-list
       (plist-put (pop cur-list) :next-talks (seq-take cur-list number)))
     info))
+
+(defun emacsconf-resolve-talk (talk)
+  "Return the plist for TALK."
+  (if (stringp talk) (emacsconf-find-talk-info talk) talk))
 
 (defun emacsconf-find-talk-info (filter &optional info)
   (setq info (or info (emacsconf-filter-talks (emacsconf-get-talk-info))))
@@ -1042,12 +1056,12 @@
            :tramp "/ssh:emacsconf-dev@res.emacsconf.org#46668:"
           :stream ,(concat emacsconf-stream-base "dev.webm")
           :480p ,(concat emacsconf-stream-base "dev-480p.webm")
-          :start "09:00" :end "17:00"
+          :start "10:00" :end "17:00"
           :vnc-display ":6"
           :vnc-port "5906"
           :status "offline")))
 
-(setq emacsconf-shifts (list (list :id "sat-am-gen" :track "General" :start "2022-12-03T08:00:00-0500" :end "2022-12-03T12:00:00-0500" :host "zaeph" :streamer "sachac" :checkin "corwin" :irc "bandali" :pad "publicvoit" :coord "sachac") (list :id "sat-pm-gen" :track "General" :start "2022-12-03T13:00:00-0500" :end "2022-12-03T18:00:00-0500" :host "zaeph" :streamer "sachac" :checkin "FlowyCoder" :irc "dto" :pad "publicvoit" :coord "sachac") (list :id "sat-am-dev" :track "Development" :start "2022-12-03T08:00:00-0500" :end "2022-12-03T12:00:00-0500" :host "bandali" :streamer "sachac" :checkin "corwin" :irc "dto" :coord "sachac") (list :id "sat-pm-dev" :track "Development" :start "2022-12-03T13:00:00-0500" :end "2022-12-03T18:00:00-0500" :host "vetrivln" :streamer "bandali" :checkin "FlowyCoder" :irc "vetrivln" :coord "sachac") (list :id "sun-am-gen" :track "General" :start "2022-12-04T08:00:00-0500" :end "2022-12-04T12:00:00-0500" :host "zaeph" :streamer "sachac" :checkin "corwin" :irc "bandali" :pad "publicvoit" :coord "sachac") (list :id "sun-pm-gen" :track "General" :start "2022-12-04T13:00:00-0500" :end "2022-12-04T18:00:00-0500" :host "zaeph" :streamer "jman" :checkin "FlowyCoder" :irc "dto" :pad "publicvoit" :coord "sachac") (list :id "sun-am-dev" :track "Development" :start "2022-12-04T08:00:00-0500" :end "2022-12-04T12:00:00-0500" :host "bandali" :streamer "sachac" :checkin "corwin" :irc "dto" :coord "sachac") (list :id "sun-pm-dev" :track "Development" :start "2022-12-04T13:00:00-0500" :end "2022-12-04T18:00:00-0500" :host "vetrivln" :streamer "bandali" :checkin "FlowyCoder" :irc "vetrivln" :coord "sachac")))
+(setq emacsconf-shifts (list (list :id "sat-am-gen" :track "General" :start "2022-12-03T08:00:00-0500" :end "2022-12-03T12:00:00-0500" :host "zaeph" :streamer "sachac" :checkin "corwin" :irc "dto" :pad "publicvoit" :coord "sachac") (list :id "sat-pm-gen" :track "General" :start "2022-12-03T13:00:00-0500" :end "2022-12-03T18:00:00-0500" :host "zaeph" :streamer "sachac" :checkin "FlowyCoder" :irc "bandali" :pad "publicvoit" :coord "sachac") (list :id "sat-am-dev" :track "Development" :start "2022-12-03T08:00:00-0500" :end "2022-12-03T12:00:00-0500" :host "bandali" :streamer "sachac" :checkin "corwin" :irc "dto" :coord "sachac") (list :id "sat-pm-dev" :track "Development" :start "2022-12-03T13:00:00-0500" :end "2022-12-03T18:00:00-0500" :host "vetrivln" :streamer "bandali" :checkin "FlowyCoder" :irc "vetrivln" :coord "sachac") (list :id "sun-am-gen" :track "General" :start "2022-12-04T08:00:00-0500" :end "2022-12-04T12:00:00-0500" :host "zaeph" :streamer "sachac" :checkin "corwin" :irc "dto" :pad "publicvoit" :coord "sachac") (list :id "sun-pm-gen" :track "General" :start "2022-12-04T13:00:00-0500" :end "2022-12-04T18:00:00-0500" :host "zaeph" :streamer "jman" :checkin "FlowyCoder" :irc "bandali" :pad "publicvoit" :coord "sachac") (list :id "sun-am-dev" :track "Development" :start "2022-12-04T08:00:00-0500" :end "2022-12-04T12:00:00-0500" :host "bandali" :streamer "sachac" :checkin "corwin" :irc "dto" :coord "sachac") (list :id "sun-pm-dev" :track "Development" :start "2022-12-04T13:00:00-0500" :end "2022-12-04T18:00:00-0500" :host "vetrivln" :streamer "bandali" :checkin "FlowyCoder" :irc "vetrivln" :coord "sachac")))
 
 (defun emacsconf-get-track (name)
   (when (listp name) (setq name (plist-get name :track)))
@@ -1302,6 +1316,11 @@ tracks with the ID in the cdr of that list."
   (let ((org-agenda-files (list emacsconf-org-file))
         (org-agenda-category-filter-preset (list (concat "+" (plist-get track :id)))))
     (org-agenda-list nil emacsconf-date 2)))
+
+(defun emacsconf-update-talk-status-with-hooks (slug from-states to-state)
+	(interactive (list (emacsconf-complete-talk) "." (completing-read "To: " (mapcar 'car emacsconf-status-types))))
+	(emacsconf-with-todo-hooks
+	 (emacsconf-update-talk-status slug from-states to-state)))
 
 (defun emacsconf-update-talk-status (slug from-states to-state)
   (interactive (list (emacsconf-complete-talk) "." (completing-read "To: " (mapcar 'car emacsconf-status-types))))
