@@ -491,7 +491,6 @@ Usage: /conflog keyword notes go here"
 (defun emacsconf-erc-notice-announcements (string)
 	"Try to avoid spamming the announcement channels."
 	(when (string-match (concat "\\`<@?" (regexp-opt emacsconf-erc-announcement-nicks) "> \\(--.*\\)") string)
-		(message "%s" (substring-no-properties string))
 		(setq emacsconf-erc-recent-announcements
 					(cons (cons (match-string-no-properties 1 string) (current-time))
 								(seq-take emacsconf-erc-recent-announcements (1- emacsconf-erc-recent-announcements-length))))))
