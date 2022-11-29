@@ -190,27 +190,46 @@ while OTHER-FILENAME will be displayed at other times."
 			         "@" (tramp-file-name-host info))
 		   "-p" (tramp-file-name-port info)
 		   "nohup")
-      (if (plist-get talk :recorded-intro)
-          (list "~/bin/track-mpv" (concat "~/assets/intros/" (plist-get talk :slug) ".webm"))
-        (list "firefox" (concat "~/assets/in-between/" (plist-get talk :slug) ".png")))
+      (list "intro" (plist-get talk :slug))
       (list ">" "/dev/null" "2>&1" "&")))))
 
 (defun emacsconf-stream-play-talk-on-change (talk)
   "Play the talk."
   (interactive (list (emacsconf-complete-talk-info)))
   (when (or (not (boundp 'org-state)) (string= org-state "PLAYING"))
-    (if (plist-get talk :video-file)
-        (save-window-excursion
-          (emacsconf-stream-play-video talk))
-      (let ((default-directory (emacsconf-stream-track-login talk))
-            (async-shell-command-buffer 'new-buffer))
-        (save-window-excursion
-          (shell-command
-           (concat "nohup firefox -new-window "
-	                 (shell-quote-argument
-	                  (plist-get talk :bbb-room))
-	                 " > /dev/null 2>&1 & "))
-          (emacsconf-stream-play-intro-maybe talk))))))
+    (let ((info (tramp-dissect-file-name (emacsconf-stream-track-login talk))))
+    (apply
+     #'call-process
+     (append
+      (list
+       "ssh" nil nil t
+		   (concat (tramp-file-name-user info)
+			         "@" (tramp-file-name-host info))
+		   "-p" (tramp-file-name-port info) 
+       (format "DISPLAY=%s" (plist-get (emacsconf-get-track talk) :vnc-display))
+       "nohup")
+      (cond
+       ((and
+         (plist-get talk :recorded-intro)
+         (plist-get talk :video-file)) ;; recorded intro and recorded talk
+        (message "should automatically play intro and recording")
+        (list "play" (plist-get talk :slug))) ;; todo deal with stream files
+       ((and
+         (plist-get talk :recorded-intro)
+         (null (plist-get talk :video-file))) ;; recorded intro and live talk; play the intro and join BBB
+        (message "should automatically play intro; join %s" (plist-get talk :bbb-backstage))
+        (list "intro" (plist-get talk :slug)))
+       ((and
+         (null (plist-get talk :recorded-intro))
+         (plist-get talk :video-file)) ;; live intro and recorded talk, show slide and use Mumble; manually play talk
+        (message "should show intro slide; play %s afterwards" (plist-get talk :slug))
+        (list "intro" (plist-get talk :slug)))
+       ((and
+         (null (plist-get talk :recorded-intro))
+         (null (plist-get talk :video-file))) ;; live intro and live talk, join the BBB
+        (message "join %s for live intro and talk" (plist-get talk :bbb-backstage))
+        (list "bbb" (plist-get talk :slug))))
+      (list "&"))))))
 
 (defun emacsconf-stream-get-filename (talk)
   "Return the local filename for the video file for TALK.

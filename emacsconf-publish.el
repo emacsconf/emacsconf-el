@@ -1980,6 +1980,7 @@ when the host has opened the Q&A.</p>
 
 (defun emacsconf-publish-bbb-static-redirects ()
   "Create emergency redirects that can be copied over the right location."
+  (interactive)
   (mapc (lambda (state)
           (let ((emacsconf-publish-current-dir
                  (expand-file-name

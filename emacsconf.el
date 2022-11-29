@@ -1033,6 +1033,7 @@
            :stream ,(concat emacsconf-stream-base "gen.webm")
            :480p ,(concat emacsconf-stream-base "gen-480p.webm")
            :start "09:00" :end "17:00"
+           :vnc-display ":5"
            :vnc-port "5905"
            :status "offline")
    (:name "Development" :color "skyblue" :id "dev" :channel "emacsconf-dev"
@@ -1042,6 +1043,7 @@
           :stream ,(concat emacsconf-stream-base "dev.webm")
           :480p ,(concat emacsconf-stream-base "dev-480p.webm")
           :start "09:00" :end "17:00"
+          :vnc-display ":6"
           :vnc-port "5906"
           :status "offline")))
 
