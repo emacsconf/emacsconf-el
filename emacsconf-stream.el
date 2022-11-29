@@ -180,20 +180,20 @@ while OTHER-FILENAME will be displayed at other times."
 
 (defun emacsconf-stream-play-intro-maybe (talk)
   (interactive (list (emacsconf-complete-talk-info)))
-  (when (file-exists-p
-         (expand-file-name (concat (plist-get talk :slug) ".webm")
-                           (expand-file-name "intros" emacsconf-stream-asset-dir)))
-    (let ((info (tramp-dissect-file-name (emacsconf-stream-track-login talk))))
-      (apply
-       #'call-process
-       (append
-        (list
-         "ssh" nil nil t
-		     (concat (tramp-file-name-user info)
-			           "@" (tramp-file-name-host info))
-		     "-p" (tramp-file-name-port info)
-		     "nohup" "~/bin/track-mpv" (concat "~/assets/intros/" (plist-get talk :slug) ".webm"))
-        (list ">" "/dev/null" "2>&1" "&"))))))
+  (let ((info (tramp-dissect-file-name (emacsconf-stream-track-login talk))))
+    (apply
+     #'call-process
+     (append
+      (list
+       "ssh" nil nil t
+		   (concat (tramp-file-name-user info)
+			         "@" (tramp-file-name-host info))
+		   "-p" (tramp-file-name-port info)
+		   "nohup")
+      (if (plist-get talk :recorded-intro)
+          (list "~/bin/track-mpv" (concat "~/assets/intros/" (plist-get talk :slug) ".webm"))
+        (list "firefox" (concat "~/assets/in-between/" (plist-get talk :slug) ".png")))
+      (list ">" "/dev/null" "2>&1" "&")))))
 
 (defun emacsconf-stream-play-talk-on-change (talk)
   "Play the talk."

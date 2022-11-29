@@ -360,7 +360,7 @@ ${next-talk-list}
       (concat
        "
 <p>Ctrl-5 is the shortcut for striking through on Etherpad.</p>
-Don't use this for notes since it gets overwritten.
+<p>Don't use this for notes since it gets overwritten.</p>
 
 <strong>Setup</strong>
 <ul>
@@ -375,7 +375,7 @@ Don't use this for notes since it gets overwritten.
 <ul>
 <li>[? Can't connect to VNC]: ssh emacsconf-${track-id}@res.emacsconf.org -p ${ssh-port} /home/${conf-id}-${track-id}/bin/track-vnc</li>
 <li>[? Can't find OBS]: track-obs</li></ul></li>
-<li>[ ] Start background music via SSH or VNC: <em>~/bin/start-background-music</em>
+<li>[ ] Start background music via SSH or VNC: <em>music</em>
 <ul><li>[? No audio device]:
 <ul><li><em>pulseaudio -k; pulseaudio --start</em></li>
 <li>quit OBS</li>
@@ -385,7 +385,7 @@ Don't use this for notes since it gets overwritten.
 <li>[ ] Check 480p by viewing it : <strong>mpv https://live0.emacsconf.org/emacsconf/${track-id}-480p.webm &</strong></li>
 <li>[ ] Confirm that the streaming user has connected to Mumble, is in the ${channel} channel, and can hear what we say on Mumble.</li>
 <li>[ ] Test with a sample video or Q&A session. You can run this command on your local system if you want to do things off-screen: <strong>ssh emacsconf-${track-id}@res.emacsconf.org -p 46668 \"~/bin/track-mpv meetups &\"</strong></li>
-<li>[ ] ${stream}: Restart the background music via SSH or VNC: <em>~/bin/start-background-music</em>  . The background music should automatically get killed when the talks start, but if it doesn't, you can stop it with: <em>screen -S background -X quit</em></li>
+<li>[ ] ${stream}: Restart the background music via SSH or VNC: <em>music</em>  . The background music should automatically get killed when the talks start, but if it doesn't, you can stop it with: <em>screen -S background -X quit</em></li>
 </ul></li>
 <li>[ ] ${coord}: ssh -t orga@live0.emacsconf.org 'screen -S restream-${track-id}-youtube /home/orga/restream-${track-id}-youtube.sh' and then confirm</li>
 <li>[ ] ${coord}: ssh -t orga@live0.emacsconf.org 'screen -S restream-${track-id}-toobnix /home/orga/restream-${track-id}-toobnix.sh' and then confirm</li>
@@ -558,7 +558,7 @@ ${bbb-checklist}</li>")
            talk
            (mapcar (lambda (status)
                      (list (intern (concat ":ssh-" (replace-regexp-in-string "_" "" (downcase status))))
-                           (format "<strong>ssh orga@res.emacsconf.org -p 46668 \"~/scripts/update-task-status.sh %s . %s\"</strong>"
+                           (format "<strong>ssh orga@res.emacsconf.org -p 46668 \"talk %s %s\"</strong>"
                                    (plist-get talk :slug)
                                    status)))
                    '("PLAYING" "OPEN_Q" "CLOSED_Q"))))
@@ -566,9 +566,10 @@ ${bbb-checklist}</li>")
     (setq result
           (emacsconf-replace-plist-in-string
            modified-talk
-           (format "<li><strong>%s %s (Talk: %s, Q&A: %s) %s <a href=\"%s\">%s</a></strong><ul>%s</ul>\n</li>"
+           (format "<li><strong>%s %s (intro: %s, talk: %s, Q&A: %s) %s <a href=\"%s\">%s</a></strong><ul>%s</ul>\n</li>"
                    (format-time-string "%H:%M" (plist-get talk :start-time) emacsconf-timezone)
                    (plist-get talk :slug)
+                   (if (plist-get talk :recorded-intro) "recorded" "live")                   
                    (if (plist-get talk :video-file) "recorded" "live")                   
                    (or (plist-get talk :q-and-a) "none")
                    (plist-get talk :title)
@@ -577,17 +578,40 @@ ${bbb-checklist}</li>")
                    
                    (concat
                     (emacsconf-surround "<li><strong>" (plist-get talk :hyperlist-note) "</strong></li>" "")
-                    (if (file-exists-p
-                         (expand-file-name (concat (plist-get talk :slug) ".webm") (expand-file-name "intros" emacsconf-stream-asset-dir)))
-                        "<li>This talk has a recorded intro that should automatically play when you mark the talk as playing. If it doesn't play, go to the ~/assets/intros directory and use track-mpv to play the video file. If that doesn't work, display the in-between slide: ${ssh-track} and run <em>firefox ~/assets/in-between/${slug}.png</em> . ${host} can join Mumble and say: <strong>${intro-note}</strong></li>"
-                      "<li>[ ] ${stream}: Display the in-between slide: ${ssh-track} and run <em>firefox ~/assets/in-between/${slug}.png</em></li>
-<li>[ ] ${host}: Connect to the ${mumble} channel in Mumble and introduce the talk: <strong>${intro-note}</strong></li>
-")
+                    (cond
+                     ((and (plist-get talk :video-file)
+                           (plist-get talk :recorded-intro))
+                      (concat
+                       "<li>Recorded intro and recorded talk:<ul>"
+                       "<li>[ ] ${stream}: Mark the talk as playing, which should play the intro and the talk: ${ssh-playing}<ul>
+                       <li>(backup: <em>play ${slug}</em>; if that still doesn't work, <em>mpv ~/assets/intros/${slug}.webm</em> and the video in <em>~/stream</em>)</li></ul></li>"
+                       "</ul></li>"))
+                     ((and (plist-get talk :recorded-intro)
+                           (null (plist-get talk :video-file))) ;; recorded intro, but live talk
+                      (concat
+                       "<li>Live intro and talk:<ul>"
+                       "<li>[ ] ${stream}: Mark the talk as playing, which should play the intro: ${ssh-playing} (backup: mpv ~/assets/intros/${slug}.webm)<ul>"
+                       "<li>[? intro still didn't play, switch to live intro]<ul><li>${stream}: join ${bbb-backstage}</li>"
+                       "<li>[ ] ${host}: Join ${bbb-backstage} and introduce the talk: <strong>${intro-note}</strong>. Turn over to speaker.</li></ul></li></ul></li>"
+                       "</ul></li>"))
+                     ((and (null (plist-get talk :recorded-intro))
+                           (plist-get talk :video-file)) ;; live intro and recorded talk
+                      (concat
+                       "<li>Live intro and recorded talk:<ul>"
+                       "<li>[ ] ${stream}: Mark the talk as playing, which should open the in-between slide: ${ssh-playing} (backup url: ${in-between})</li>"
+                       "<li>[ ] ${host}: Join ${mumble} in Mumble and introduce the talk: <strong>${intro-note}</strong>.</li>"
+                       "<li>[ ] ${stream}: Play the talk with <em>play ${slug}</em> (backup: use mpv to play the talk in the ~/stream directory)</li>"
+                       "</ul></li>"
+                       ))
+                     ((and (null (plist-get talk :recorded-intro))
+                           (null (plist-get talk :video-file))) ;; live intro and talk
+                      (concat
+                       "<li>Live intro and talk:<ul>"
+                       "<li>[ ] ${stream}: Mark the talk as playing: ${ssh-playing} (Backup URL to join in case it doesn't automatically join: ${bbb-backstage})</li>"
+                       "<li>[ ] ${host}: Join ${bbb-backstage} and introduce the talk: <strong>${intro-note}</strong>.</li></ul></li>"
+                       "<li>[ ] ${stream}: Adjust audio as needed.</li>"))
+                     )
                     
-                    (if (plist-get talk :video-file)
-                        "<li>[ ] ${stream}: Mark the talk as playing: ${ssh-playing} and confirm that it plays. If it doesn't play, go to the ~/stream directory and use track-mpv to play the video file.</li>
-<li>[ ] ${coord}: emacsconf-publish-update-talk ${slug}  and then commit and push the wiki. Confirm that the video is visible"
-                      "<li>[ ] ${stream}: <strong>LIVE talk:</strong> Mark the talk as playing: ${ssh-playing} and arrange windows (backup URL for BBB if it doesn't open: ${bbb-backstage}). Adjust audio as needed</li>")
                     (pcase (or (plist-get talk :q-and-a) "")
                       ((rx "live")
                        (concat
@@ -602,8 +626,9 @@ ${bbb-checklist}</li>")
 <li>[ ] ${stream}: Give the host the go-ahead via Mumble or #emacsconf-org</li>
 <li>[ ] ${host}: Start recording and read questions</li>
 <li>[ ] ${stream}: Adjust the audio levels as needed: ${ssh-audio}</li>
-<li>[ ] ${host}: Decide when to open the Q&A and let ${coord} know privately</li>
-<li>[ ] ${coord}: Mark the Q&A as open: ${ssh-openq} and double-check the redirect at ${bbb-redirect}. If the redirect doesn't work, ssh media \"cp ~/${year}/backstage/assets/redirects/open/bbb-${slug}.html ~/${year}/current/\" . Confirm the redirect and let ${host} know.</li>
+<li>[ ] ${host}: Decide when to open the Q&A and let ${stream} know</li>
+<li>[ ] ${stream}: Update the task status (no visible changes): ${ssh-openq}</li>
+<li>[ ] ${stream}: Confirm BBB redirect at ${bbb-redirect} goes to BBB room, let host know</li>
 <li>[ ] ${host}: Announce that people can join using the URL on the talk page or ask questions on the pad or IRC channel</li>
 <li>${next-talk-in-5} [? Open Q&A is still going on and it's about five minutes before the next talk]
   <ul><li>[ ] ${host}: Let the speaker know about the time and that the Q&A can continue off-stream if people want to join</li></ul></li>
@@ -611,7 +636,7 @@ ${bbb-checklist}</li>")
   <ul><li>[ ] ${host}: Announce that the Q&A will continue if people want to join the BBB room from the talk page, and the stream will now move to the next talk</li></ul></li>
 <li>[? Q&A is done early]
   <ul>
-  <li>[ ] ${stream}: Mark the talk as archived: ${ssh} \"~/current/scripts/update-task-status.sh ${slug} . TO_ARCHIVE\"</li>
+  <li>[ ] ${stream}: Mark the talk as archived: ${ssh} \"talk ${slug} TO_ARCHIVE\"</li>
   <li>${stream}: OR: <ul>
      <li>start emacs and use M-x emacsconf-stream-display-clock-and-countdown. time and message are optional</li>
      <li>display the in-between slide for the next talk</li></ul></li>
@@ -619,17 +644,19 @@ ${bbb-checklist}</li>")
 "))
                       ((rx "irc")
                        "
-<li>[ ] ${stream}: Update the task status: ${ssh-closedq} # this should open the pad and IRC; arrange the windows
+<li>[ ] ${stream}: Update the task status, which should open the pad and IRC; arrange windows: ${ssh-closedq}
 <ul><li>Backup link to pad: ${pad-url}</li>
 <li>Backup link to #${channel}: ${webchat-url}</li></ul></li>
-<li>[ ] ${stream}: Update the task status: ${ssh-openq} # this should not make any visible changes, just update the task status</li>
+<li>[ ] ${stream}: Update the task status (no visible changes): ${ssh-openq}</li>
+<li>[ ] ${stream}: Confirm BBB redirect at ${bbb-redirect} goes to BBB room, let host know</li>
 <li>[ ] ${host}: Announce that people can ask questions in the ${channel} IRC channel.</li>
 ")
                       ((rx "Mumble")
                        "
 <li>[ ] ${stream}: Bring the speaker's Mumble login over to the ${channel} channel in Mumble. Confirm that Mumble is audible and adjust audio as needed: ssh emacsconf-${track-id}@res.emacsconf.org -p 46668 \"mum-vol 85%%\" (or mum-louder, mum-quieter)</li>
 <li>[ ] ${stream}: Mark the Q&A as closed: ${ssh-closedq} . This should display the QA slide (backup: ${ssh-track} and run <em>firefox ${qa-slide-url} &</em>)</li>
-<li>[ ] ${stream}: Update the task status: ${ssh-openq} # this should not make any visible changes, just update the task status</li>
+<li>[ ] ${stream}: Update the task status (no visible changes): ${ssh-openq}</li>
+<li>[ ] ${stream}: Confirm BBB redirect at ${bbb-redirect} goes to BBB room, let host know</li>
 <li>[ ] ${host}: Announce that people can ask questions in the pad or on the ${channel} IRC channel.</li>
 ")
                       ((rx "after")

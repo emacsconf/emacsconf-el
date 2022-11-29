@@ -617,8 +617,8 @@
     (when track
       (plist-put o :watch-url (concat emacsconf-base-url emacsconf-year "/watch/" (plist-get track :id)))
       (plist-put o :webchat-url (concat emacsconf-chat-base "?join=emacsconf,"
-                                      (replace-regexp-in-string "#" ""
-                                                                (plist-get track :channel)))))
+                                        (replace-regexp-in-string "#" ""
+                                                                  (plist-get track :channel)))))
     (plist-put o :channel (plist-get track :channel))
     (plist-put o :bbb-backstage (concat emacsconf-media-base-url emacsconf-year "/backstage/current/room/" (plist-get o :slug)))
     (cond
@@ -644,6 +644,11 @@
      (t (plist-put o :qa-info "none")
         (plist-put o :qa-link "none")))
     (plist-put o :pad-url (format "https://pad.emacsconf.org/%s-%s" emacsconf-year (plist-get o :slug)))
+    (plist-put o :recorded-intro
+               (let ((filename
+                      (expand-file-name (concat (plist-get o :slug) ".webm")
+                                        (expand-file-name "intros" emacsconf-stream-asset-dir))))
+                 (and (file-exists-p filename) filename)))
     o))
 
 (defun emacsconf-search-talk-info (search &optional info)
