@@ -142,108 +142,134 @@ If MESSAGE is not specified, reset the topic to the template."
 
 ;;; Announcements
 
+(defvar emacsconf-erc-check-against-recent-announcements 10
+	"Number of minutes since most recent announcement.")
+
+(defun emacsconf-erc-recently-announced (string)
+	"Return non-nil if STRING was recently announced."
+	(when emacsconf-erc-check-against-recent-announcements
+		(let ((threshold-time
+					 (time-add (current-time)
+										 (seconds-to-time
+											(* 60 emacsconf-erc-check-against-recent-announcements)))))
+			(seq-find (lambda (entry)
+									(and (string-match (regexp-quote string) (car entry))
+											 (time-less-p (cdr entry)
+																		threshold-time)))
+								emacsconf-erc-recent-announcements))))
+
 (defun erc-cmd-NOWPLAYING (talk)
   "Set the channel topics to announce TALK."
   (interactive (list (emacsconf-complete-talk-info)))
-  (when (stringp talk) (setq talk (or (emacsconf-find-talk-info talk) (error "Could not find talk %s" talk))))
+  (when (stringp talk) (setq talk (or (emacsconf-find-talk-info talk) (error "Could not find talk %s" talk)))) 
   ;; Announce it in the track's channel
-  (when (plist-get talk :track)
-    (emacsconf-erc-with-channels (list (concat "#" (plist-get talk :channel)))
-      (erc-cmd-TOPIC (format "%s: %s (%s) pad: %s Q&A: %s | %s"
-                             (plist-get talk :slug)
-                             (plist-get talk :title)                               
-                             (plist-get talk :speakers)
-                             (plist-get talk :pad-url)
-                             (plist-get talk :qa-info)
-                             (car (assoc-default (concat "#" (plist-get talk :channel)) emacsconf-topic-templates))))
-      (erc-send-message (format "---- %s: %s - %s ----"
-                                (plist-get talk :slug)
-                                (plist-get talk :title)
-                                (plist-get talk :speakers-with-pronouns)))
-      (erc-send-message (concat "Add your notes/questions to the pad: " (plist-get talk :pad-url)))
-      (cond
-       ((string-match "live" (or (plist-get talk :q-and-a) ""))
-        (erc-send-message (concat "Live Q&A: " (plist-get talk :bbb-redirect))))
-       ((plist-get talk :irc)
-        (erc-send-message (format "or discuss the talk on IRC (nick: %s)"
-                                  (plist-get talk :irc)))))))
-  ;; Short announcement in #emacsconf
-  (emacsconf-erc-with-channels (list emacsconf-erc-hallway emacsconf-erc-org)
-    (erc-send-message (format "-- %s track: %s: %s (watch: %s, pad: %s, channel: #%s)"
-                              (plist-get talk :track)
-                              (plist-get talk :slug)
-                              (plist-get talk :title)                               
-                              (plist-get talk :watch-url)
-                              (plist-get talk :pad-url)
-                              (plist-get talk :channel)))))
+	(if (emacsconf-erc-recently-announced (format "---- %s:" (plist-get talk :slug)))
+			(message "Recently announced, skipping")
+		(when (plist-get talk :track)
+			(emacsconf-erc-with-channels (list (concat "#" (plist-get talk :channel)))
+				(erc-cmd-TOPIC (format "%s: %s (%s) pad: %s Q&A: %s | %s"
+															 (plist-get talk :slug)
+															 (plist-get talk :title)                               
+															 (plist-get talk :speakers)
+															 (plist-get talk :pad-url)
+															 (plist-get talk :qa-info)
+															 (car (assoc-default (concat "#" (plist-get talk :channel)) emacsconf-topic-templates))))
+				(erc-send-message (format "---- %s: %s - %s ----"
+																	(plist-get talk :slug)
+																	(plist-get talk :title)
+																	(plist-get talk :speakers-with-pronouns)))
+				(erc-send-message (concat "Add your notes/questions to the pad: " (plist-get talk :pad-url)))
+				(cond
+				 ((string-match "live" (or (plist-get talk :q-and-a) ""))
+					(erc-send-message (concat "Live Q&A: " (plist-get talk :bbb-redirect))))
+				 ((plist-get talk :irc)
+					(erc-send-message (format "or discuss the talk on IRC (nick: %s)"
+																		(plist-get talk :irc)))))))
+		;; Short announcement in #emacsconf
+		(emacsconf-erc-with-channels (list emacsconf-erc-hallway emacsconf-erc-org)
+			(erc-send-message (format "-- %s track: %s: %s (watch: %s, pad: %s, channel: #%s)"
+																(plist-get talk :track)
+																(plist-get talk :slug)
+																(plist-get talk :title)                               
+																(plist-get talk :watch-url)
+																(plist-get talk :pad-url)
+																(plist-get talk :channel))))))
 
 (defun erc-cmd-NOWCLOSEDQ (talk)
   "Announce TALK has started Q&A, but the host has not yet opened it up."
   (interactive (list (emacsconf-complete-talk-info)))
   (when (stringp talk) (setq talk (or (emacsconf-find-talk-info talk) (error "Could not find talk %s" talk))))
-  (emacsconf-erc-with-channels (list (concat "#" (plist-get talk :channel)))
-    (erc-send-message (format "-- Q&A beginning for \"%s\" (%s) Watch: %s Add notes/questions: %s"
-                              (plist-get talk :title)
-                              (plist-get talk :qa-info)
-                              (plist-get talk :watch-url)
-                              (plist-get talk :pad-url))))  
-  (emacsconf-erc-with-channels (list emacsconf-erc-hallway emacsconf-erc-org)
-    (erc-send-message (format "-- Q&A beginning for \"%s\" in the %s track (%s) Watch: %s Add notes/questions: %s . Chat: #%s"
-                         (plist-get talk :title)
-                         (plist-get talk :track)
-                         (plist-get talk :qa-info)
-                         (plist-get talk :watch-url)
-                         (plist-get talk :pad-url)
-                         (plist-get talk :channel)))))
+	(if (emacsconf-erc-recently-announced (format "-- Q&A beginning for \"%s\"" (plist-get talk :slug)))
+			(message "Recently announced, skipping")
+		(emacsconf-erc-with-channels (list (concat "#" (plist-get talk :channel)))
+			(erc-send-message (format "-- Q&A beginning for \"%s\" (%s) Watch: %s Add notes/questions: %s"
+																(plist-get talk :title)
+																(plist-get talk :qa-info)
+																(plist-get talk :watch-url)
+																(plist-get talk :pad-url))))  
+		(emacsconf-erc-with-channels (list emacsconf-erc-hallway emacsconf-erc-org)
+			(erc-send-message (format "-- Q&A beginning for \"%s\" in the %s track (%s) Watch: %s Add notes/questions: %s . Chat: #%s"
+																(plist-get talk :title)
+																(plist-get talk :track)
+																(plist-get talk :qa-info)
+																(plist-get talk :watch-url)
+																(plist-get talk :pad-url)
+																(plist-get talk :channel))))))
 
 (defun erc-cmd-NOWOPENQ (talk)
   (interactive (list (emacsconf-complete-talk-info)))
   (when (stringp talk) (setq talk (or (emacsconf-find-talk-info talk) (error "Could not find talk %s" talk))))
-  (emacsconf-erc-with-channels (list (concat "#" (plist-get talk :channel)))
-    (erc-send-message (format "-- Q&A now open for \"%s\" (%s). Watch: %s Add notes/questions: %s ."
-                         (plist-get talk :title)
-                         (plist-get talk :qa-info)
-                         (plist-get talk :watch-url)
-                         (plist-get talk :pad-url))))  
-  (emacsconf-erc-with-channels (list emacsconf-erc-hallway emacsconf-erc-org)
-    (erc-send-message (format "-- Q&A now open for \"%s\" in the %s track (%s). Watch: %s Add notes/questions: %s IRC: #%s"
-                         (plist-get talk :title)
-                         (plist-get talk :track)
-                         (plist-get talk :qa-info)
-                         (plist-get talk :watch-url)
-                         (plist-get talk :pad-url)
-                         (plist-get talk :channel)))))
+	(if (emacsconf-erc-recently-announced (format "-- Q&A now open for \"%s\"" (plist-get talk :slug)))
+			(message "Recently announced, skipping")
+		(emacsconf-erc-with-channels (list (concat "#" (plist-get talk :channel)))
+			(erc-send-message (format "-- Q&A now open for \"%s\" (%s). Watch: %s Add notes/questions: %s ."
+																(plist-get talk :title)
+																(plist-get talk :qa-info)
+																(plist-get talk :watch-url)
+																(plist-get talk :pad-url))))  
+		(emacsconf-erc-with-channels (list emacsconf-erc-hallway emacsconf-erc-org)
+			(erc-send-message (format "-- Q&A now open for \"%s\" in the %s track (%s). Watch: %s Add notes/questions: %s IRC: #%s"
+																(plist-get talk :title)
+																(plist-get talk :track)
+																(plist-get talk :qa-info)
+																(plist-get talk :watch-url)
+																(plist-get talk :pad-url)
+																(plist-get talk :channel))))))
 
 (defun erc-cmd-NOWUNSTREAMEDQ (talk)
   (interactive (list (emacsconf-complete-talk-info)))
   (when (stringp talk) (setq talk (or (emacsconf-find-talk-info talk) (error "Could not find talk %s" talk))))
-  (emacsconf-erc-with-channels (list (concat "#" (plist-get talk :channel)))
-    (erc-send-message (format "-- Q&A continues off-stream for \"%s\" (%s) Add notes/questions: %s ."
-                              (plist-get talk :title)
-                              (plist-get talk :qa-info)
-                              (plist-get talk :pad-url))))  
-  (emacsconf-erc-with-channels (list emacsconf-erc-hallway emacsconf-erc-org)
-    (erc-send-message (format "-- Q&A continues off-stream for \"%s\" in the %s track (%s) Add notes/questions: %s IRC: #%s"
-                              (plist-get talk :title)
-                              (plist-get talk :track)
-                              (plist-get talk :qa-info)
-                              (plist-get talk :pad-url)
-                              (concat "#" (plist-get talk :channel))))))
+	(if (emacsconf-erc-recently-announced (format "-- Q&A continues off-stream for \"%s\"" (plist-get talk :slug)))
+			(message "Recently announced, skipping")
+		(emacsconf-erc-with-channels (list (concat "#" (plist-get talk :channel)))
+			(erc-send-message (format "-- Q&A continues off-stream for \"%s\" (%s) Add notes/questions: %s ."
+																(plist-get talk :title)
+																(plist-get talk :qa-info)
+																(plist-get talk :pad-url))))  
+		(emacsconf-erc-with-channels (list emacsconf-erc-hallway emacsconf-erc-org)
+			(erc-send-message (format "-- Q&A continues off-stream for \"%s\" in the %s track (%s) Add notes/questions: %s IRC: #%s"
+																(plist-get talk :title)
+																(plist-get talk :track)
+																(plist-get talk :qa-info)
+																(plist-get talk :pad-url)
+																(concat "#" (plist-get talk :channel)))))))
 
 (defun erc-cmd-NOWDONE (talk)
-  (interactive (list (emacsconf-complete-talk-info)))
-  (when (stringp talk) (setq talk (or (emacsconf-find-talk-info talk) (error "Could not find talk %s" talk))))
-  (emacsconf-erc-with-channels (list (concat "#" (plist-get talk :channel)))
-    (erc-send-message (format "-- Q&A finished for \"%s\". Add notes/questions: %s %s"
-                              (plist-get talk :title)
-                              (plist-get talk :pad-url)
-                              (emacsconf-surround " Speaker IRC nick: " (plist-get talk :irc) "" ""))))  
-  (emacsconf-erc-with-channels (list emacsconf-erc-hallway emacsconf-erc-org)
-    (erc-send-message (format "-- Q&A finished for \"%s\" in the %s track. Add notes/questions: %s %s"
-                              (plist-get talk :title)
-                              (plist-get talk :track)
-                              (plist-get talk :pad-url)
-                              (emacsconf-surround " Speaker IRC nick: " (plist-get talk :irc) "" "")))))
+	(interactive (list (emacsconf-complete-talk-info)))
+	(when (stringp talk) (setq talk (or (emacsconf-find-talk-info talk) (error "Could not find talk %s" talk))))
+	(if (emacsconf-erc-recently-announced (format "-- Q&A finished for \"%s\"" (plist-get talk :slug)))
+			(message "Recently announced, skipping")
+		(emacsconf-erc-with-channels (list (concat "#" (plist-get talk :channel)))
+			(erc-send-message (format "-- Q&A finished for \"%s\". Add notes/questions: %s %s"
+																(plist-get talk :title)
+																(plist-get talk :pad-url)
+																(emacsconf-surround " Speaker IRC nick: " (plist-get talk :irc) "" ""))))
+		(emacsconf-erc-with-channels (list emacsconf-erc-hallway emacsconf-erc-org)
+			(erc-send-message (format "-- Q&A finished for \"%s\" in the %s track. Add notes/questions: %s %s"
+																(plist-get talk :title)
+																(plist-get talk :track)
+																(plist-get talk :pad-url)
+																(emacsconf-surround " Speaker IRC nick: " (plist-get talk :irc) "" ""))))))
 
 ;;; For todo hooks
 
@@ -293,9 +319,9 @@ If MESSAGE is not specified, reset the topic to the template."
 (defun erc-cmd-OPME ()
   "Request chanserv to op me."
   (erc-message "PRIVMSG"
-	       (format "chanserv op %s %s"
-		       (erc-default-target)
-		       (erc-current-nick)) nil))
+							 (format "chanserv op %s %s"
+											 (erc-default-target)
+											 (erc-current-nick)) nil))
 
 (defun erc-cmd-DEOPME ()
   "Deop myself from current channel."
@@ -304,7 +330,7 @@ If MESSAGE is not specified, reset the topic to the template."
 (defun erc-cmd-OPALL (&optional nick)
   (emacsconf-erc-with-channels (mapcar 'car emacsconf-topic-templates)
     (if nick
-	(erc-cmd-OP nick)
+				(erc-cmd-OP nick)
       (erc-cmd-OPME))))
 
 (defun erc-cmd-DEOPALL (&optional nick)
@@ -454,6 +480,21 @@ Usage: /conflog keyword notes go here"
    ((string= (car args) "log")
     (apply 'erc-cmd-CONFLOG (cdr args)))
    (t (message "checkin start git log"))))
+
+;;; Hooks for noticing
+
+;; (with-eval-after-load 'erc (add-hook 'erc-insert-pre-hook 'emacsconf-erc-notice-announcements))
+
+(defvar emacsconf-erc-announcement-nicks '("sachac" "emacsconf"))
+(defvar emacsconf-erc-recent-announcements nil "List of time and recent announcements.")
+(defvar emacsconf-erc-recent-announcements-length 100 "How many entries to keep.")
+(defun emacsconf-erc-notice-announcements (string)
+	"Try to avoid spamming the announcement channels."
+	(when (string-match (concat "\\`<@?" (regexp-opt emacsconf-erc-announcement-nicks) "> \\(--.*\\)") string)
+		(message "%s" (substring-no-properties string))
+		(setq emacsconf-erc-recent-announcements
+					(cons (cons (match-string-no-properties 1 string) (current-time))
+								(seq-take emacsconf-erc-recent-announcements (1- emacsconf-erc-recent-announcements-length))))))
 
 (provide 'emacsconf-erc)
 ;;; emacsconf-erc.el ends here
