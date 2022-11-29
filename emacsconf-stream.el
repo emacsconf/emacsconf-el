@@ -818,5 +818,19 @@ ffplay URL
 	(cancel-function-timers #'emacsconf-update-talk-status-with-hooks)
 	(setq emacsconf-stream-timers nil))
 
+(defun emacsconf-stream-show-playback-info (talk-or-track)
+	(interactive (list (emacsconf-complete-track)))
+	(let* ((default-directory (emacsconf-stream-track-login talk-or-track))
+				 (playback-position (gethash "data" (json-parse-string (shell-command-to-string "echo '{ \"command\": [\"get_property\", \"playback-time\"] }' | socat - ~/mpv-socket"))))
+				 (duration (gethash "data" (json-parse-string (shell-command-to-string "echo '{ \"command\": [\"get_property\", \"duration\"] }' | socat - ~/mpv-socket")))))
+		(message "%s of %s (%s remaining, ending at %s)"
+						 (emacsconf-format-seconds playback-position)
+						 (emacsconf-format-seconds duration)
+						 (emacsconf-format-seconds (- duration playback-position))
+						 (format-time-string
+							"%H:%M %p"
+							(time-add (current-time) (seconds-to-time (- duration playback-position)))
+							emacsconf-timezone))))
+
 (provide 'emacsconf-stream)
 ;;; emacsconf-stream.el ends here

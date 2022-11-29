@@ -1366,5 +1366,9 @@ tracks with the ID in the cdr of that list."
   (interactive (list (read-file-name "File: " (expand-file-name "./" emacsconf-cache-dir) nil t)))
   (find-file (expand-file-name filename emacsconf-cache-dir)))
 
+(defun emacsconf-format-seconds (seconds)
+	(concat (format-seconds "%.2m:%.2s" (floor seconds))
+					"." (format "%03d" (% (floor (* 1000 seconds)) 1000))))
+
 (provide 'emacsconf)
 ;;; emacsconf.el ends here
