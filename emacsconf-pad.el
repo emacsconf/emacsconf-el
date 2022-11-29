@@ -360,12 +360,14 @@ ${next-talk-list}
       (concat
        "
 <p>Ctrl-5 is the shortcut for striking through on Etherpad.</p>
+Don't use this for notes since it gets overwritten.
 
 <strong>Setup</strong>
 <ul>
 <li>[ ] ${checkin}: Open ${checkin-pad}</li>
 <li>[ ] ${irc-volunteer}: Watch the #emacsconf-${track-id} channel and open ${base-url}${year}/talks for links to the pads</li>
 <li>[ ] ${pad}: Open ${base-url}${year}/talks for links to the pads</li>
+<li>[ ] ${coord}: ssh orga@live0.emacsconf.org and run screen-fallbacks; confirm that the streams are showing fallbacks</li>
 <li>[ ] ${stream}: Start recording with OBS
 <li>[ ] Copy the password file if you don't already have it: <strong>scp emacsconf-${track-id}@res.emacsconf.org:~/.vnc/passwd vnc-passwd-${track-id} -p ${ssh-port}</strong></li>
 <li>[ ] Forward your local ports: <strong>ssh emacsconf-${track-id}@res.emacsconf.org -N -L ${vnc-port}:127.0.0.1:${vnc-port} -p ${ssh-port} &</strong></li>
@@ -510,8 +512,8 @@ ${bbb-checklist}</li>")
    (t
     (let ((pronoun (pcase (plist-get talk :pronouns)
                      ((rx "she") "She")
+                     ((or 'nil "nil" (rx string-start "he") (rx "him")) "He")
                      ((rx "they") "They")
-                     ((rx "she") "He")
                      (_ (or (plist-get talk :pronouns) "")))))
       (format "The next talk is called \"%s\"\", by %s.%s" (plist-get talk :title)
               (replace-regexp-in-string ", \\([^,]+\\)$"
@@ -577,13 +579,14 @@ ${bbb-checklist}</li>")
                     (emacsconf-surround "<li><strong>" (plist-get talk :hyperlist-note) "</strong></li>" "")
                     (if (file-exists-p
                          (expand-file-name (concat (plist-get talk :slug) ".webm") (expand-file-name "intros" emacsconf-stream-asset-dir)))
-                        "<li>This talk has a recorded intro that should automatically play when you mark the talk as playing. If it doesn't play, go to the ~/assets/intros directory and use track-mpv to play the video file.</li>"
-                      "<li>[ ] ${stream}: Display the in-between slide: ${ssh-track} and run <em>firefox ${in-between-url} &</em></li>
+                        "<li>This talk has a recorded intro that should automatically play when you mark the talk as playing. If it doesn't play, go to the ~/assets/intros directory and use track-mpv to play the video file. If that doesn't work, display the in-between slide: ${ssh-track} and run <em>firefox ~/assets/in-between/${slug}.png</em> . ${host} can join Mumble and say: <strong>${intro-note}</strong></li>"
+                      "<li>[ ] ${stream}: Display the in-between slide: ${ssh-track} and run <em>firefox ~/assets/in-between/${slug}.png</em></li>
 <li>[ ] ${host}: Connect to the ${mumble} channel in Mumble and introduce the talk: <strong>${intro-note}</strong></li>
 ")
                     
                     (if (plist-get talk :video-file)
-                        "<li>[ ] ${stream}: Mark the talk as playing: ${ssh-playing} and confirm that it plays. If it doesn't play, go to the ~/stream directory and use track-mpv to play the video file.</li>"
+                        "<li>[ ] ${stream}: Mark the talk as playing: ${ssh-playing} and confirm that it plays. If it doesn't play, go to the ~/stream directory and use track-mpv to play the video file.</li>
+<li>[ ] ${coord}: emacsconf-publish-update-talk ${slug}  and then commit and push the wiki. Confirm that the video is visible"
                       "<li>[ ] ${stream}: <strong>LIVE talk:</strong> Mark the talk as playing: ${ssh-playing} and arrange windows (backup URL for BBB if it doesn't open: ${bbb-backstage}). Adjust audio as needed</li>")
                     (pcase (or (plist-get talk :q-and-a) "")
                       ((rx "live")

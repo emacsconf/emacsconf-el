@@ -244,5 +244,34 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
               (kill-buffer buffer))))
         (buffer-list)))
 
+(defun emacsconf-mail-notmuch-search-for-talk (talk)
+  "Search for e-mail related to TALK."
+  (interactive (list (emacsconf-complete-talk-info))) 
+  (notmuch-search
+   (concat
+    (mapconcat
+     (lambda (o)
+       (format "from:%s or to:%s" o o))
+     (split-string (plist-get talk :email) " *, *")
+     " or ")
+    " or (" emacsconf-id " and " (plist-get talk :slug) ")")))
+
+;;; Volunteers
+
+(defun emacsconf-mail-volunteers (volunteers)
+  (interactive
+   (list
+    (completing-read-multiple
+     "Volunteers: " (emacsconf-volunteer-emails-for-completion))))
+  (compose-mail (string-join volunteers ", ")))
+
+(defun emacsconf-mail-notmuch-search-for-volunteer (volunteer)
+  (interactive
+   (list
+    (completing-read
+     "Volunteer: " (emacsconf-volunteer-emails-for-completion))))
+  (let ((email (if (string-match "<\\(.*?\\)>" volunteer) (match-string 1) volunteer)))
+    (notmuch-search (format "from:%s or to:%s" email email))))
+
 (provide 'emacsconf-mail)
 ;;; emacsconf-mail.el ends here

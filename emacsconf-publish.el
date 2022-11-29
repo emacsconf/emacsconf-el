@@ -41,6 +41,13 @@
 (defcustom emacsconf-public-media-directory (concat "/ssh:orga@media.emacsconf.org:/var/www/media.emacsconf.org/" emacsconf-year "/")
   "Can be over TRAMP" :type 'string :group 'emacsconf)
 
+(defun emacsconf-publish-info-pages-for-talk (talk)
+"Publish the before and after pages for this talk."
+  (interactive (list (emacsconf-complete-talk-info)))
+  (let ((info (emacsconf-get-talk-info)))
+    (emacsconf-publish-before-page talk info)
+    (emacsconf-publish-after-page talk info)))
+
 (defun emacsconf-publish-update-talk (talk)
   "Publish the schedule page and the page for this talk."
   (interactive (list (emacsconf-complete-talk-info)))
@@ -1821,7 +1828,7 @@ ${title-info}
       (emacsconf-publish-page-nav nav "watch")
       " | ${stream-nav}</div>
 
-<video controls><source src=\"${stream}\" type=\"video/webm\" /></video>
+<video controls class=\"reload\"><source src=\"${stream}\" type=\"video/webm\" /></video>
 <div>Alternatively, load <a href=\"${stream-hires}\">${stream-hires}</a> or <a href=\"${480p}\">${480p}</a> (low-res) in a streaming media player such as MPV.</div>
 <hr size=\"1\"><div>" (emacsconf-publish-page-nav nav "links") " | ${stream-nav}</div>"
       "<div>${brief}</div>
@@ -1843,35 +1850,58 @@ ${title-info}
 (defun emacsconf-publish-watch-pages ()
   "Update /year/watch pages."
   (interactive)
-  (let ((tracks
-         (mapcar (lambda (track)
-                   (append (list
-                            :year emacsconf-year          
-                            :stream (concat emacsconf-stream-base (plist-get track :id) ".webm")          
-                            :stream-hires (concat emacsconf-stream-base (plist-get track :id) ".webm")          
-                            :480p (concat emacsconf-stream-base (plist-get track :id) "-480p.webm"))
-                           track))
-                 emacsconf-tracks)))
-    (let* ((info (emacsconf-prepare-for-display (emacsconf-get-talk-info)))
-           (emacsconf-publishing-phase 'schedule)
-           (emacsconf-use-absolute-url t))
-      (when emacsconf-directory
-        (emacsconf-publish-with-wiki-change
-          (make-directory (expand-file-name "watch" (expand-file-name emacsconf-year emacsconf-directory)) t)
-          (with-temp-file (expand-file-name "watch/info.md" (expand-file-name emacsconf-year emacsconf-directory))
-            (insert "[[!sidebar content=\"\"]]" (emacsconf-publish-format-watch-index info)))
-          (mapc (lambda (track)
-                  (with-temp-file (expand-file-name (format "%s/watch/%s.md" emacsconf-year (plist-get track :id))
-                                                    emacsconf-directory)
-                    (insert (emacsconf-publish-format-watch-track (append track (list :title "")) info))))
-                tracks)))
-      ;; Update live.emacsconf.org
-      (when emacsconf-publish-watch-directory
-        (make-directory (expand-file-name "watch" (expand-file-name emacsconf-year emacsconf-publish-watch-directory)) t)
-        (with-temp-file (expand-file-name "watch/index.html" (expand-file-name emacsconf-year emacsconf-publish-watch-directory))
-          (insert "<html><head><title>Watch EmacsConf</title><link rel=\"stylesheet\" type=\"text/css\" href=\"/style.css\"></link></head><body>" (emacsconf-publish-format-watch-index info)
+  (let* ((tracks
+          (mapcar (lambda (track)
+                    (append (list
+                             :year emacsconf-year          
+                             :stream (concat emacsconf-stream-base (plist-get track :id) ".webm")          
+                             :stream-hires (concat emacsconf-stream-base (plist-get track :id) ".webm")          
+                             :480p (concat emacsconf-stream-base (plist-get track :id) "-480p.webm"))
+                            track))
+                  emacsconf-tracks))
+         (reload-js "
+<script>
+ // @license magnet:?xt=urn:btih:90dc5c0be029de84e523b9b3922520e79e0e6f08&dn=cc0.txt txt CC0-1.0
+ // Copyright (c) 2022 Sacha Chua - CC0 Public Domain
+var video = document.querySelector('video.reload');
+if (video) {
+  var myVar = setInterval(reloadAsNeeded, 1000);
+  var oldTime = '';
+  function reloadAsNeeded() {
+    if ((video.paused != true && (video.currentTime - oldTime) == 0 && video.currentTime != 0)) {
+      var source = video.querySelector('source');
+      var oldVideo = source.src;
+      source.src = '';
+      source.src = oldVideo;
+      video.load();
+      video.play();
+    }
+    oldTime = video.currentTime;
+  };
+}
+// @license-end
+</script>
+")
+         (info (emacsconf-prepare-for-display (emacsconf-get-talk-info)))
+         (emacsconf-publishing-phase 'schedule)
+         (emacsconf-use-absolute-url t))
+    (when emacsconf-directory
+      (emacsconf-publish-with-wiki-change
+        (make-directory (expand-file-name "watch" (expand-file-name emacsconf-year emacsconf-directory)) t)
+        (with-temp-file (expand-file-name "watch/info.md" (expand-file-name emacsconf-year emacsconf-directory))
+          (insert "[[!sidebar content=\"\"]]" (emacsconf-publish-format-watch-index info)))
+        (mapc (lambda (track)
+                (with-temp-file (expand-file-name (format "%s/watch/%s.md" emacsconf-year (plist-get track :id))
+                                                  emacsconf-directory)
+                  (insert (emacsconf-publish-format-watch-track (append track (list :title "")) info))))
+              tracks)))
+    ;; Update live.emacsconf.org
+    (when emacsconf-publish-watch-directory
+      (make-directory (expand-file-name "watch" (expand-file-name emacsconf-year emacsconf-publish-watch-directory)) t)
+      (with-temp-file (expand-file-name "watch/index.html" (expand-file-name emacsconf-year emacsconf-publish-watch-directory))
+        (insert "<html><head><title>Watch EmacsConf</title><link rel=\"stylesheet\" type=\"text/css\" href=\"/style.css\"></link></head><body>" (emacsconf-publish-format-watch-index info)
 
-                  " <p>
+                " <p>
         Depending on which media player you use, you may enter the stream address
         in a graphical user interface or provide it as an argument to the program
         when launching it from the terminal.
@@ -1906,36 +1936,38 @@ when the host has opened the Q&A.</p>
 
 "
 
-                  "</body></html>"))
-        (mapc (lambda (track)
-                (make-directory (expand-file-name (format "%s/watch/%s" emacsconf-year (plist-get track :id)) emacsconf-publish-watch-directory) t)
-                (make-directory (expand-file-name (format "%s/watch/%s-480p" emacsconf-year (plist-get track :id)) emacsconf-publish-watch-directory) t)
-                (with-temp-file (expand-file-name (format "%s/watch/%s/index.html" emacsconf-year (plist-get track :id))
-                                                  emacsconf-publish-watch-directory)
-                  (insert
-                   (emacsconf-replace-plist-in-string
-                    track
-                    "<html><head><title>Watch EmacsConf ${name} track</title><link rel=\"stylesheet\" type=\"text/css\" href=\"/style.css\"></link></head><body>")
-                   (emacsconf-publish-format-watch-track (append track
-                                                                 (list :title
-                                                                       (emacsconf-replace-plist-in-string
-                                                                        track
-                                                                        "EmacsConf ${year}: ${name} track")))
-                                                         info)
-                   "</body></html>"))
-                (with-temp-file (expand-file-name (format "%s/watch/%s-480p/index.html" emacsconf-year (plist-get track :id))
-                                                  emacsconf-publish-watch-directory)
-                  (insert
-                   (emacsconf-replace-plist-in-string
-                    track
-                    "<html><head><title>Watch EmacsConf ${name} track (low-res)</title><link rel=\"stylesheet\" type=\"text/css\" href=\"/style.css\"></link></head><body>")
-                   (emacsconf-publish-format-watch-track
-                    (append (list :stream (plist-get track :480p)
-                                  :title (emacsconf-replace-plist-in-string track "EmacsConf ${year}: ${name} track (low-res)"))
-                            track)
-                    info)
-                   "</body></html>")))
-              tracks)))))
+                "</body></html>"))
+      (mapc (lambda (track)
+              (make-directory (expand-file-name (format "%s/watch/%s" emacsconf-year (plist-get track :id)) emacsconf-publish-watch-directory) t)
+              (make-directory (expand-file-name (format "%s/watch/%s-480p" emacsconf-year (plist-get track :id)) emacsconf-publish-watch-directory) t)
+              (with-temp-file (expand-file-name (format "%s/watch/%s/index.html" emacsconf-year (plist-get track :id))
+                                                emacsconf-publish-watch-directory)
+                (insert
+                 (emacsconf-replace-plist-in-string
+                  track
+                  "<html><head><title>Watch EmacsConf ${name} track</title><link rel=\"stylesheet\" type=\"text/css\" href=\"/style.css\"></link></head><body>")
+                 (emacsconf-publish-format-watch-track (append track
+                                                               (list :title
+                                                                     (emacsconf-replace-plist-in-string
+                                                                      track
+                                                                      "EmacsConf ${year}: ${name} track")))
+                                                       info)
+                 reload-js
+                 "</body></html>"))
+              (with-temp-file (expand-file-name (format "%s/watch/%s-480p/index.html" emacsconf-year (plist-get track :id))
+                                                emacsconf-publish-watch-directory)
+                (insert
+                 (emacsconf-replace-plist-in-string
+                  track
+                  "<html><head><title>Watch EmacsConf ${name} track (low-res)</title><link rel=\"stylesheet\" type=\"text/css\" href=\"/style.css\"></link></head><body>")
+                 (emacsconf-publish-format-watch-track
+                  (append (list :stream (plist-get track :480p)
+                                :title (emacsconf-replace-plist-in-string track "EmacsConf ${year}: ${name} track (low-res)"))
+                          track)
+                  info)
+                 reload-js
+                 "</body></html>")))
+            tracks))))
 
 
 (defvar emacsconf-publish-current-dir "/ssh:orga@media.emacsconf.org:/var/www/media.emacsconf.org/2022/current"

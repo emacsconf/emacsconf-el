@@ -63,7 +63,7 @@
 (defcustom emacsconf-erc-org "#emacsconf-org" "Channel for organizers")
 
 (defcustom emacsconf-topic-templates
-  '(("#emacsconf" "${emacsconf-name} ${year} | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
+  '(("#emacsconf" "EmacsConf 2022 | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
     ("#emacsconf-gen" "General track | https://emacsconf.org/2022/watch/gen/ | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
     ("#emacsconf-dev" "Development track | https://emacsconf.org/2022/watch/dev/ | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
     ("#emacsconf-accessible" "EmacsConf 2022 accessibility - help by describing what's happening | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
