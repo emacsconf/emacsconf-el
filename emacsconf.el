@@ -612,6 +612,7 @@
 																	 (seconds-to-time (/ 3600 2))))))))
   o)
 
+(require 'emacsconf-pad)
 (defun emacsconf-add-live-info (o)
   (plist-put o :absolute-url (concat emacsconf-base-url (plist-get o :url)))
   (plist-put o :in-between-url (format "%s%s/in-between/%s.png"
@@ -1062,8 +1063,6 @@
           :vnc-port "5906"
           :status "offline")))
 
-(setq emacsconf-shifts (list (list :id "sat-am-gen" :track "General" :start "2022-12-03T08:00:00-0500" :end "2022-12-03T12:00:00-0500" :host "zaeph" :streamer "sachac" :checkin "corwin" :irc "dto" :pad "publicvoit" :coord "sachac") (list :id "sat-pm-gen" :track "General" :start "2022-12-03T13:00:00-0500" :end "2022-12-03T18:00:00-0500" :host "zaeph" :streamer "sachac" :checkin "FlowyCoder" :irc "bandali" :pad "publicvoit" :coord "sachac") (list :id "sat-am-dev" :track "Development" :start "2022-12-03T08:00:00-0500" :end "2022-12-03T12:00:00-0500" :host "bandali" :streamer "sachac" :checkin "corwin" :irc "dto" :coord "sachac") (list :id "sat-pm-dev" :track "Development" :start "2022-12-03T13:00:00-0500" :end "2022-12-03T18:00:00-0500" :host "vetrivln" :streamer "bandali" :checkin "FlowyCoder" :irc "vetrivln" :coord "sachac") (list :id "sun-am-gen" :track "General" :start "2022-12-04T08:00:00-0500" :end "2022-12-04T12:00:00-0500" :host "zaeph" :streamer "sachac" :checkin "corwin" :irc "dto" :pad "publicvoit" :coord "sachac") (list :id "sun-pm-gen" :track "General" :start "2022-12-04T13:00:00-0500" :end "2022-12-04T18:00:00-0500" :host "zaeph" :streamer "jman" :checkin "FlowyCoder" :irc "bandali" :pad "publicvoit" :coord "sachac") (list :id "sun-am-dev" :track "Development" :start "2022-12-04T08:00:00-0500" :end "2022-12-04T12:00:00-0500" :host "bandali" :streamer "sachac" :checkin "corwin" :irc "dto" :coord "sachac") (list :id "sun-pm-dev" :track "Development" :start "2022-12-04T13:00:00-0500" :end "2022-12-04T18:00:00-0500" :host "vetrivln" :streamer "bandali" :checkin "FlowyCoder" :irc "vetrivln" :coord "sachac")))
-
 (defun emacsconf-get-track (name)
   (when (and (listp name) (plist-get name :track))
 		(setq name (plist-get name :track)))
@@ -1098,22 +1097,7 @@
   (seq-filter (lambda (o) (string= (plist-get o :track) (plist-get track :name))) info))
 
 (defvar emacsconf-shifts
-  `((:id "sat-am"
-         :label "Sat Dec 3 morning"
-         :start ,(concat "2022-12-03T09:00:00" emacsconf-timezone-offset)
-         :end ,(concat "2022-12-03T12:00:00" emacsconf-timezone-offset))
-    (:id "sat-pm"
-         :label "Sat Dec 3 afternoon"
-         :start ,(concat "2022-12-03T13:00:00" emacsconf-timezone-offset)
-         :end ,(concat "2022-12-03T17:30:00" emacsconf-timezone-offset))
-    (:id "sun-am"
-         :label "Sun Dec 4 morning"
-         :start ,(concat "2022-12-04T09:00:00" emacsconf-timezone-offset)
-         :end ,(concat "2022-12-04T12:00:00" emacsconf-timezone-offset))
-    (:id "sun-pm"
-         :label "Sun Dec 4 afternoon"
-         :start ,(concat "2022-12-04T13:00:00" emacsconf-timezone-offset)
-         :end ,(concat "2022-12-04T17:30:00" emacsconf-timezone-offset))))
+	(list (list :id "sat-am-gen" :track "General" :start "2022-12-03T08:00:00-0500" :end "2022-12-03T12:00:00-0500" :host "zaeph" :streamer "sachac" :checkin "corwin" :irc "dto" :pad "publicvoit" :coord "sachac") (list :id "sat-pm-gen" :track "General" :start "2022-12-03T13:00:00-0500" :end "2022-12-03T18:00:00-0500" :host "zaeph" :streamer "sachac" :checkin "FlowyCoder" :irc "bandali" :pad "publicvoit" :coord "sachac") (list :id "sat-am-dev" :track "Development" :start "2022-12-03T08:00:00-0500" :end "2022-12-03T12:00:00-0500" :host "bandali" :streamer "sachac" :checkin "corwin" :irc "dto" :coord "sachac") (list :id "sat-pm-dev" :track "Development" :start "2022-12-03T13:00:00-0500" :end "2022-12-03T18:00:00-0500" :host "bandali" :streamer "sachac" :checkin "FlowyCoder" :irc "bandali" :coord "sachac") (list :id "sun-am-gen" :track "General" :start "2022-12-04T08:00:00-0500" :end "2022-12-04T12:00:00-0500" :host "zaeph" :streamer "sachac" :checkin "corwin" :irc "dto" :pad "publicvoit" :coord "sachac") (list :id "sun-pm-gen" :track "General" :start "2022-12-04T13:00:00-0500" :end "2022-12-04T18:00:00-0500" :host "zaeph" :streamer "jman" :checkin "FlowyCoder" :irc "bandali" :pad "publicvoit" :coord "sachac") (list :id "sun-am-dev" :track "Development" :start "2022-12-04T08:00:00-0500" :end "2022-12-04T12:00:00-0500" :host "bandali" :streamer "sachac" :checkin "corwin" :irc "dto" :coord "sachac") (list :id "sun-pm-dev" :track "Development" :start "2022-12-04T13:00:00-0500" :end "2022-12-04T18:00:00-0500" :host "bandali" :streamer "sachac" :checkin "FlowyCoder" :irc "bandali" :coord "sachac")))
 
 (defun emacsconf-filter-talks-by-time (start-time end-time info)
   "Return talks that are between START-TIME and END-TIME (inclusive) in INFO."
