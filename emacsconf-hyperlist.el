@@ -21,6 +21,18 @@
 
 ;;; Commentary:
 
+(defun emacsconf-hyperlist-audio (source)
+	(format
+	 "%s: pamix (F3 output) [[elisp:(emacsconf-stream-audio-quieter \"${track}\" \"%s\")][quieter]] [[elisp:(emacsconf-stream-audio-louder \"${track}\" \"%s\")][louder]] %s"
+	 source
+	 source source
+	 (mapconcat (lambda (val)
+								(format "[[elisp:(emacsconf-stream-audio-set \"${track}\" \"%s\" \"%d%%\")][%d]]"
+												source
+												val val))
+							'(70 80 90 100 110 120)
+							" ")))
+
 (defun emacsconf-hyperlist-format-talk-streamer (talk)
 	(setq talk (emacsconf-resolve-talk talk))
 	(emacsconf-replace-plist-in-string
@@ -29,7 +41,8 @@
 					:intro-type (if (plist-get talk :recorded-intro) "recorded" "live")
 					:talk-type (if (plist-get talk :video-file) "recorded" "live")
 					:qa-type (or (plist-get talk :q-and-a) "none")
-					)
+					:qa-adjust (emacsconf-hyperlist-audio "qa")
+					:mumble-adjust (emacsconf-hyperlist-audio "mumble"))
 		talk) 
    (concat
 		"- ${hhmm} ${track-id} ${slug} (intro: ${intro-type}, talk: ${talk-type}, Q&A: ${qa-type}) [[${absolute-url}][talk page]]\n"
@@ -38,12 +51,16 @@
 		;; Intro
 		(cond
 		 ((plist-get talk :recorded-intro)
-			"    - [[elisp:(emacsconf-stream-play-intro \"${slug}\")][backup: play intro]]\n")
+			"    - [[elisp:(emacsconf-stream-play-intro \"${slug}\")][backup: play intro]]
+      - if that still doesn't work, [[elisp:(emacsconf-stream-open-in-between-slide \"${slug}\"][open in-between slide]] and ask the host to intro it over Mumble\n"
+			)
 		 ((plist-get talk :video-file) ;; recorded talk, so intro comes from Mumble
-			"    - [[elisp:(emacsconf-play-intro \"${slug}\")][backup: open in-between slide]]\n")
+			"    - [[elisp:(emacsconf-play-intro \"${slug}\")][backup: open in-between slide]]
+  - [ ] adjust audio as needed ${mumble-adjust}\n")
 		 (t ;; live talk and intro, join BBB
 			"    - [[elisp:(emacsconf-stream-bbb \"${slug}\")][backup: join BBB for live intro and talk]]
-  - [ ] adjust audio as needed\n"))
+    - [[elisp:(emacsconf-stream-xdotool-set-up-bbb \"${slug}\"][backup: xdotool BBB]]
+  - [ ] adjust audio as needed ${qa-adjust}\n"))
 		;; Talk
 		(cond
 		 ;; video should already have played
@@ -55,7 +72,8 @@
 		 ;; recorded intro, live talk
 		 ((plist-get talk :recorded-intro)
 			"  - [ ] [[elisp:(emacsconf-stream-bbb \"${slug}\")][join BBB for live talk]]
-  - [ ] adjust audio as needed\n"
+  - [ ] [[elisp:(emacsconf-stream-xdotool-set-up-bbb \"${slug}\"][xdotool BBB]]
+  - [ ] adjust audio as needed ${qa-adjust}\n"
 			))
 		(if (plist-get talk :video-file)
 				""
@@ -78,6 +96,8 @@
 					:intro-type (if (plist-get talk :recorded-intro) "recorded" "live")
 					:talk-type (if (plist-get talk :video-file) "recorded" "live")
 					:qa-type (or (plist-get talk :q-and-a) "none")
+					:qa-adjust (emacsconf-hyperlist-audio "qa")
+					:mumble-adjust (emacsconf-hyperlist-audio "mumble")
 					)
 		talk)
 	 (concat
@@ -88,8 +108,10 @@
 			((rx "live")
 			 "    - [[elisp:(emacsconf-stream-bbb \"${slug}\")][backup: join BBB]]
     - [[elisp:(emacsconf-stream-open-pad \"${slug}\")][backup: open pad]]
-  - [ ] Check that streaming has started
+  - [ ] [[elisp:(emacsconf-stream-xdotool-set-up-bbb \"${slug}\"][xdotool BBB]]
+  - [ ] Check that streaming has started AND RECORDING HAS STARTED
   - [ ] Give the host the go-ahead via Mumble or #emacsconf-org
+  - [ ] ${qa-adjust}
   - [ ] [[elisp:(emacsconf-update-talk-status-with-hooks \"${slug}\" \".\" \"OPEN_Q\")][set talk open q]]
   - [ ] Confirm BBB redirect at ${bbb-redirect} goes to BBB room, let host know
 ")
@@ -100,7 +122,8 @@
 ")
 			((rx "Mumble")
 			 "
-  - [ ] Bring the speaker's Mumble login over to the ${channel} channel in Mumble. Confirm that Mumble is audible and adjust audio as needed: ssh emacsconf-${track-id}@res.emacsconf.org -p 46668 \"mum-vol 85%%\" (or mum-louder, mum-quieter)
+  - [ ] Bring the speaker's Mumble login over to the ${channel} channel in Mumble.
+  - [ ] Confirm that Mumble is audible and adjust audio as needed: ${mumble-adjust}\n
   - [ ] [[elisp:(emacsconf-update-talk-status-with-hooks \"${slug}\" \".\" \"OPEN_Q\")][set talk open q]]
 ")
 			((rx "after")

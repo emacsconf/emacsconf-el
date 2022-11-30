@@ -104,7 +104,8 @@
   (let* ((org-agenda-custom-commands
          `(("a" "Agenda"
             ((tags-todo "-PRIORITY=\"C\"-SCHEDULED={.}-nextyear"
-                        ((org-agenda-files (list ,emacsconf-notebook))))
+                        ((org-agenda-files (list ,emacsconf-notebook))
+												 (org-agenda-sorting-strategy '(priority-down effort-up))))
              (agenda ""
                      ((org-agenda-files (list ,emacsconf-notebook))
                       (org-agenda-span 7)))
@@ -1064,10 +1065,13 @@
 (setq emacsconf-shifts (list (list :id "sat-am-gen" :track "General" :start "2022-12-03T08:00:00-0500" :end "2022-12-03T12:00:00-0500" :host "zaeph" :streamer "sachac" :checkin "corwin" :irc "dto" :pad "publicvoit" :coord "sachac") (list :id "sat-pm-gen" :track "General" :start "2022-12-03T13:00:00-0500" :end "2022-12-03T18:00:00-0500" :host "zaeph" :streamer "sachac" :checkin "FlowyCoder" :irc "bandali" :pad "publicvoit" :coord "sachac") (list :id "sat-am-dev" :track "Development" :start "2022-12-03T08:00:00-0500" :end "2022-12-03T12:00:00-0500" :host "bandali" :streamer "sachac" :checkin "corwin" :irc "dto" :coord "sachac") (list :id "sat-pm-dev" :track "Development" :start "2022-12-03T13:00:00-0500" :end "2022-12-03T18:00:00-0500" :host "vetrivln" :streamer "bandali" :checkin "FlowyCoder" :irc "vetrivln" :coord "sachac") (list :id "sun-am-gen" :track "General" :start "2022-12-04T08:00:00-0500" :end "2022-12-04T12:00:00-0500" :host "zaeph" :streamer "sachac" :checkin "corwin" :irc "dto" :pad "publicvoit" :coord "sachac") (list :id "sun-pm-gen" :track "General" :start "2022-12-04T13:00:00-0500" :end "2022-12-04T18:00:00-0500" :host "zaeph" :streamer "jman" :checkin "FlowyCoder" :irc "bandali" :pad "publicvoit" :coord "sachac") (list :id "sun-am-dev" :track "Development" :start "2022-12-04T08:00:00-0500" :end "2022-12-04T12:00:00-0500" :host "bandali" :streamer "sachac" :checkin "corwin" :irc "dto" :coord "sachac") (list :id "sun-pm-dev" :track "Development" :start "2022-12-04T13:00:00-0500" :end "2022-12-04T18:00:00-0500" :host "vetrivln" :streamer "bandali" :checkin "FlowyCoder" :irc "vetrivln" :coord "sachac")))
 
 (defun emacsconf-get-track (name)
-  (when (listp name) (setq name (plist-get name :track)))
-  (seq-find (lambda (track) (or (string= name (plist-get track :name))
-                                (string= name (plist-get track :id))))
-            emacsconf-tracks))
+  (when (and (listp name) (plist-get name :track))
+		(setq name (plist-get name :track)))
+	(if (stringp name)
+			(seq-find (lambda (track) (or (string= name (plist-get track :name))
+																		(string= name (plist-get track :id))))
+								emacsconf-tracks)
+		name))
 
 (defun emacsconf-by-track (info)
   (mapcar (lambda (track)

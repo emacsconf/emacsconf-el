@@ -413,6 +413,10 @@ ${next-talk-list}
 </ul>"))
      )))
 
+(defun emacsconf-pad-prepopulate-shift-host (shift info)
+	
+  )
+
 (defun emacsconf-pad-format-checkin-hyperlist (talk)
   (emacsconf-replace-plist-in-string
    (append (list
@@ -424,6 +428,7 @@ ${next-talk-list}
             (format-time-string "%H:%M" (plist-get talk :start-time) emacsconf-timezone)
             :bbb-checklist
             "<ul><li>Checklist<ul>
+<li>[ ] Speaker is set as a moderator</li>
 <li>[ ] Speaker can be heard</li>
 <li>[ ] Speaker can hear others</li>
 <li>[ ] No audio feedback issues (may need headphones or earphones)</li>
@@ -439,17 +444,17 @@ ${next-talk-list}
 <li>It can take some time for people to think of questions, or you might have a quiet Q&A. Please feel free to demo other things you couldn't fit in your talk, or start with questions people might be thinking about.</li>
 <li>We'll let you know when the stream is going to move on to the next talk. Even after the streamer switches over to the next talk, you can still stay and chat here for as long as you like. When you're done, you can wrap up and leave.</li></ul>")
            talk)
-   (if (plist-get talk :video-duration)
+   (if (plist-get talk :video-file)
        (pcase (or (plist-get talk :q-and-a) "")
          ((rx "live")
-          "<li>[ ] <strong>${time}</strong> ${speakers} (${irc}) should be checked into ${bbb-backstage} and set as moderator(s) to go live at ${live} ${absolute-url}
+          "<li>[ ] <strong>${time}</strong> Q&A: BBB: ${speakers} (${irc}) should be checked into ${bbb-backstage} and set as moderator(s) to go live at ${live} ${absolute-url}
 ${bbb-checklist}</li>")
          ((or (rx "IRC") (rx "pad"))
-          "<li>[ ] <strong>${time}</strong> ${speakers} (${irc}) should be in #${channel} to go live at ${live} ${absolute-url}</li>")
+          "<li>[ ] <strong>${time}</strong> Q&A: IRC/pad: ${speakers} (${irc}) should be in #${channel} to go live at ${live} ${absolute-url}</li>")
          ((rx "Mumble")
-          "<li>[ ] <strong>${time}</strong> ${speakers} (${irc}) should be in Mumble to go live at ${live} ${absolute-url}</li>")
+          "<li>[ ] <strong>${time}</strong> Q&A: Mumble: ${speakers} (${irc}) should be in Mumble to go live at ${live} ${absolute-url}</li>")
          (_ ""))
-     "<li>[ ] <strong>${time}</strong> LIVE: ${speakers} (${irc}) should be checked into ${bbb-backstage} and set as moderator(s) for ${absolute-url}${bbb-checklist} to go live at ${start}</li>")))
+     "<li>[ ] <strong>${time}</strong> LIVE: ${speakers} (${irc}) should be checked into ${bbb-backstage} and set as moderator(s) for ${absolute-url} to go live at ${start}${bbb-checklist}</li>")))
 
 (defun emacsconf-pad-prepopulate-checkins (&optional info)
   (interactive)
@@ -464,7 +469,8 @@ ${bbb-checklist}</li>")
          "<em>${checkin}:</em> " ""
          (concat
           (car day)
-          "<ul>"
+					"<p>If anyone's still missing by the specified time, please let us know in #emacsconf-org so we can call them.</p>"
+					"<ul>"
           (mapconcat
            (lambda (talk)
              (emacsconf-pad-format-checkin-hyperlist talk))
@@ -494,6 +500,95 @@ ${bbb-checklist}</li>")
        pad-id
        (emacsconf-pad-format-shift-hyperlist shift info)))))
 
+(defun emacsconf-pad-prepopulate-host-hyperlists ()
+	(interactive)
+	(mapc #'emacsconf-pad-prepopulate-shift-hyperlist-host emacsconf-shifts))
+(defun emacsconf-pad-prepopulate-shift-hyperlist-host (shift &optional info)
+  (interactive (list (completing-read "Shift: "
+                                      (mapcar (lambda (o) (plist-get o :id)) emacsconf-shifts))))
+  (when (stringp shift)
+    (setq shift (seq-find (lambda (o) (string= (plist-get o :id) shift)) emacsconf-shifts)))
+  (unless info (setq info (emacsconf-prepare-for-display (emacsconf-get-talk-info))))
+  (let ((info (emacsconf-prepare-for-display (emacsconf-get-talk-info))))
+    (let* ((pad-id (format "host-%s"
+                           (plist-get shift :id)))
+					 (shift-talks
+						(seq-filter
+						 (lambda (talk) (string= (plist-get talk :track) (plist-get shift :track)))
+						 (emacsconf-filter-talks-by-time (plist-get shift :start) (plist-get shift :end) info))))
+			(emacsconf-pad-create-pad pad-id)
+			(emacsconf-pad-set-html
+			 pad-id
+			 (concat
+				"
+			 <p>Ctrl-5 is the shortcut for striking through on Etherpad.</p>
+			 <p>Don't use this for notes since it gets overwritten.</p>
+
+			 <strong>Setup:</strong>
+			 <ul>
+			 <li>Join Mumble</li>
+			 <li>Join the IRC channel for your track (optional)</li>
+			 </ul>
+			 "
+				"<strong>Talks</strong>
+			 <ul>"
+				(mapconcat
+				 (lambda (talk)
+					 (let ((next-talk (car (plist-get talk :next-talks))))
+						 (emacsconf-replace-plist-in-string
+							(append
+							 (list :start-hhmm (format-time-string "%H:%M" (plist-get talk :start-time) emacsconf-timezone)
+										 :expanded-intro (emacsconf-pad-expand-intro talk)
+										 :mumble (concat emacsconf-id "-" (plist-get (emacsconf-get-track talk) :id))
+										 :qa-hhmm (format-time-string "%H:%M" (plist-get talk :qa-time) emacsconf-timezone)
+										 :next-talk-in-5 (if next-talk (format-time-string "%H:%M" (time-subtract (plist-get next-talk :start-time) (seconds-to-time 300)) emacsconf-timezone) "")
+										 :next-talk-in-1 (if next-talk (format-time-string "%H:%M" (time-subtract (plist-get next-talk :start-time) (seconds-to-time 60)) emacsconf-timezone) ""))
+							 talk)
+							(concat
+							 (cond
+								(;; live talk, join BBB
+								 (and (null (plist-get talk :recorded-intro))
+											(null (plist-get talk :video-file)))
+								 "<li>[ ] ${start-hhmm} ${slug}: Join ${bbb-backstage}. START RECORDING. Introduce talk, then turn over to speaker for live talk: <strong>${expanded-intro}</strong></li>")
+								(;; live talk, join BBB
+								 (and (null (plist-get talk :recorded-intro))
+											(plist-get talk :video-file))
+								 "<li>[ ] ${start-hhmm} ${slug}: Join ${mumble} in Mumble and introduce talk: <strong>${expanded-intro}</strong></li>")
+								(;; live talk, join BBB
+								 (and (plist-get talk :recorded-intro)
+											(null (plist-get talk :video-file)))
+								 "<li>Backup: ${start-hhmm} ${slug}: it should play a prerecorded intro, but if it doesn't, join ${bbb-backstage} and introduce talk, then turn it over to speaker for live talk: ${expanded-intro}</li>")
+								(t ;; prerecorded intro
+								 "<li>Backup: ${start-hhmm} ${slug}: it should play a prerecorded intro, but if it doesn't, join ${mumble} in Mumble and introduce talk: ${expanded-intro}</li>"))
+							 ;; Q&A
+							 (if (and (null (plist-get talk :video-file)) (not (string= (or (plist-get talk :q-and-a) "none") "none")))
+									 "<li>Continue in the BBB room for live Q&A because the talk was live</li>" 
+								 (pcase (plist-get talk :q-and-a)
+									 ((or 'nil "" "none" (rx "after"))
+										(if (plist-get talk :video-file)
+												"<li>[ ] ${qa-hhmm} ${slug}: Join ${mumble} in Mumble and say that the speaker will follow up with answers on the talk page afterwards. Read questions. ${pad-url}</li>"
+											""))
+									 ((rx "IRC")
+										"<li>[ ] ${qa-hhmm} ${slug}: Join ${mumble} in Mumble. Invite people to put their questions in the ${channel} IRC channel and read questions and answers from there. ${webchat-url} ${pad-url}</li>")
+									 ((rx "pad")
+										"<li>[ ] ${qa-hhmm} ${slug}: Join ${mumble} in Mumble. Invite people to put their questions in the Etherpad and read questions and answers from there. ${pad-url}</li>")
+									 ((rx "Mumble")
+										"<li>[ ] ${qa-hhmm} ${slug}: Join ${mumble} in Mumble. Bring the speaker into the right channel if needed. Invite people to put their questions in the Etherpad and read questions and answers from there. ${pad-url} Paste questions into Mumble chat or read them out loud.</li>")
+									 ((rx "live")
+										"<li>[ ] ${qa-hhmm} ${slug}: Join ${bbb-backstage}. START RECORDING. Invite people to put their questions in the Etherpad, and read questions from there. ${pad-url}</li>
+			 <li>Decide when to open the Q&A BBB up to everyone. Let the streamer know.</li>
+<li>${next-talk-in-5} [? Open Q&A is still going on and it's about five minutes before the next talk]
+  <ul><li>[ ] Let the speaker know about the time and that the Q&A can continue off-stream if people want to join</li></ul></li>
+<li>${next-talk-in-1} [? Open Q&A is still going on and it's about a minute before the next talk]
+  <ul><li>[ ] Announce that the Q&A will continue if people want to join the BBB room from the talk page, and the stream will now move to the next talk</li></ul></li>
+			 "))))))) 
+				 (emacsconf-include-next-talks shift-talks 1)
+				 "\n")
+				"</ul>"
+				)
+			 )
+			)))
+
 (defun emacsconf-pad-prepopulate-hyperlists ()
   (interactive)
   (let ((info (emacsconf-prepare-for-display (emacsconf-get-talk-info))))
@@ -514,7 +609,7 @@ ${bbb-checklist}</li>")
                      ((or 'nil "nil" (rx string-start "he") (rx "him")) "He")
                      ((rx "they") "They")
                      (_ (or (plist-get talk :pronouns) "")))))
-      (format "The next talk is called \"%s\"\", by %s.%s" (plist-get talk :title)
+      (format "The next talk is called \"%s\", by %s.%s" (plist-get talk :title)
               (replace-regexp-in-string ", \\([^,]+\\)$"
                                         ", and \\1"
                                         (plist-get talk :speakers))
@@ -608,7 +703,7 @@ ${bbb-checklist}</li>")
                        "<li>Live intro and talk:<ul>"
                        "<li>[ ] ${stream}: Mark the talk as playing: ${ssh-playing} (Backup URL to join in case it doesn't automatically join: ${bbb-backstage})</li>"
                        "<li>[ ] ${host}: Join ${bbb-backstage} and introduce the talk: <strong>${intro-note}</strong>.</li></ul></li>"
-                       "<li>[ ] ${stream}: Adjust audio as needed.</li>"))
+                       "<li>[ ] ${stream}: Adjust audio as needed</li>"))
                      )
                     
                     (pcase (or (plist-get talk :q-and-a) "")
