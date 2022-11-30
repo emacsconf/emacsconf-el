@@ -589,13 +589,17 @@ ${bbb-checklist}</li>")
 			 )
 			)))
 
-(defun emacsconf-pad-prepopulate-hyperlists ()
+(defun emacsconf-pad-prepopulate-shift-hyperlists ()
   (interactive)
   (let ((info (emacsconf-prepare-for-display (emacsconf-get-talk-info))))
     (mapc (lambda (shift)
             (emacsconf-pad-prepopulate-shift-hyperlist shift info))
           emacsconf-shifts)))
 
+(defun emacsconf-pad-prepopulate-hyperlists ()
+	(interactive)
+	(emacsconf-pad-prepopulate-shift-hyperlists)
+	(emacsconf-pad-prepopulate-host-hyperlists))
 (defun emacsconf-pad-expand-intro (talk)
   (cond
    ((null (plist-get talk :speakers))
