@@ -162,7 +162,7 @@
 		 (lambda (a b)
 			 (time-less-p (car a) (car b))))))
 
-(defun emacsconf-hyperlist-format-day (day &optional track info)
+(defun emacsconf-hyperlist-format-streamer-day (day &optional track info)
 	(setq info (emacsconf-prepare-for-display
 							(if info (mapcar #'emacsconf-resolve-talk info)
 								(emacsconf-get-talk-info))))
@@ -195,7 +195,39 @@
 	(interactive (list (org-read-date "Date: ")))
 	(pop-to-buffer (get-buffer-create "*hyperlist*"))
 	(erase-buffer)
-	(insert (emacsconf-hyperlist-format-day date track info))
+	(insert
+   "- Setup:
+  - [ ] ssh live screen-fallbacks\n"
+	 (mapconcat (lambda (track)
+								(emacsconf-replace-plist-in-string
+								 track
+								 "  - ${name}
+    - [ ] Connect via VNC
+    - [ ] [[elisp:(emacsconf-stream-track-ssh \"${name}\" \"nohup\" \"start-background-music\" \"&\")][start background music]]
+    - [ ] Start recording with OBS (not streaming)
+    - [ ] Check main stream with MPV ${stream}
+    - [ ] Check 480p ${480p}     
+    - [ ] [[shell:ssh -t orga@live0.emacsconf.org 'screen -S restream-${id}-youtube /home/orga/restream-${id}-youtube.sh'][Start Youtube restream]] and then confirm ${youtube-studio-url} and ${youtube-url}
+    - [ ] [[shell:ssh -t orga@live0.emacsconf.org 'screen -S restream-${id}-toobnix /home/orga/restream-${id}-toobnix.sh'][Start Toobnix restream]] and then confirm ${toobnix-url}
+    - [ ] [[elisp:(emacsconf-stream-update-track-status \"${name}\")][Update emacsconf-tracks :status and update status page]]
+    - [ ] Start Emacs and use emacsconf-stream-display-clock-and-countdown\n"))
+							emacsconf-tracks
+							"")
+	 (emacsconf-hyperlist-format-streamer-day date track info)
+	 "- Teardown
+  - [ ] Stop recording
+"
+	 (mapconcat (lambda (track)
+								(emacsconf-replace-plist-in-string
+								 track
+								 "  - ${name}
+    - [ ] [[shell:ssh orga@live0.emacsconf.org screen -S restream-${id}-youtube -X quit][stop youtube restream]]
+    - [ ] [[shell:ssh orga@live0.emacsconf.org screen -S restream-${id}-toobnix -X quit][stop toobnix restream]]
+    - [ ] [[elisp:(emacsconf-stream-update-track-status \"${name}\")][Update emacsconf-tracks :status and update status page]]
+    - [ ] Kill the fallback screens on live0
+"
+								 ))
+							emacsconf-tracks ""))
 	(goto-char (point-min))
 	(org-mode))
 

@@ -2051,26 +2051,32 @@ There is no live Q&A room for ${title}. You can find more information about the 
 
 ;;; Toobnix
 
-(defun emacsconf-publish-copy-video-description (talk)
-	(interactive (list (emacsconf-complete-talk-info)))
-	(kill-new
-	 (emacsconf-replace-plist-in-string
-		(append (list :conf-name emacsconf-name :year emacsconf-year
-									:chapters (let ((chapters (subed-parse-file (expand-file-name (concat (plist-get talk :video-slug) "--main--chapters.vtt") emacsconf-cache-dir))))
-															(if chapters
-																	(concat
-																	 (mapconcat (lambda (chapter)
-																								(concat (format-seconds "%.2h:%z%.2m:%.2s" (floor (/ (elt chapter 1) 1000)))
-																												" " (elt chapter 3) "\n"))
-																							chapters
-																							"")
-																	 "\n")
-																"")))
-						talk)
-		"${conf-name} ${year}: ${title} (${speakers-with-pronouns})
-${absolute-url}
+(defun emacsconf-publish-video-description (talk &optional include-title)
+	(interactive (list (emacsconf-complete-talk-info) t))
+	(let ((result
+				 (emacsconf-replace-plist-in-string
+					(append (list :conf-name emacsconf-name :year emacsconf-year
+												:chapters (let ((chapters (subed-parse-file (expand-file-name (concat (plist-get talk :video-slug) "--main--chapters.vtt") emacsconf-cache-dir))))
+																		(if chapters
+																				(concat
+																				 (mapconcat (lambda (chapter)
+																											(concat (format-seconds "%.2h:%z%.2m:%.2s" (floor (/ (elt chapter 1) 1000)))
+																															" " (elt chapter 3) "\n"))
+																										chapters
+																										"")
+																				 "\n")
+																			"")))
+									talk)
+					(concat
+					 (if include-title 
+							 "${conf-name} ${year}: ${title} - ${speakers-with-pronouns}\n"
+						 "")
+					 "${absolute-url}
 
 ${chapters}You can view this and other resources using free/libre software at ${absolute-url} .
-This video is available under the terms of the Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0) license."))
-	(emacsconf-with-talk-heading talk))
+This video is available under the terms of the Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0) license."))))
+		(when (called-interactively-p 'any)
+			(kill-new result)
+			(emacsconf-with-talk-heading talk))
+		result))
 (provide 'emacsconf-publish)

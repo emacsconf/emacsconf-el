@@ -1048,6 +1048,8 @@
            :webchat-url "https://chat.emacsconf.org/?join=emacsconf,emacsconf-gen"
            :stream ,(concat emacsconf-stream-base "gen.webm")
            :480p ,(concat emacsconf-stream-base "gen-480p.webm")
+					 :toobnix-url "https://toobnix.org/w/7t9X8eXuSby8YpyEKTb4aj"
+					 :youtube-url "https://youtu.be/4W9ZvCTG0Ug"
            :start "09:00" :end "17:00"
            :vnc-display ":5"
            :vnc-port "5905"
@@ -1055,8 +1057,11 @@
    (:name "Development" :color "skyblue" :id "dev" :channel "emacsconf-dev"
           :watch "https://live.emacsconf.org/2022/watch/dev/"
 				  :webchat-url "https://chat.emacsconf.org/?join=emacsconf,emacsconf-dev"
-           :tramp "/ssh:emacsconf-dev@res.emacsconf.org#46668:"
-          :stream ,(concat emacsconf-stream-base "dev.webm")
+          :tramp "/ssh:emacsconf-dev@res.emacsconf.org#46668:"
+					:toobnix-url "https://toobnix.org/w/w6K77y3bNMo8xsNuqQeCcD"
+					:youtube-url "https://youtu.be/bLJdyzt51uw"
+					:youtube-studio-url "https://studio.youtube.com/video/bLJdyzt51uw/livestreaming"
+					:stream ,(concat emacsconf-stream-base "dev.webm")
           :480p ,(concat emacsconf-stream-base "dev-480p.webm")
           :start "10:00" :end "17:00"
           :vnc-display ":6"

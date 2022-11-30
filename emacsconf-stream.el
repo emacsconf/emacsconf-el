@@ -911,5 +911,15 @@ ffplay URL
 ;; (emacsconf-stream-audio-get-volume "General" "qa")
 ;; (emacsconf-stream-audio-louder "General" "qa")
 ;; (emacsconf-stream-audio-quieter "General" "qa")
+
+;;; Live
+
+(defun emacsconf-stream-update-track-status (track &optional status)
+	(interactive (list (emacsconf-complete-track)))
+	(plist-put (emacsconf-get-track track)
+						 :status (or status (completing-read "Status: " '("online" "offline"))))
+	(emacsconf-stream-update-status-page))
+																						 
+
 (provide 'emacsconf-stream)
 ;;; emacsconf-stream.el ends here
