@@ -2049,4 +2049,28 @@ There is no live Q&A room for ${title}. You can find more information about the 
 ;; (emacsconf-publish-bbb-redirect '(:slug "test" :status "UNSTREAMED_Q" :bbb-room "https://bbb.emacsverse.org/b/sac-fwh-pnz-ogz" :title "Test room" :q-and-a "live" :url "2022/talks/test"))
 ;; (emacsconf-publish-bbb-redirect '(:slug "test" :status "TO_ARCHIVE" :bbb-room "https://bbb.emacsverse.org/b/sac-fwh-pnz-ogz" :title "Test room" :q-and-a "live" :url "2022/talks/test"))
 
+;;; Toobnix
+
+(defun emacsconf-publish-copy-video-description (talk)
+	(interactive (list (emacsconf-complete-talk-info)))
+	(kill-new
+	 (emacsconf-replace-plist-in-string
+		(append (list :conf-name emacsconf-name :year emacsconf-year
+									:chapters (let ((chapters (subed-parse-file (expand-file-name (concat (plist-get talk :video-slug) "--main--chapters.vtt") emacsconf-cache-dir))))
+															(if chapters
+																	(concat
+																	 (mapconcat (lambda (chapter)
+																								(concat (format-seconds "%.2h:%z%.2m:%.2s" (floor (/ (elt chapter 1) 1000)))
+																												" " (elt chapter 3) "\n"))
+																							chapters
+																							"")
+																	 "\n")
+																"")))
+						talk)
+		"${conf-name} ${year}: ${title} (${speakers-with-pronouns})
+${absolute-url}
+
+${chapters}You can view this and other resources using free/libre software at ${absolute-url} .
+This video is available under the terms of the Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0) license."))
+	(emacsconf-with-talk-heading talk))
 (provide 'emacsconf-publish)
