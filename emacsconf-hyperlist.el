@@ -23,7 +23,7 @@
 
 (defun emacsconf-hyperlist-audio (source)
 	(format
-	 "%s: pamix (F3 output) [[elisp:(emacsconf-stream-audio-quieter \"${track}\" \"%s\")][quieter]] [[elisp:(emacsconf-stream-audio-louder \"${track}\" \"%s\")][louder]] %s"
+	 "%s: [[elisp:(emacsconf-stream-audio-mixer \"${track}\")][mixer (F3 output)]] [[elisp:(emacsconf-stream-audio-quieter \"${track}\" \"%s\")][quieter]] [[elisp:(emacsconf-stream-audio-louder \"${track}\" \"%s\")][louder]] %s"
 	 source
 	 source source
 	 (mapconcat (lambda (val)

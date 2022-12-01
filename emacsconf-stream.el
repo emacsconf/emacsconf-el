@@ -908,6 +908,30 @@ ffplay URL
 			 "pactl list sinks | perl -000ne 'if(/%s/){/Volume:.*?([0-9]+%%)/;print \"$1\n\"}'"
 			 source)))))
 
+(defvar emacsconf-stream-console '("konsole" "-e"))
+(defvar emacsconf-stream-mixer "pamix")
+
+(defun emacsconf-stream-audio-mixer (track)
+	(interactive (list (emacsconf-complete-track)))
+	(setq track (emacsconf-get-track track))
+	(let ((info (tramp-dissect-file-name (emacsconf-stream-track-login track))))
+    (apply
+     #'start-process
+     (delq nil
+					 (append
+						(list
+						 (concat "mixer-" (plist-get track :id))
+						 (concat "*" (plist-get track :name) "*")) 
+						emacsconf-stream-console
+						(list
+						 "ssh"
+						 "-t"
+						 (concat (tramp-file-name-user info)
+										 "@" (tramp-file-name-host info))
+						 "-p" (tramp-file-name-port info)
+						 (format "DISPLAY=%s" (plist-get track :vnc-display))
+						 emacsconf-stream-mixer))))))
+
 ;; (emacsconf-stream-audio-get-volume "General" "qa")
 ;; (emacsconf-stream-audio-louder "General" "qa")
 ;; (emacsconf-stream-audio-quieter "General" "qa")
