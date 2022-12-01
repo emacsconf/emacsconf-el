@@ -1045,21 +1045,21 @@
   `((:name "General" :color "peachpuff" :id "gen" :channel "emacsconf-gen"
            :watch "https://live.emacsconf.org/2022/watch/gen/"
 				   :tramp "/ssh:emacsconf-gen@res.emacsconf.org#46668:"
-           :webchat-url "https://chat.emacsconf.org/?join=emacsconf,emacsconf-gen"
+           :webchat-url "https://chat.emacsconf.org/?join=emacsconf,emacsconf-org,emacsconf-accessible,emacsconf-dev,emacsconf-gen"
            :stream ,(concat emacsconf-stream-base "gen.webm")
            :480p ,(concat emacsconf-stream-base "gen-480p.webm")
+					 :youtube-url "https://youtu.be/bLJdyzt51uw"
 					 :toobnix-url "https://toobnix.org/w/7t9X8eXuSby8YpyEKTb4aj"
-					 :youtube-url "https://youtu.be/4W9ZvCTG0Ug"
            :start "09:00" :end "17:00"
            :vnc-display ":5"
            :vnc-port "5905"
            :status "offline")
    (:name "Development" :color "skyblue" :id "dev" :channel "emacsconf-dev"
           :watch "https://live.emacsconf.org/2022/watch/dev/"
-				  :webchat-url "https://chat.emacsconf.org/?join=emacsconf,emacsconf-dev"
+				  :webchat-url "https://chat.emacsconf.org/?join=emacsconf,emacsconf-org,emacsconf-accessible,emacsconf-gen,emacsconf-dev"
           :tramp "/ssh:emacsconf-dev@res.emacsconf.org#46668:"
 					:toobnix-url "https://toobnix.org/w/w6K77y3bNMo8xsNuqQeCcD"
-					:youtube-url "https://youtu.be/bLJdyzt51uw"
+					:youtube-url "https://youtu.be/4W9ZvCTG0Ug"
 					:youtube-studio-url "https://studio.youtube.com/video/bLJdyzt51uw/livestreaming"
 					:stream ,(concat emacsconf-stream-base "dev.webm")
           :480p ,(concat emacsconf-stream-base "dev-480p.webm")
@@ -1072,9 +1072,13 @@
   (when (and (listp name) (plist-get name :track))
 		(setq name (plist-get name :track)))
 	(if (stringp name)
-			(seq-find (lambda (track) (or (string= name (plist-get track :name))
-																		(string= name (plist-get track :id))))
-								emacsconf-tracks)
+			(or
+			 (seq-find (lambda (track) (or (string= name (plist-get track :name))
+																		 (string= name (plist-get track :id))))
+								 emacsconf-tracks)
+			 (let ((talk (emacsconf-resolve-talk name)))
+				 (when talk (emacsconf-get-track talk)))
+			 name)
 		name))
 
 (defun emacsconf-by-track (info)
