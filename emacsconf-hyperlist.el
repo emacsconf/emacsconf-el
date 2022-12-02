@@ -196,13 +196,18 @@
 	(pop-to-buffer (get-buffer-create "*hyperlist*"))
 	(erase-buffer)
 	(insert
-   "- Setup:
+   "
+Quick shortcuts: [[elisp:emacsconf-agenda][talk agenda]] [[elisp:(switch-to-buffer \"#emacsconf-org\")][#emacsconf-org]] [[elisp:(switch-to-buffer \"#emacsconf-gen\")][#emacsconf-gen]] [[elisp:(switch-to-buffer \"#emacsconf-dev\")][#emacsconf-dev]] [[elisp:(emacsconf-notebook-goto-custom-id \"shifts\")][shifts]] [[elisp:(emacsconf-show-playback-info \"General\")][Info: general]] [[elisp:(emacsconf-show-playback-info \"Development\")][Info: development]]
+[[elisp:(emacsconf-stream-rebroadcast \"General\" \"Development\"][Rebroadcast Gen -> Dev]] [[elisp:(emacsconf-stream-rebroadcast \"Development\" \"General\"][Rebroadcast Dev -> Gen]]
+[[file:/ssh:orga@front0.emacsconf.org:/var/www/status.emacsconf.org/index.html][status page]] [[elisp:(emacsconf-notebook-goto-custom-id \"exceptions\")][in case of...]] 
+
+- Setup:
   - [ ] ssh live screen-fallbacks\n"
 	 (mapconcat (lambda (track)
 								(emacsconf-replace-plist-in-string
 								 track
 								 "  - ${name}
-    - [ ] Connect via VNC
+    - [ ] Connect via VNC ([[shell:mpv ${stream} &][restart MPV]] [[shell:konsole -e ssh -t emacsconf-${id}@res.emacsconf.org -p 46668 &][console]])
     - [ ] [[elisp:(emacsconf-stream-track-ssh \"${name}\" \"nohup\" \"start-background-music\" \"&\")][start background music]]
     - [ ] Start recording with OBS (not streaming)
     - [ ] Check main stream with MPV ${stream}

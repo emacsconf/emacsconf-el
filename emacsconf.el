@@ -110,7 +110,14 @@
                      ((org-agenda-files (list ,emacsconf-notebook))
                       (org-agenda-span 7)))
              )))))
-      (org-agenda nil "a")))
+    (org-agenda nil "a")))
+
+(defun emacsconf-talk-agenda ())
+
+(defun emacsconf-notebook-goto-custom-id (id)
+	(interactive "MID: ")
+	(find-file-other-window emacsconf-notebook)
+	(goto-char (org-find-property "CUSTOM_ID" id)))
 
 (defun emacsconf-ftp-upload-dired ()
   (interactive)

@@ -357,6 +357,20 @@ This uses the BBB room if available, or the IRC channel if not."
 (defvar emacsconf-stream-asset-dir "/data/emacsconf/assets/")
 (defvar emacsconf-stream-overlay-dir "/data/emacsconf/assets/overlays/")
 
+(defun emacsconf-stream-set-overlay (talk)
+	"Reset the overlay for TALK, just in case.
+With a prefix argument (\\[universal-argument]), clear the overlay."
+	(interactive (list
+								(if current-prefix-arg
+										(emacsconf-complete-track)
+									(emacsconf-complete-talk-info))))
+	(emacsconf-stream-track-ssh
+	 (emacsconf-get-track talk)
+	 "overlay"
+	 (if current-prefix-arg
+			 "blank"
+		 (plist-get talk :slug))))
+
 (defun emacsconf-stream-generate-overlays (&optional info)
   (interactive)
   (setq info (emacsconf-filter-talks (or info (emacsconf-get-talk-info))))
@@ -985,6 +999,15 @@ ffplay URL
 ;; (emacsconf-stream-audio-get-volume "General" "qa")
 ;; (emacsconf-stream-audio-louder "General" "qa")
 ;; (emacsconf-stream-audio-quieter "General" "qa")
+
+;;; Background music
+
+(defun emacsconf-stream-start-music (track)
+	(interactive (list (emacsconf-complete-track)))
+	(emacsconf-stream-track-ssh track "nohup" "start-background-music" "&"))
+(defun emacsconf-stream-stop-music (track)
+	(interactive (list (emacsconf-complete-track)))
+	(emacsconf-stream-track-ssh track "screen" "-S" "background" "-X" "quit"))
 
 ;;; Live
 

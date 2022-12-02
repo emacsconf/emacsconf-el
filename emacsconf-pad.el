@@ -393,8 +393,7 @@ ${next-talk-list}
 <li>${stream}: OR: <ul>
      <li>start emacs and use M-x emacsconf-stream-display-clock-and-countdown. time and message are optional</li>
      <li>display the in-between slide for the next talk</li></ul></li>
-</ul>
-"
+</ul>"
        "<strong>Talks</strong>
 <ul>"
        (mapconcat
