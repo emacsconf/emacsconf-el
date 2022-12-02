@@ -244,6 +244,55 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
               (kill-buffer buffer))))
         (buffer-list)))
 
+;;; Specific mail merges
+
+(defun emacsconf-mail-captions-for-approval (talk)
+  (interactive (list (emacsconf-complete-talk-info)))
+  (let ((captions (expand-file-name (concat (plist-get talk :video-slug) "--main.vtt")
+                                    emacsconf-cache-dir))
+        (captioner-info
+         (with-current-buffer (find-file-noselect emacsconf-org-file)
+           (org-entry-properties (org-find-property "CUSTOM_ID" (plist-get talk :captioner))))))
+    (emacsconf-mail-prepare
+     (emacsconf-mail-merge-get-template "captions")
+     (plist-get talk :email)
+     (list
+      :speakers-short (plist-get talk :speakers-short)
+      :year emacsconf-year
+      :email (plist-get talk :email)
+      :title (plist-get talk :title)
+      :captioner (assoc-default "NAME_SHORT" captioner-info)
+      :url
+      (format "https://%s:%s@media.emacsconf.org/%s/backstage/#%s"
+              emacsconf-backstage-user
+              emacsconf-backstage-password
+              emacsconf-year
+              (plist-get talk :slug))
+      :password emacsconf-backstage-password
+      :captioner-email (assoc-default "EMAIL" captioner-info)
+      :captioner-volunteered
+      (if (string= (plist-get talk :captioner) "sachac")
+          ""
+        (format "%s volunteered to edit the captions for your video. " (assoc-default "NAME_SHORT" captioner-info)))
+      :chapters-note
+      (if (file-exists-p
+           (expand-file-name (concat (plist-get talk :video-slug) "--main--chapters.vtt")
+                             emacsconf-cache-dir))
+          "I've come up with some potential chapter headings which you can see as NOTE in the transcript or in the backstage entry for your video. Let me know if you want to tweak those.\n\n"
+        "")
+      :intro-note
+      (emacsconf-surround
+       "${wrap}Also, I drafted a quick intro for the host to read. Let me know if you want to tweak this: " (plist-get talk :intro-note) "\n\n"
+       "")
+      :captioner-thanks
+      (if (string= (plist-get talk :captioner) "sachac")
+          ""
+        (format "%s: Thank you for editing the captions!\n\n" (assoc-default "NAME_SHORT" captioner-info)))
+      :captions (mapconcat (lambda (sub) (concat (emacsconf-surround "\n" (elt sub 4) "" "") (elt sub 3))) (subed-parse-file captions) "\n")))
+    (mml-attach-file captions "text/vtt" "Subtitles" "attachment")))
+
+;;; Notmuch
+
 (defun emacsconf-mail-notmuch-search-for-talk (talk)
   "Search for e-mail related to TALK."
   (interactive (list (emacsconf-complete-talk-info))) 
