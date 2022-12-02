@@ -1585,8 +1585,10 @@ This video is available under the terms of the Creative Commons Attribution-Shar
   (let ((main (expand-file-name (concat (plist-get talk :video-slug) "--main.webm")
                                 emacsconf-cache-dir)))
     (emacsconf-with-talk-heading talk
-      (let* ((video-file-name (emacsconf-get-preferred-video (org-entry-get (point) "VIDEO_SLUG")))
+      (let* ((video-file-name (emacsconf-get-preferred-video (plist-get talk :video-slug)))
              (video-file (and video-file-name (expand-file-name video-file-name emacsconf-cache-dir)))
+						 (intro-file (expand-file-name (concat (plist-get talk :slug) ".webm")
+																					 (expand-file-name "intros" emacsconf-stream-asset-dir)))
              duration)
         (unless (file-exists-p main)
           (setq main video-file-name))
@@ -1603,7 +1605,11 @@ This video is available under the terms of the Creative Commons Attribution-Shar
           (unless (plist-get talk :video-duration)
             (setq duration (/ (compile-media-get-file-duration-ms video-file) 1000))
             (org-entry-put (point) "VIDEO_DURATION" (format-seconds "%m:%.2s" duration))
-            (org-entry-put (point) "VIDEO_TIME" (number-to-string (ceiling (/ duration 60))))))))))
+            (org-entry-put (point) "VIDEO_TIME" (number-to-string (ceiling (/ duration 60))))))
+				(when (file-exists-p intro-file)
+					(org-entry-put
+					 (point) "INTRO_TIME"
+					 (number-to-string (ceiling (/ (compile-media-get-file-duration-ms intro-file) 60000)))))))))
 
 (defvar emacsconf-youtube-channel-id "UCwuyodzTl_KdEKNuJmeo99A")
 (defun emacsconf-youtube-edit ()

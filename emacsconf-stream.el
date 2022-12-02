@@ -211,31 +211,45 @@ especially when two things need to happen close together."
   (interactive (list (emacsconf-complete-talk-info)))
   (setq talk (emacsconf-resolve-talk talk))
   (when (or (not (boundp 'org-state)) (string= org-state "PLAYING"))
-    (emacsconf-stream-track-ssh
-     talk
-		 (cons
-			"nohup" 
-			(cond
-			 ((and
-				 (plist-get talk :recorded-intro)
-				 (plist-get talk :video-file)) ;; recorded intro and recorded talk
-				(message "should automatically play intro and recording")
-				(list "play-with-intro" (plist-get talk :slug))) ;; todo deal with stream files
-			 ((and
-				 (plist-get talk :recorded-intro)
-				 (null (plist-get talk :video-file))) ;; recorded intro and live talk; play the intro and join BBB
-				(message "should automatically play intro; join %s" (plist-get talk :bbb-backstage))
-				(list "intro" (plist-get talk :slug)))
-			 ((and
-				 (null (plist-get talk :recorded-intro))
-				 (plist-get talk :video-file)) ;; live intro and recorded talk, show slide and use Mumble; manually play talk
-				(message "should show intro slide; play %s afterwards" (plist-get talk :slug))
-				(list "intro" (plist-get talk :slug)))
-			 ((and
-				 (null (plist-get talk :recorded-intro))
-				 (null (plist-get talk :video-file))) ;; live intro and live talk, join the BBB
-				(message "join %s for live intro and talk" (plist-get talk :bbb-backstage))
-				(list "bbb" (plist-get talk :slug))))))))
+		(if (plist-get talk :stream-files)
+				(progn
+					(emacsconf-stream-track-ssh
+					 talk
+					 "overlay"
+					 (plist-get talk :slug))
+					(emacsconf-stream-track-ssh
+					 talk
+					 (append
+						(list
+						 "nohup"
+						 "mpv")
+						(split-string-and-unquote (plist-get talk :stream-files))
+						(list "&"))))
+			(emacsconf-stream-track-ssh
+			 talk
+			 (cons
+				"nohup"
+				(cond
+				 ((and
+					 (plist-get talk :recorded-intro)
+					 (plist-get talk :video-file)) ;; recorded intro and recorded talk
+					(message "should automatically play intro and recording")
+					(list "play-with-intro" (plist-get talk :slug))) ;; todo deal with stream files
+				 ((and
+					 (plist-get talk :recorded-intro)
+					 (null (plist-get talk :video-file))) ;; recorded intro and live talk; play the intro and join BBB
+					(message "should automatically play intro; join %s" (plist-get talk :bbb-backstage))
+					(list "intro" (plist-get talk :slug)))
+				 ((and
+					 (null (plist-get talk :recorded-intro))
+					 (plist-get talk :video-file)) ;; live intro and recorded talk, show slide and use Mumble; manually play talk
+					(message "should show intro slide; play %s afterwards" (plist-get talk :slug))
+					(list "intro" (plist-get talk :slug)))
+				 ((and
+					 (null (plist-get talk :recorded-intro))
+					 (null (plist-get talk :video-file))) ;; live intro and live talk, join the BBB
+					(message "join %s for live intro and talk" (plist-get talk :bbb-backstage))
+					(list "bbb" (plist-get talk :slug)))))))))
 
 (defun emacsconf-stream-get-filename (talk)
   "Return the local filename for the video file for TALK.
@@ -249,15 +263,7 @@ Final files should be stored in /data/emacsconf/stream/YEAR/video-slug--main.web
   (interactive (list (emacsconf-complete-talk-info)))
   (setq talk (emacsconf-resolve-talk talk))
   (emacsconf-stream-track-ssh
-   talk
-   (append
-    (list
-		 "nohup"
-     "play"
-     (plist-get talk :slug))
-    (if (stringp (plist-get talk :stream-files))
-        (split-string-and-unquote (plist-get talk :stream-files))
-      (plist-get talk :stream-files)))))
+	 talk "nohup" "play" (plist-get talk :slug)))
 
 (defun emacsconf-stream-play-video-file (talk filename)
   (interactive (list (emacsconf-complete-talk-info)))

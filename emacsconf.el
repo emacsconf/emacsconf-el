@@ -403,6 +403,7 @@
                        (:stream-files "STREAM_FILES")
                        (:youtube-url "YOUTUBE_URL")                       
                        (:toobnix-url "TOOBNIX_URL")
+											 (:intro-time "INTRO_TIME")
                        ;; Captioning
                        (:captioner "CAPTIONER")
                        (:caption-note "CAPTION_NOTE")
@@ -597,8 +598,11 @@
 					 (seconds-to-time (time-subtract (plist-get o :start-time) (seconds-to-time 3600)))))
 			(plist-put o :live-time
                  (seconds-to-time
-									(time-add (plist-get o :start-time)
-														(seconds-to-time (* 60 (string-to-number (plist-get o :video-time)))))))
+									(+
+									 (time-to-seconds (plist-get o :start-time))
+									 (* 60 (string-to-number (or (plist-get o :video-time) "0")))
+									 (* 60 (string-to-number (or (plist-get o :video-time) "0")))
+									)))
 			(plist-put o :qa-time
                  (plist-get o :live-time))      
 			
@@ -1049,6 +1053,7 @@
            :stream ,(concat emacsconf-stream-base "gen.webm")
            :480p ,(concat emacsconf-stream-base "gen-480p.webm")
 					 :youtube-url "https://youtu.be/bLJdyzt51uw"
+					 :youtube-studio-url "https://studio.youtube.com/video/bLJdyzt51uw/livestreaming"
 					 :toobnix-url "https://toobnix.org/w/7t9X8eXuSby8YpyEKTb4aj"
            :start "09:00" :end "17:00"
            :vnc-display ":5"
@@ -1060,7 +1065,7 @@
           :tramp "/ssh:emacsconf-dev@res.emacsconf.org#46668:"
 					:toobnix-url "https://toobnix.org/w/w6K77y3bNMo8xsNuqQeCcD"
 					:youtube-url "https://youtu.be/4W9ZvCTG0Ug"
-					:youtube-studio-url "https://studio.youtube.com/video/bLJdyzt51uw/livestreaming"
+					:youtube-studio-url "https://studio.youtube.com/video/4W9ZvCTG0Ug/livestreaming"
 					:stream ,(concat emacsconf-stream-base "dev.webm")
           :480p ,(concat emacsconf-stream-base "dev-480p.webm")
           :start "10:00" :end "17:00"
