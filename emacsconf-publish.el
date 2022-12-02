@@ -476,10 +476,9 @@ resources."
 
 (defun emacsconf-publish-webchat-link (o)
   (let ((track (emacsconf-get-track (plist-get o :track))))
-    (format "<a href=\"%s?join=emacsconf,emacsconf-%s\">#emacsconf-%s</a>"
-            emacsconf-chat-base
-            (plist-get track :id)
-            (plist-get track :id))))
+    (format "<a href=\"%s\">#%s</a>"
+						(plist-get track :webchat-url)
+						(plist-get track :channel))))
 
 (defvar emacsconf-publish-include-pads t "When non-nil, include Etherpad info.")
 
