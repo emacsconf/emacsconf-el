@@ -466,7 +466,7 @@ This uses the BBB room if available, or the IRC channel if not."
                         (unless (file-exists-p (expand-file-name (concat (plist-get talk :slug) ".png")
                                                                  dir))
                           (shell-command
-                           (concat "inkscape --export-type=png --export-dpi=300 --export-background-opacity=0 "
+                           (concat "inkscape --export-type=png -w 1280 -h 720 --export-background-opacity=0 "
                                    (shell-quote-argument (expand-file-name (concat (plist-get talk :slug) ".svg")
                                                                            dir))))))
                       (setq prev talk))
