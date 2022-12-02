@@ -844,6 +844,21 @@ ffplay URL
 							(time-add (current-time) (seconds-to-time (- duration playback-position)))
 							emacsconf-timezone))))
 
+(defun emacsconf-stream-rebroadcast (source-track dest-track)
+	(interactive
+	 (let* ((source (emacsconf-complete-track "Source: "))
+					(others (remove source emacsconf-tracks)))
+		 (list
+			source
+			(if (= (length others) 1)
+					(car others)
+				(emacsconf-complete-track "Destination: " others)))))
+	(setq source-track (emacsconf-get-track source-track))
+	(setq dest-track (emacsconf-get-track dest-track))
+	(emacsconf-stream-track-ssh dest-track "nohup" "mpv" (plist-get source-track :stream) "--profile=full" "&"))
+;; (emacsconf-stream-rebroadcast "Development" "General")
+;; (emacsconf-stream-send-to-mpv "General" '(:command ("video-zoom" "0")))
+;; (emacsconf-stream-send-to-mpv "General" "set video-zoom 0")
 ;;; xdotool
 
 (defun emacsconf-stream-xdotool (track command)

@@ -1077,7 +1077,9 @@
 																		 (string= name (plist-get track :id))))
 								 emacsconf-tracks)
 			 (let ((talk (emacsconf-resolve-talk name)))
-				 (when talk (emacsconf-get-track talk)))
+				 (seq-find (lambda (track) (or (string= (plist-get talk :track) (plist-get track :name))
+																		 (string= (plist-get talk :track) (plist-get track :id))))
+									 emacsconf-tracks))
 			 name)
 		name))
 
@@ -1089,8 +1091,11 @@
              info))
           emacsconf-tracks))
 
-(defun emacsconf-complete-track ()
-  (emacsconf-get-track (completing-read "Track: " (mapcar (lambda (o) (plist-get o :name)) emacsconf-tracks))))
+(defun emacsconf-complete-track (&optional prompt tracks)
+  (emacsconf-get-track
+	 (completing-read
+		(or prompt "Track: ")
+		(mapcar (lambda (o) (plist-get o :name)) (or tracks emacsconf-tracks)))))
 
 (defun emacsconf-by-day (info)
   (seq-group-by (lambda (o)
