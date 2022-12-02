@@ -53,10 +53,11 @@
   (interactive (list (emacsconf-complete-talk-info)))
   (when (functionp 'emacsconf-upcoming-insert-or-update)
     (emacsconf-upcoming-insert-or-update))
-  (let ((info (emacsconf-get-talk-info)))
-    (emacsconf-publish-before-page talk info)
-    (emacsconf-publish-after-page talk info)
-    (emacsconf-publish-schedule info)))
+	(emacsconf-publish-with-wiki-change
+		(let ((info (emacsconf-prepare-for-display (emacsconf-get-talk-info))))
+			(emacsconf-publish-before-page talk info)
+			(emacsconf-publish-after-page talk info)
+			(emacsconf-publish-schedule info))))
 
 (defun emacsconf-publish-add-talk ()
   "Add the current talk to the wiki."
@@ -1640,30 +1641,7 @@ This video is available under the terms of the Creative Commons Attribution-Shar
     (when (file-exists-p video-file)
       (emacsconf-youtube-edit)      
       (emacsconf-toobnix-edit) 
-      (emacsconf-publish-update-talk (emacsconf-get-talk-info-for-subtree))
-      (mapc
-       (lambda (suffix)
-         (when (file-exists-p (expand-file-name (concat slug suffix) emacsconf-cache-dir))
-					 (let ((default-directory wiki-captions-directory))
-						 (copy-file (expand-file-name (concat slug suffix) emacsconf-cache-dir)
-												(expand-file-name (concat slug suffix) wiki-captions-directory)
-												t)
-						 (call-process "git" nil nil nil "add" (concat slug suffix)))))
-       '("--main.vtt" "--chapters.vtt" "--main_ja.vtt" "--main_fr.vtt" "--main_es.vtt"))
-      (magit-status-setup-buffer emacsconf-directory)
-      (when (and emacsconf-public-media-directory slug (> (length (string-trim slug)) 0)
-                 ;; TODO: make this customizable
-                 (shell-command
-                  (format "ssh media.emacsconf.org -- 'rm /var/www/media.emacsconf.org/%s/%s* ; cp -n -l /var/www/media.emacsconf.org/%s/backstage/%s* /var/www/media.emacsconf.org/%s/; chmod ugo+r /var/www/media.emacsconf.org/%s/ -R'"
-            emacsconf-year slug
-            emacsconf-year slug
-            emacsconf-year
-            emacsconf-year)))
-        (when emacsconf-public-media-directory
-          (emacsconf-publish-public-index (expand-file-name "index.html" emacsconf-public-media-directory))
-          (emacsconf-generate-playlist (expand-file-name "index.m3u" emacsconf-public-media-directory)
-                                  "EmacsConf 2021"
-                                  (emacsconf-public-talks (emacsconf-get-talk-info))))))
+      (emacsconf-publish-update-talk (emacsconf-get-talk-info-for-subtree)))
     ;; (copy-file (emacsconf-get-preferred-video slug) emacsconf-public-media-directory t)
     ;; (mapc (lambda (ext)
     ;;         (when (file-exists-p (expand-file-name (concat slug ext) emacsconf-cache-dir))
@@ -1674,20 +1652,20 @@ This video is available under the terms of the Creative Commons Attribution-Shar
     ))
 
 
+(defvar emacsconf-publish-autocommit-wiki t)
+(defun emacsconf-publish-commit-and-push-wiki-maybe (&optional do-it message)
+	(interactive (list t))
+	(let ((default-directory emacsconf-directory))
+    (shell-command "git add -u")
+    (when (or noninteractive emacsconf-publish-autocommit-wiki do-it)
+			(call-process "git" nil nil nil "commit" "-a" "-m" (or message "Automated commit"))
+			(start-process "git" nil "git" "push"))))
+
 (defmacro emacsconf-publish-with-wiki-change (&rest body)
   (declare (indent 0) (debug t))
   `(progn
      ,@body
-     (let ((default-directory emacsconf-directory))
-       (shell-command "git add -u")
-       ;; (when noninteractive
-       ;;   (call-process "git" nil nil nil "commit" "-m" (if (stringp (car body))
-       ;;                                                       (car body)
-       ;;                                                     "Automated commit"))
-       ;;   (call-process "git" nil nil nil "commit" "-m" (if (stringp (car body))
-       ;;                                                     (car body)
-       ;;                                                   "Automated commit")))
-       )))
+		 (emacsconf-publish-commit-and-push-wiki-maybe t (and (stringp ,(car body)) ,(car body)))))
 
 (defun emacsconf-publish-schedule-svg-snippets ()
   (interactive)
@@ -2041,7 +2019,11 @@ There is no live Q&A room for ${title}. You can find more information about the 
           (mapc (lambda (file)
                   (delete-file (expand-file-name file emacsconf-public-media-directory)))
                 files)))
-      (emacsconf-publish-public-index))))
+      (emacsconf-publish-public-index)
+			(emacsconf-generate-playlist
+			 (expand-file-name "index.m3u" emacsconf-public-media-directory)
+       (concat emacsconf-name " " emacsconf-year)
+       (emacsconf-public-talks (emacsconf-get-talk-info))))))
 
 (defun emacsconf-publish-bbb-redirect-all ()
   (interactive)
