@@ -788,7 +788,7 @@ ffplay URL
 																	 (not (timer--triggered (cdr o)))))
 														emacsconf-stream-timers)))))
 
-(defun emacsconf-stream-schedule-talk-status-change (talk time new-status)
+(defun emacsconf-stream-schedule-talk-status-change (talk time new-status &optional notification)
 	"Schedule a one-off timer for TALK at TIME to set it to NEW-STATUS."
 	(interactive (list (emacsconf-complete-talk-info)
 										 (read-string "Time: ")
@@ -813,7 +813,14 @@ ffplay URL
 		(add-to-list 'emacsconf-stream-timers
 									(cons
 									 timer-id
-									 (run-at-time time converted #'emacsconf-update-talk-status-with-hooks (plist-get talk :slug) "." new-status)))))
+									 (run-at-time time converted #'emacsconf-stream-update-talk-status-from-timer
+																talk new-status
+																notification)))))
+
+(defun emacsconf-stream-update-talk-status-from-timer (talk new-status &optional notification)
+	(when notification
+		(apply #'notifications-notify notification))
+	(emacsconf-update-talk-status-with-hooks (plist-get talk :slug) "." new-status))
 
 (defun emacsconf-stream-schedule-timers (&optional info)
 	"Schedule PLAYING for the rest of talks and CLOSED_Q for recorded talks."
@@ -823,24 +830,46 @@ ffplay URL
   (let ((now (current-time)))
     (mapc (lambda (talk)
             (when (and (time-less-p now (plist-get talk :start-time)))
-							(emacsconf-stream-schedule-talk-status-change talk (plist-get talk :start-time) "PLAYING"))
+							(emacsconf-stream-schedule-talk-status-change talk (plist-get talk :start-time) "PLAYING"
+																														`(:title (concat "Starting " (plist-get talk :qa)))))
 						(when (and
 									 (plist-get talk :video-file)
 									 (plist-get talk :qa-time)
+									 (null (plist-get talk :stream-files)) ;; can't tell when this is
 									 (time-less-p now (plist-get talk :qa-time)))
-							(emacsconf-stream-schedule-talk-status-change talk (plist-get talk :qa-time) "CLOSED_Q")))
+							(emacsconf-stream-schedule-talk-status-change talk (plist-get talk :qa-time) "CLOSED_Q"
+																														`(:title (concat "Q&A for " (plist-get talk :qa) " (" (plist-get talk :q-and-a) ")")))))
           info)))
 
+;; (notifications-notify :title "Hello")
 (defun emacsconf-stream-cancel-all-timers ()
 	(interactive)
 	(cancel-function-timers #'emacsconf-update-talk-status-with-hooks)
 	(setq emacsconf-stream-timers nil))
 
+(defun emacsconf-stream-send-to-mpv (talk-or-track command &optional parse)
+	(interactive (list (emacsconf-complete-track)))
+	(setq talk-or-track (emacsconf-get-track talk-or-track))
+	(let* ((default-directory (emacsconf-stream-track-login talk-or-track))
+				 (response (shell-command-to-string
+										(format
+										 "echo %s | socat - ~/mpv-socket"
+										 (shell-quote-argument (if (listp command) (json-encode command) command))))))
+		(if parse (json-parse-string response) response)))
+
 (defun emacsconf-stream-show-playback-info (talk-or-track)
 	(interactive (list (emacsconf-complete-track)))
 	(let* ((default-directory (emacsconf-stream-track-login talk-or-track))
-				 (playback-position (gethash "data" (json-parse-string (shell-command-to-string "echo '{ \"command\": [\"get_property\", \"playback-time\"] }' | socat - ~/mpv-socket"))))
-				 (duration (gethash "data" (json-parse-string (shell-command-to-string "echo '{ \"command\": [\"get_property\", \"duration\"] }' | socat - ~/mpv-socket")))))
+				 (playback-position
+					(gethash "data"
+									 (emacsconf-stream-send-to-mpv
+										talk-or-track
+										'(:command ("get_property" "playback-time"))
+										t)))
+				 (duration (emacsconf-stream-send-to-mpv
+										talk-or-track
+										'(:command ("get_property" "duration"))
+										t)))
 		(message "%s of %s (%s remaining, ending at %s)"
 						 (emacsconf-format-seconds playback-position)
 						 (emacsconf-format-seconds duration)

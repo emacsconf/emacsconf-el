@@ -206,7 +206,7 @@
     - [ ] [[elisp:(emacsconf-stream-track-ssh \"${name}\" \"nohup\" \"start-background-music\" \"&\")][start background music]]
     - [ ] Start recording with OBS (not streaming)
     - [ ] Check main stream with MPV ${stream}
-    - [ ] Check 480p ${480p}     
+    - [ ] Check 480p ${480p}
     - [ ] [[shell:ssh -t orga@live0.emacsconf.org 'screen -S restream-${id}-youtube /home/orga/restream-${id}-youtube.sh'][Start Youtube restream]] and then confirm ${youtube-studio-url} and ${youtube-url}
     - [ ] [[shell:ssh -t orga@live0.emacsconf.org 'screen -S restream-${id}-toobnix /home/orga/restream-${id}-toobnix.sh'][Start Toobnix restream]] and then confirm ${toobnix-url}
     - [ ] [[elisp:(emacsconf-stream-update-track-status \"${name}\")][Update emacsconf-tracks :status and update status page]]
