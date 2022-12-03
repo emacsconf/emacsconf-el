@@ -123,13 +123,13 @@
   (emacsconf-publish-public-index-on-wiki)
   (when emacsconf-public-media-directory
     (emacsconf-publish-public-index (expand-file-name "index.html" emacsconf-public-media-directory))
-    (emacsconf-generate-playlist (expand-file-name "index.m3u" emacsconf-public-media-directory)
+		(emacsconf-publish-playlist (expand-file-name "index.m3u" emacsconf-public-media-directory)
                                  (concat emacsconf-name emacsconf-year)
                                  (emacsconf-public-talks emacsconf-info)
                                  (format "https://media.emacsconf.org/%s/" emacsconf-year)))
   (when emacsconf-backstage-dir
     (emacsconf-publish-backstage-index (expand-file-name "index.html" emacsconf-backstage-dir)))
-  (emacsconf-generate-playlist (expand-file-name "index.m3u" emacsconf-backstage-dir)
+  (emacsconf-publish-playlist (expand-file-name "index.m3u" emacsconf-backstage-dir)
                                (concat emacsconf-name emacsconf-year)
                                (emacsconf-filter-talks emacsconf-info)
                                (format "https://media.emacsconf.org/%s/backstage/" emacsconf-year)))
@@ -1154,7 +1154,12 @@ Entries are sorted chronologically, with different tracks interleaved."
 (defun emacsconf-publish-public-index (&optional filename)
   (interactive (list (expand-file-name "index.html" emacsconf-public-media-directory)))
   (setq filename (or filename (expand-file-name "index.html" emacsconf-public-media-directory)))
-  (let ((files (directory-files emacsconf-public-media-directory)))
+  (let ((files (directory-files emacsconf-public-media-directory))
+				(info (emacsconf-public-talks (emacsconf-prepare-for-display (emacsconf-get-talk-info)))))
+		(emacsconf-publish-playlist (expand-file-name "index.m3u" emacsconf-public-media-directory)
+                                 (concat emacsconf-name emacsconf-year)
+                                 info
+                                 (format "https://media.emacsconf.org/%s/" emacsconf-year))
     (with-temp-file filename
       (insert
        "<html><body>"
@@ -1194,7 +1199,7 @@ Entries are sorted chronologically, with different tracks interleaved."
                                           o)
                                          (list "--answers.webm" "--answers.vtt" "--answers--chapters.vtt")))
                               "")))
-                  (emacsconf-public-talks (emacsconf-get-talk-info))
+									info
                   "\n")
        "</ol>"
        (if (file-exists-p (expand-file-name "include-in-public-index.html" emacsconf-cache-dir))
@@ -1470,7 +1475,7 @@ Entries are sorted chronologically, with different tracks interleaved."
     (browse-url-of-file "pad-template.html"))
 
 
-(defun emacsconf-generate-playlist (filename playlist-name talks &optional base-url)
+(defun emacsconf-publish-playlist (filename playlist-name talks &optional base-url)
   (with-temp-file filename
     (insert (format "#EXTM3U\n#PLAYLIST: %s\n#EXTALB: %s\n#EXTGENRE: Speech\n%s"
                     playlist-name playlist-name
@@ -1533,7 +1538,7 @@ Entries are sorted chronologically, with different tracks interleaved."
 ;;; Video services
 
 (autoload 'subed-parse-file "subed-common")
-(defun emacsconf-publish-video-description (talk &optional copy)
+(defun emacsconf-publish-video-description (talk &optional copy skip-title)
   (interactive (list (emacsconf-complete-talk-info) t))
   (let ((chapters (subed-parse-file
                    (expand-file-name
@@ -1556,15 +1561,17 @@ Entries are sorted chronologically, with different tracks interleaved."
                              (mod (elt chapter 1) 1000)
                              (elt chapter 3)))
                    chapters "\n")
-                  "\n")
+                  "\n\n")
                ""))
             talk)
-           "${conf-name} ${year}: ${title}
-${speakers-with-pronouns}
-${absolute-url}
+					 (concat
+						(if skip-title "" "${conf-name} ${year}: ${title} - ${speakers-with-pronouns}
+")
+						"${absolute-url}
 
-${chapters}You can view this and other resources using free/libre software at ${absolute-url}.
-This video is available under the terms of the Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0) license."))
+${chapters}You can view this and other resources using free/libre software at ${absolute-url} . During the conference, you can ask questions via the Etherpad or through IRC (${webchat-url} , or ${channel} on irc.libera.chat). Afterwards, check the talk page at ${absolute-url} for notes and contact information.
+
+This video is available under the terms of the Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0) license.")))
     (if copy (kill-new result))
     result))
 ;; (emacsconf-publish-video-description (emacsconf-find-talk-info "async") t)
@@ -1703,7 +1710,7 @@ This video is available under the terms of the Creative Commons Attribution-Shar
    (mapconcat (lambda (track)
                 (emacsconf-replace-plist-in-string
                  (append (list :year emacsconf-year) track)
-                 "<tr><td><div class=\"sched-track ${name}\"><a href=\"/${year}/watch/${id}\">${name}</a></div></td><td><a href=\"${webchat-url}\">${channel}</a></td><td><a href=\"${stream}\">${stream}</a></td><td><a href=\"${480p}\">${id}-480p.webm</a></tr>"))
+                 "<tr><td><div class=\"sched-track ${name}\"><a href=\"/${year}/watch/${id}/\">${name}</a></div></td><td><a href=\"${webchat-url}\">${channel}</a></td><td><a href=\"${stream}\">${stream}</a></td><td><a href=\"${480p}\">${id}-480p.webm</a></tr>"))
               emacsconf-tracks
               "\n")
    "</table>\n\n"
@@ -1800,7 +1807,7 @@ ${title-info}
 <hr size=\"1\">
 <div>"
       (emacsconf-publish-page-nav nav "watch")
-      " | ${stream-nav}</div>
+      " | ${stream-nav} | <a href=\"https://emacsconf.org/2022/watch/\">Tips for watching/participating</a></div>
 
 <video controls class=\"reload\"><source src=\"${stream}\" type=\"video/webm\" /></video>
 <div>Alternatively, load <a href=\"${stream-hires}\">${stream-hires}</a> or <a href=\"${480p}\">${480p}</a> (low-res) in a streaming media player such as MPV.</div>
