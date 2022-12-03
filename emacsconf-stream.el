@@ -922,10 +922,10 @@ ffplay URL
 										talk-or-track
 										'(:command ("get_property" "playback-time"))
 										t)))
-				 (duration (emacsconf-stream-send-to-mpv
-										talk-or-track
-										'(:command ("get_property" "duration"))
-										t)))
+				 (duration (gethash "data" (emacsconf-stream-send-to-mpv
+																		talk-or-track
+																		'(:command ("get_property" "duration"))
+																		t))))
 		(message "%s of %s (%s remaining, ending at %s)"
 						 (emacsconf-format-seconds playback-position)
 						 (emacsconf-format-seconds duration)
