@@ -348,10 +348,10 @@ This uses the BBB room if available, or the IRC channel if not."
           (dom-set-attribute (dom-child-by-tag node 'tspan) 'style "fill: none; stroke: none")))
       (dom-print dom))
     (shell-command
-     (concat "inkscape --export-type=png --export-dpi=96 --export-background-opacity=0 "
+     (concat "inkscape --export-type=png -w 1280 -h 720 --export-background-opacity=0 "
              (shell-quote-argument (file-name-nondirectory video-filename))))
     (shell-command
-     (concat "inkscape --export-type=png --export-dpi=96 --export-background-opacity=0 "
+     (concat "inkscape --export-type=png -w 1280 -h 720 --export-background-opacity=0 "
              (shell-quote-argument (file-name-nondirectory other-filename))))))
 
 (defvar emacsconf-stream-asset-dir "/data/emacsconf/assets/")
@@ -371,13 +371,13 @@ With a prefix argument (\\[universal-argument]), clear the overlay."
 			 "blank"
 		 (plist-get talk :slug))))
 
-(defun emacsconf-stream-generate-overlays (&optional info)
-  (interactive)
-  (setq info (emacsconf-filter-talks (or info (emacsconf-get-talk-info))))
+(defun emacsconf-stream-generate-overlays (&optional info force)
+  (interactive (list (emacsconf-get-talk-info) current-prefix-arg))
+  (setq info (emacsconf-prepare-for-display (or info (emacsconf-get-talk-info))))
   (unless (file-directory-p emacsconf-stream-overlay-dir)
     (make-directory emacsconf-stream-overlay-dir))
   (mapc (lambda (talk)
-          (unless (file-exists-p (expand-file-name (concat (plist-get talk :slug) "-video.png") emacsconf-stream-overlay-dir))
+          (when (or force (null (file-exists-p (expand-file-name (concat (plist-get talk :slug) "-video.png") emacsconf-stream-overlay-dir))))
             (emacsconf-stream-write-talk-overlay-svgs
              talk
              (expand-file-name (concat (plist-get talk :slug) "-video.svg") emacsconf-stream-overlay-dir)
@@ -447,6 +447,47 @@ With a prefix argument (\\[universal-argument]), clear the overlay."
     (unless (file-directory-p title-dir) (make-directory title-dir t))
     (set-frame-size nil 1280 720 t)
     (mapc #'emacsconf-stream-generate-title-page info)))
+
+(defun emacsconf-stream-generate-in-between-page (talk &optional prev info force)
+	(interactive (list (emacsconf-complete-talk-info)))
+	(let* ((prev (or prev (emacsconf-previous-talk talk info)))
+				 (dir (expand-file-name "in-between" emacsconf-stream-asset-dir))
+         (template (expand-file-name "template.svg" dir))
+				 (dom (xml-parse-file template)))
+		(mapc (lambda (entry)
+            (let ((prefix (car entry)))
+              (emacsconf-stream-svg-set-text dom (concat prefix "title")
+                                             (plist-get (cdr entry) :title))
+              (emacsconf-stream-svg-set-text dom (concat prefix "speakers")
+                                             (plist-get (cdr entry) :speakers-with-pronouns))
+              (emacsconf-stream-svg-set-text dom (concat prefix "url")
+                                             (and (cdr entry) (concat emacsconf-base-url (plist-get (cdr entry) :url))))
+              (emacsconf-stream-svg-set-text
+               dom
+               (concat prefix "qa")
+               (pcase (plist-get (cdr entry) :q-and-a)
+                 ("live" "Live Q&A after talk")
+                 ("IRC" "IRC Q&A after talk")
+                 (_ "")))))
+          (list (cons "previous-" prev)
+                (cons "current-" talk)))
+    (with-temp-file (expand-file-name (concat (plist-get talk :slug) ".svg") dir)
+      (dom-print dom))
+    (when (or force (null (file-exists-p (expand-file-name (concat (plist-get talk :slug) ".png")
+																													 dir))))
+      (shell-command
+       (concat "inkscape --export-type=png -w 1280 -h 720 --export-background-opacity=0 "
+               (shell-quote-argument (expand-file-name (concat (plist-get talk :slug) ".svg")
+                                                       dir))))
+			(shell-command
+       (concat "mogrify -alpha off "
+               (shell-quote-argument (expand-file-name (concat (plist-get talk :slug) ".png")
+                                                       dir))))
+			(expand-file-name (concat (plist-get talk :slug) ".png")
+                        dir))))
+;; (emacsconf-stream-generate-in-between-page (emacsconf-resolve-talk "science") nil nil t)
+;; (emacsconf-stream-generate-in-between-page (emacsconf-resolve-talk "health") nil nil t)
+;; (emacsconf-stream-generate-in-between-page (emacsconf-resolve-talk "eev") nil nil t)
 
 (defun emacsconf-stream-generate-in-between-pages (&optional info)
   (interactive)
@@ -706,8 +747,9 @@ ffplay URL
 (defvar emacsconf-stream-track "General")
 (defvar emacsconf-stream-clock-buffer "*emacsconf*")
 (defvar emacsconf-stream-clock-timer nil)
-(declare-function 'diary-entry-time "diary-lib")
-(declare-function 'text-property-search-forward "text-property-search")
+
+(require 'diary-lib)
+(require 'text-property-search)
 (defun emacsconf-stream-display-clock-and-countdown (&optional time message)
   "TIME is HH:MM."
   (interactive "MTime: \nMMessage: ")
@@ -1017,6 +1059,8 @@ ffplay URL
 						 :status (or status (completing-read "Status: " '("online" "offline"))))
 	(emacsconf-stream-update-status-page))
 																						 
-
+(defun emacsconf-stream-edit-status-page ()
+	(interactive)
+	(find-file "/ssh:orga@front0.emacsconf.org:/var/www/status.emacsconf.org/index.html"))
 (provide 'emacsconf-stream)
 ;;; emacsconf-stream.el ends here
