@@ -749,13 +749,24 @@
     (emacsconf-get-talk-info 'wiki)))
 
 (defun emacsconf-include-next-talks (info number)
-  (let* ((info (sort (emacsconf-active-talks (emacsconf-filter-talks (or info (emacsconf-get-talk-info))))
-                     #'emacsconf-sort-by-scheduled))
+  (let* ((info (emacsconf-prepare-for-display info))
          (cur-list info))
     ;; add links to the next talks
     (while cur-list
       (plist-put (pop cur-list) :next-talks (seq-take cur-list number)))
     info))
+
+(defun emacsconf-previous-talk (talk &optional info)
+	(setq info (emacsconf-prepare-for-display (or info (emacsconf-get-talk-info))))
+	(let* ((pos (seq-position info talk))
+				 (prev (and pos
+										(> pos 0)
+										(elt info (1- pos)))))
+		(and prev
+				 (string= (format-time-string "%Y-%m-%d" (plist-get prev :start-time) emacsconf-timezone)
+									(format-time-string "%Y-%m-%d" (plist-get talk :start-time) emacsconf-timezone))
+				 prev)))
+;; (emacsconf-previous-talk (emacsconf-resolve-talk "lspbridge"))
 
 (defun emacsconf-resolve-talk (talk)
   "Return the plist for TALK."
@@ -1384,5 +1395,18 @@ tracks with the ID in the cdr of that list."
 	(concat (format-seconds "%.2m:%.2s" (floor seconds))
 					"." (format "%03d" (% (floor (* 1000 seconds)) 1000))))
 
+(defun emacsconf-insert-time-for-speaker (talk)
+	(interactive (list (emacsconf-complete-talk-info)))
+	(insert
+	 (format-time-string "%-I:%M %P %Z" (plist-get talk :start-time) emacsconf-timezone)
+	 " (" emacsconf-timezone ")"
+	 (if (string= (format-time-string "%z" (plist-get talk :start-time) (plist-get talk :timezone))
+								emacsconf-timezone-offset)
+			 ""
+		 (concat
+			" which should be the same as "
+			(format-time-string "%-I:%M %P %Z" (plist-get talk :start-time) (plist-get talk :timezone))
+			" in "
+			(plist-get talk :timezone)))))
 (provide 'emacsconf)
 ;;; emacsconf.el ends here

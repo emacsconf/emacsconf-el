@@ -412,10 +412,6 @@ ${next-talk-list}
 </ul>"))
      )))
 
-(defun emacsconf-pad-prepopulate-shift-host (shift info)
-	
-  )
-
 (defun emacsconf-pad-format-checkin-hyperlist (talk)
   (emacsconf-replace-plist-in-string
    (append (list
@@ -502,6 +498,7 @@ ${bbb-checklist}</li>")
 (defun emacsconf-pad-prepopulate-host-hyperlists ()
 	(interactive)
 	(mapc #'emacsconf-pad-prepopulate-shift-hyperlist-host emacsconf-shifts))
+
 (defun emacsconf-pad-prepopulate-shift-hyperlist-host (shift &optional info)
   (interactive (list (completing-read "Shift: "
                                       (mapcar (lambda (o) (plist-get o :id)) emacsconf-shifts))))
@@ -540,10 +537,16 @@ ${bbb-checklist}</li>")
 										 :expanded-intro (emacsconf-pad-expand-intro talk)
 										 :mumble (concat emacsconf-id "-" (plist-get (emacsconf-get-track talk) :id))
 										 :qa-hhmm (format-time-string "%H:%M" (plist-get talk :qa-time) emacsconf-timezone)
+										 :hyperlist-note-info
+										 (emacsconf-surround
+											(format "<li><strong>%s NOTE for ${slug}:</strong> "
+															(format-time-string "%H:%M" (plist-get talk :start-time) emacsconf-timezone))
+											(plist-get talk :hyperlist-note) "</li>" "")
 										 :next-talk-in-5 (if next-talk (format-time-string "%H:%M" (time-subtract (plist-get next-talk :start-time) (seconds-to-time 300)) emacsconf-timezone) "")
-										 :next-talk-in-1 (if next-talk (format-time-string "%H:%M" (time-subtract (plist-get next-talk :start-time) (seconds-to-time 60)) emacsconf-timezone) ""))
+										 :next-talk-in-1 (if next-talk (format-time-string "%H:%M" (time-subtract (plist-get next-talk :start-time) (seconds-to-time 60)) emacsconf-timezone) "")) 
 							 talk)
 							(concat
+							 "${hyperlist-note-info}"
 							 (cond
 								(;; live talk, join BBB
 								 (and (null (plist-get talk :recorded-intro))
