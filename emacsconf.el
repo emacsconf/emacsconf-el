@@ -608,8 +608,8 @@
 									(+
 									 (time-to-seconds (plist-get o :start-time))
 									 (* 60 (string-to-number (or (plist-get o :video-time) "0")))
-									 (* 60 (string-to-number (or (plist-get o :video-time) "0")))
-									)))
+									 (* 60 (string-to-number (or (plist-get o :intro-time) "0")))
+									 )))
 			(plist-put o :qa-time
                  (plist-get o :live-time))      
 			
@@ -1070,8 +1070,8 @@
            :webchat-url "https://chat.emacsconf.org/?join=emacsconf,emacsconf-org,emacsconf-accessible,emacsconf-dev,emacsconf-gen"
            :stream ,(concat emacsconf-stream-base "gen.webm")
            :480p ,(concat emacsconf-stream-base "gen-480p.webm")
-					 :youtube-url "https://youtu.be/bLJdyzt51uw"
-					 :youtube-studio-url "https://studio.youtube.com/video/bLJdyzt51uw/livestreaming"
+					 :youtube-url "https://www.youtube.com/watch?v=UEJ88c7MJq0"
+					 :youtube-studio-url "https://studio.youtube.com/video/UEJ88c7MJq0/livestreaming"
 					 :toobnix-url "https://toobnix.org/w/7t9X8eXuSby8YpyEKTb4aj"
            :start "09:00" :end "17:00"
            :vnc-display ":5"
@@ -1082,8 +1082,8 @@
 				  :webchat-url "https://chat.emacsconf.org/?join=emacsconf,emacsconf-org,emacsconf-accessible,emacsconf-gen,emacsconf-dev"
           :tramp "/ssh:emacsconf-dev@res.emacsconf.org#46668:"
 					:toobnix-url "https://toobnix.org/w/w6K77y3bNMo8xsNuqQeCcD"
-					:youtube-url "https://youtu.be/4W9ZvCTG0Ug"
-					:youtube-studio-url "https://studio.youtube.com/video/4W9ZvCTG0Ug/livestreaming"
+					:youtube-url "https://www.youtube.com/watch?v=PMaoF-xa1b4"
+					:youtube-studio-url "https://studio.youtube.com/video/PMaoF-xa1b4/livestreaming"
 					:stream ,(concat emacsconf-stream-base "dev.webm")
           :480p ,(concat emacsconf-stream-base "dev-480p.webm")
           :start "10:00" :end "17:00"
