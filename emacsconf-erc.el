@@ -63,7 +63,7 @@
 (defcustom emacsconf-erc-org "#emacsconf-org" "Channel for organizers")
 
 (defcustom emacsconf-topic-templates
-  '(("#emacsconf" "EmacsConf 2022 | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
+  '(("#emacsconf" "Welcome to EmacsConf 2022 | please join our track-specific channels #emacsconf-gen and #emacsconf-dev as well | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
     ("#emacsconf-gen" "General track | https://emacsconf.org/2022/watch/gen/ | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
     ("#emacsconf-dev" "Development track | https://emacsconf.org/2022/watch/dev/ | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
     ("#emacsconf-accessible" "EmacsConf 2022 accessibility - help by describing what's happening | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
@@ -158,6 +158,18 @@ If MESSAGE is not specified, reset the topic to the template."
 																		threshold-time)))
 								emacsconf-erc-recent-announcements))))
 
+(defun erc-cmd-TALKTOPIC (talk)
+	(interactive (list (emacsconf-complete-talk-info)))
+	(when (stringp talk) (setq talk (or (emacsconf-find-talk-info talk) (error "Could not find talk %s" talk)))) 
+	(when (plist-get talk :track)
+			(emacsconf-erc-with-channels (list (concat "#" (plist-get talk :channel)))
+				(erc-cmd-TOPIC (format "%s: %s (%s) pad: %s Q&A: %s | %s"
+															 (plist-get talk :slug)
+															 (plist-get talk :title)                               
+															 (plist-get talk :speakers)
+															 (plist-get talk :pad-url)
+															 (plist-get talk :qa-info)
+															 (car (assoc-default (concat "#" (plist-get talk :channel)) emacsconf-topic-templates)))))))
 (defun erc-cmd-NOWPLAYING (talk)
   "Set the channel topics to announce TALK."
   (interactive (list (emacsconf-complete-talk-info)))
