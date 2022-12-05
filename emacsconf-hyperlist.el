@@ -177,11 +177,13 @@
 									(mapcar
 									 (lambda (talk)
 										 (if (plist-get talk :video-file)
-												 (list
-													(cons (plist-get talk :start-time)
-																(emacsconf-hyperlist-format-talk-streamer talk))
-													(cons (plist-get talk :qa-time)
-																(emacsconf-hyperlist-format-qa-streamer talk)))
+												 (delq nil
+															 (list
+																(cons (plist-get talk :start-time)
+																			(emacsconf-hyperlist-format-talk-streamer talk))
+																(unless (string-match "none\\|after" (or (plist-get talk :q-and-a) "none"))
+																	(cons (plist-get talk :qa-time)
+																				(emacsconf-hyperlist-format-qa-streamer talk)))))
 											 (list
 												(cons (plist-get talk :start-time)
 															(emacsconf-hyperlist-format-talk-streamer talk)))))
