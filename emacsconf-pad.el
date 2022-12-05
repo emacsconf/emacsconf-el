@@ -99,11 +99,14 @@ You can find it in $ETHERPAD_PATH/APIKEY.txt"
 
 (defun emacsconf-pad-get-html (pad-id)
   (interactive "MPad ID: ")
-  (emacsconf-pad-json-request (format "%sapi/1/getHTML?apikey=%s&padID=%s"
-                                      emacsconf-pad-base
-                                      (url-hexify-string emacsconf-pad-api-key)
-                                      (url-hexify-string pad-id))
-                              (called-interactively-p 'any)))
+	(assoc-default
+	 'html
+	 (assoc-default 'data
+									(emacsconf-pad-json-request (format "%sapi/1/getHTML?apikey=%s&padID=%s"
+																											emacsconf-pad-base
+																											(url-hexify-string emacsconf-pad-api-key)
+																											(url-hexify-string pad-id))
+																							(called-interactively-p 'any)))))
 
 (defun emacsconf-pad-set-html (pad-id html)
   (interactive "MPad ID: \nMHTML: ")
@@ -789,5 +792,22 @@ This page is for easy reference and recording. Please make sure any changes here
             (emacsconf-prepare-for-display (emacsconf-get-talk-info)))
            "</ul>")))
 
+(defun emacsconf-pad-backup-talk (talk)
+	(interactive (list (emacsconf-complete-talk-info)))
+	(with-temp-file (expand-file-name (concat (plist-get talk :video-slug) "--pad.html")
+																		emacsconf-cache-dir)
+		(insert
+		 (emacsconf-pad-get-html (emacsconf-pad-id talk))))
+	(call-process "pandoc" nil nil nil "-o"
+								(expand-file-name (concat (plist-get talk :video-slug) "--pad.md")
+																	emacsconf-cache-dir)
+								(expand-file-name (concat (plist-get talk :video-slug) "--pad.html")
+																	emacsconf-cache-dir)))
+
+(defun emacsconf-pad-backup-talks ()
+	(interactive)
+	(mapc
+	 #'emacsconf-pad-backup-talk
+	 (emacsconf-prepare-for-display (emacsconf-get-talk-info))))
 (provide 'emacsconf-pad)
 ;;; emacsconf-pad.el ends here
