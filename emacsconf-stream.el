@@ -874,8 +874,8 @@ ffplay URL
 																notification)))))
 
 (defun emacsconf-stream-update-talk-status-from-timer (talk new-status &optional notification)
-	(when notification
-		(apply #'notifications-notify notification))
+	;; (when notification
+	;; 	(apply #'notifications-notify notification))
 	(emacsconf-update-talk-status-with-hooks (plist-get talk :slug) "." new-status))
 
 (defun emacsconf-stream-schedule-timers (&optional info)
@@ -887,20 +887,23 @@ ffplay URL
     (mapc (lambda (talk)
             (when (and (time-less-p now (plist-get talk :start-time)))
 							(emacsconf-stream-schedule-talk-status-change talk (plist-get talk :start-time) "PLAYING"
-																														`(:title (concat "Starting " (plist-get talk :qa)))))
+																														`(:title (concat "Starting " (plist-get talk :slug)))))
 						(when (and
 									 (plist-get talk :video-file)
 									 (plist-get talk :qa-time)
+									 (not (string-match "none" (or (plist-get talk :q-and-a) "none")))
 									 (null (plist-get talk :stream-files)) ;; can't tell when this is
 									 (time-less-p now (plist-get talk :qa-time)))
 							(emacsconf-stream-schedule-talk-status-change talk (plist-get talk :qa-time) "CLOSED_Q"
-																														`(:title (concat "Q&A for " (plist-get talk :qa) " (" (plist-get talk :q-and-a) ")")))))
+																														`(:title (concat "Q&A for " (plist-get talk :slug) " (" (plist-get talk :q-and-a) ")"))))
+						)
           info)))
 
 ;; (notifications-notify :title "Hello")
 (defun emacsconf-stream-cancel-all-timers ()
 	(interactive)
 	(cancel-function-timers #'emacsconf-update-talk-status-with-hooks)
+	(cancel-function-timers #'emacsconf-stream-update-talk-status-from-timer)
 	(setq emacsconf-stream-timers nil))
 
 (defun emacsconf-stream-send-to-mpv (talk-or-track command &optional parse)

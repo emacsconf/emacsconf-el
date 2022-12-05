@@ -287,15 +287,19 @@
    :complete (lambda () (concat "emacsconf:" (emacsconf-complete-slug)))
    :export #'emacsconf-export-slug))
 
+(defvar emacsconf-complete-talk-cache nil)
+;; (setq emacsconf-complete-talk-cache (mapcar (lambda (o) (string-join (delq nil (mapcar (lambda (f) (plist-get o f)) '(:slug :title :speakers :irc))) " - ")) (emacsconf-get-talk-info)))
 
 (defun emacsconf-complete-talk (&optional info)
   (let ((choices
-         (mapcar (lambda (o)
-                   (string-join
-                    (delq nil
-                          (mapcar (lambda (f) (plist-get o f)) '(:slug :title :speakers :irc)))
-                    " - "))
-                 (or info (emacsconf-get-talk-info)))))
+				 (if (and (null info) emacsconf-complete-talk-cache)
+						 emacsconf-complete-talk-cache
+					 (mapcar (lambda (o)
+										 (string-join
+											(delq nil
+														(mapcar (lambda (f) (plist-get o f)) '(:slug :title :speakers :irc)))
+											" - "))
+									 (or info (emacsconf-get-talk-info))))))
     (completing-read
      "Talk: " 
      (lambda (string predicate action)
@@ -610,9 +614,9 @@
 									 (* 60 (string-to-number (or (plist-get o :video-time) "0")))
 									 (* 60 (string-to-number (or (plist-get o :intro-time) "0")))
 									 )))
-			(plist-put o :qa-time
-                 (plist-get o :live-time))      
-			
+			(unless (string-match "none\\|after" (or (plist-get o :q-and-a) "none"))
+				(plist-put o :qa-time
+									 (plist-get o :live-time)))      
       (plist-put o :checkin-label
                  "30 minutes before the scheduled start of your Q&A, since you have a pre-recorded video")
       (when (plist-get o :video-time)
