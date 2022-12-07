@@ -427,6 +427,7 @@
                        ;; Extraction
                        (:qa-youtube "QA_YOUTUBE")
                        (:qa-toobnix "QA_TOOBNIX")
+											 (:bbb-playback "BBB_PLAYBACK")
                        ;; Old
                        (:alternate-apac "ALTERNATE_APAC")                       
                        (:extra-live-time "EXTRA_LIVE_TIME")

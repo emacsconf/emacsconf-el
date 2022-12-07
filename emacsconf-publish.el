@@ -1052,14 +1052,18 @@ Entries are sorted chronologically, with different tracks interleaved."
     (with-temp-file filename
       (let* ((talks
               (mapcar
-               (lambda (o) (append (list :captions-edited t) o))
+               (lambda (o) (append
+														(list :captions-edited t) o))
                (seq-filter (lambda (o) (plist-get o :speakers))
 			                     (emacsconf-active-talks (emacsconf-filter-talks info)))))
              (by-status (seq-group-by (lambda (o) (plist-get o :status)) talks))
              (files (directory-files emacsconf-backstage-dir)))
         (insert
          "<html><head><meta charset=\"UTF-8\"><link rel=\"stylesheet\" href=\"/style.css\" /></head><body>"
-         "<p>Schedule by status: (gray: waiting, light yellow: processing, yellow: to assign, light green: captioning, green: captioned and ready)<br />Updated by conf.org and the wiki repository</br />"
+				 (if (file-exists-p (expand-file-name "include-in-index.html" emacsconf-cache-dir))
+             (with-temp-buffer (insert-file-contents (expand-file-name "include-in-index.html" emacsconf-cache-dir)) (buffer-string))
+           "")
+				 "<p>Schedule by status: (gray: waiting, light yellow: processing, yellow: to assign, light green: captioning, green: captioned and ready)<br />Updated by conf.org and the wiki repository</br />"
          "<img src=\"schedule.svg\" /></p>"
          (format "<p>Waiting for %d talks (~%d minutes) out of %d total</p>"
                  (length (assoc-default "WAITING_FOR_PREREC" by-status))
@@ -1177,12 +1181,36 @@ Entries are sorted chronologically, with different tracks interleaved."
 																	(plist-get f :title)
 																	(plist-get f :speakers-with-pronouns)
 																	(plist-get f :slug)
-																	(emacsconf-index-card (append f (list :extra (concat "Captioned by " (plist-get f :captioner))
-																																				:files (emacsconf-publish-talk-files f files)))
-																												emacsconf-main-extensions)))
+																	(emacsconf-index-card
+																	 (append f (list :extra
+																									 (concat
+																										"Captioned by " (plist-get f :captioner) "<br />"
+																										(format "Q&A archiving: <a href=\"%s-%s.txt\">IRC: %s-%s</a>"
+																														(format-time-string "%Y-%m-%d" (plist-get f :start-time))
+																														(plist-get (emacsconf-get-track f) :channel)
+																														(format-time-string "%Y-%m-%d" (plist-get f :start-time))
+																														(plist-get (emacsconf-get-track f) :channel)) 
+																										(emacsconf-surround ", <a href=\""
+																																				(if (file-exists-p (expand-file-name (concat (plist-get f :video-slug) "--pad.txt")
+																																																						 emacsconf-cache-dir))
+																																						(concat (plist-get f :video-slug) "--pad.txt"))
+																																				"\">Etherpad (Markdown)</a>" "")
+																										(emacsconf-surround ", <a href=\"" (plist-get f :bbb-playback) "\">BBB playback</a>" "")
+																										(emacsconf-surround ", <a href=\""
+																																				(if (file-exists-p (expand-file-name (concat (plist-get f :video-slug) "--bbb.txt")
+																																																						 emacsconf-cache-dir))
+																																						(concat (plist-get f :video-slug) "--bbb.txt"))
+																																				"\">BBB text chat</a>" "")
+																										(emacsconf-surround ", <a href=\""
+																																				(if (file-exists-p (expand-file-name (concat (plist-get f :video-slug) "--bbb-webcams.opus")
+																																																						 emacsconf-cache-dir))
+																																						(concat (plist-get f :video-slug) "--bbb-webcams.opus"))
+																																				"\">BBB audio only</a>" ""))
+																									 :files (emacsconf-publish-talk-files f files)))
+																	 emacsconf-main-extensions)))
 											 (assoc-default status by-status) "\n")))
-         (if (file-exists-p (expand-file-name "include-in-index.html" emacsconf-cache-dir))
-             (with-temp-buffer (insert-file-contents (expand-file-name "include-in-index.html" emacsconf-cache-dir)) (buffer-string))
+				 (if (file-exists-p (expand-file-name "include-in-index-footer.html" emacsconf-cache-dir))
+             (with-temp-buffer (insert-file-contents (expand-file-name "include-in-index-footer.html" emacsconf-cache-dir)) (buffer-string))
            "")
          "</body></html>")))))
 
