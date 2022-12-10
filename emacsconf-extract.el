@@ -270,5 +270,40 @@
 			(unless (string= (or questions "") "")
 				(insert "## Questions and answers\n\n" questions "\n\n"))
 			)))
+
+(defun emacsconf-extract-question-headings (slug)
+	(with-temp-buffer
+		(insert-file-contents
+		 (expand-file-name
+			(concat slug ".md")
+			(expand-file-name "talks"
+												(expand-file-name emacsconf-year emacsconf-directory))))
+		(goto-char (point-min))
+		(let (results)
+			(while (re-search-forward "^-[ \t]+Q:[  ]*" nil t)
+				(setq results
+							(cons
+							 (string-trim
+								(replace-regexp-in-string
+								 "[\n \t ]+" " "
+								 (replace-regexp-in-string
+									"\\\\"
+									""
+									(buffer-substring
+									 (point)
+									 (and (re-search-forward "^[ \t]+-\\|^[ \t]+*$" nil t)
+												(match-beginning 0))))))
+							 results)))
+			(nreverse results))))
+;; (emacsconf-extract-question-headings "asmblox")
+
+(defun emacsconf-extract-insert-note-with-question-heading (question)
+	(interactive
+	 (list
+		(completing-read
+		 "Question: "
+		 (emacsconf-extract-question-headings
+			(emacsconf-get-slug-from-string (file-name-base (buffer-file-name)))))))
+	(insert "NOTE " question "\n\n"))
 (provide 'emacsconf-extract)
 ;;; emacsconf-extract.el ends here

@@ -311,10 +311,13 @@
   (emacsconf-search-talk-info (emacsconf-complete-talk info) info))
 
 (defun emacsconf-get-slug-from-string (search)
-  (if (listp search) (setq search (car search)))
-  (if (and search (string-match "\\(.*?\\) - " search))
-      (match-string 1 search)
-    search))
+  (when (listp search) (setq search (car search)))
+  (cond
+	 ((and search (stringp search) (string-match "\\(.*?\\) - " search))
+		(match-string 1 search))
+	 ((and (stringp search) (string-match (concat "^" emacsconf-id "-" emacsconf-year "-\\(.+?\\)--") search))
+		(match-string 1 search))
+   (t search)))
 
 (defun emacsconf-go-to-talk (search)
   (interactive (list (emacsconf-complete-talk)))
@@ -1232,7 +1235,7 @@ Filter by TRACK if given.  Use INFO as the list of talks."
           (or info (emacsconf-get-volunteer-info))))
 
 (defun emacsconf-complete-volunteer (&optional info)
-  (setq info (or info (emacsconf-get-volunteer-info info)))
+  (setq info (or info (emacsconf-get-volunteer-info)))
   (let* ((choices
           (emacsconf-volunteer-emails-for-completion))
          (choice (completing-read

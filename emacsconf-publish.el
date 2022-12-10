@@ -30,7 +30,7 @@
   :type 'string
   :group 'emacsconf)
 
-(defcustom emacsconf-main-extensions '(".webm" "--main.webm" "--main.org" ".org" ".odp" ".pdf" ".el" "--compressed56.webm" "--main.vtt" "--main_fr.vtt" "--main_ja.vtt" "--main_es.vtt" "--chapters.vtt" "--main--chapters.vtt" "--script.fountain")
+(defcustom emacsconf-main-extensions '(".webm" "--main.webm" "--main.org" ".org" ".odp" ".pdf" ".el" "--compressed56.webm" "--main.vtt" "--main_fr.vtt" "--main_ja.vtt" "--main_es.vtt" "--chapters.vtt" "--main--chapters.vtt" "--script.fountain" "--main.pdf" "--slides.pdf")
   "Extensions to list on public pages."
   :type '(repeat string)
   :group 'emacsconf)
@@ -468,6 +468,7 @@ resources."
                                        :public 1
                                        :video-id (concat (plist-get o :slug) "-qanda")
                                        :toobnix-url nil
+																			 :captions-edited (plist-get o :qa-captions-edited)
                                        :video-file (expand-file-name
                                                     (concat (file-name-sans-extension (plist-get o :video-slug)) "--answers.webm")
                                                     emacsconf-cache-dir))
@@ -1170,7 +1171,26 @@ Entries are sorted chronologically, with different tracks interleaved."
                      (assoc-default "TO_STREAM" by-status) "\n"))
 				 (let ((status "TO_ARCHIVE"))
 					 (format
-						"<h1>%d talk(s) to archive (%d minutes)</h1><ol class=\"videos\">%s</ol>"
+						"<h1>%d talk(s) to archive (%d minutes)</h1>Last year, we copied the questions, answers, and notes into the wiki
+pages, removing people's nicks and combining duplicate
+things (ex: question was asked on IRC and was copied over to the
+pad). That way, it's easier for people to see the questions and
+answers without needing to listen to everything again, and the
+speakers can see any questions they've missed and all the
+wonderful feedback people have shared. You can see the talk pages
+at <a
+href=\"https://emacsconf.org/2021/talks/\">https://emacsconf.org/2021/talks/</a>
+for examples of a Discussion section with sections for Q&A and
+feedback (ex: <a
+href=\"https://emacsconf.org/2021/talks/frownies/\">frownies</a>,
+<a
+href=\"https://emacsconf.org/2021/talks/freedom/\">freedom</a>).
+If you feel like collecting things from the Q&A (or any other
+one), that would be great. You can either edit the wiki page
+directly (which involves git and ssh), or you can e-mail things
+to <a
+href=\"mailto:emacsconf-submit@gnu.org\">emacsconf-submit@gnu.org</a>
+and I'll merge them in. - Sacha <ol class=\"videos\">%s</ol>"
 						(length (assoc-default status by-status))
 						(emacsconf-sum :video-time (assoc-default status by-status))
 						(mapconcat (lambda (f)
@@ -1735,7 +1755,7 @@ This video is available under the terms of the Creative Commons Attribution-Shar
     ))
 
 
-(defvar emacsconf-publish-autocommit-wiki t)
+(defvar emacsconf-publish-autocommit-wiki nil)
 (defun emacsconf-publish-commit-and-push-wiki-maybe (&optional do-it message)
 	(interactive (list t))
 	(let ((default-directory emacsconf-directory))
@@ -1748,7 +1768,9 @@ This video is available under the terms of the Creative Commons Attribution-Shar
   (declare (indent 0) (debug t))
   `(progn
      ,@body
-		 (emacsconf-publish-commit-and-push-wiki-maybe t (and (stringp ,(car body)) ,(car body)))))
+		 (emacsconf-publish-commit-and-push-wiki-maybe
+			,emacsconf-publish-autocommit-wiki
+			(and (stringp ,(car body)) ,(car body)))))
 
 (defun emacsconf-publish-schedule-svg-snippets ()
   (interactive)

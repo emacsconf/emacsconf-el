@@ -29,8 +29,8 @@
 
 (require 'subed)
 
-(defcustom emacsconf-subed-subtitle-max-length 60
-  "Target number of characters."
+(defcustom emacsconf-subed-subtitle-max-length nil
+  "Target number of characters. Default to `fill-column'."
   :group 'emacsconf
   :type 'integer)
 
@@ -123,7 +123,7 @@ TYPE can be 'end if you want the match end instead of the beginning."
 
 (defun emacsconf-reflow-automatically ()
   (interactive)
-  (let* ((subtitle-text-limit emacsconf-subed-subtitle-max-length)
+  (let* ((subtitle-text-limit (or emacsconf-subed-subtitle-max-length fill-column))
          (auto-space-msecs 700)
          (subtitles
           (mapconcat
@@ -287,7 +287,7 @@ Create it if necessary."
   "Do some simple validation of subtitles."
   (interactive)
   (while (not (eobp))
-    (if (> (length (subed-subtitle-text)) emacsconf-subed-subtitle-max-length)
+    (if (> (length (subed-subtitle-text)) (or emacsconf-subed-subtitle-max-length fill-column))
         (error "Length %d exceeds maximum length" (length (subed-subtitle-text))))
     (if (< (- (subed-subtitle-msecs-stop) (subed-subtitle-msecs-start)) emacsconf-subed-subtitle-minimum-duration-ms)
         (error "Duration %d is less than minimum" (- (subed-subtitle-msecs-stop) (subed-subtitle-msecs-start))))
