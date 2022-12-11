@@ -24,12 +24,16 @@
 
 ;;; Code:
 
+(defun emacsconf-mail-groups (&optional info)
+	(setq info (emacsconf-filter-talks (or info (emacsconf-get-talk-info))))
+	(seq-group-by (lambda (o) (plist-get o :email)) info))
+
 (defun emacsconf-mail-complete-email-group (&optional info)
   "Return (email . (talk talk))."
   (setq info (emacsconf-filter-talks (or info (emacsconf-get-talk-info))))
-  (save-window-excursion
-    (let* ((grouped (seq-group-by (lambda (o) (plist-get o :email)) info))
-           (slug (emacsconf-get-slug-from-string (emacsconf-complete-talk)))
+	(save-window-excursion
+    (let* ((grouped (emacsconf-mail-groups info))
+           (slug (emacsconf-get-slug-from-string (emacsconf-complete-talk info)))
            (email (plist-get (seq-find (lambda (o) (string= (plist-get o :slug) slug)) info) :email)))
       (assoc email grouped))))
 
@@ -46,7 +50,7 @@
               (cons "Cc" (emacsconf-replace-plist-in-string attrs (plist-get template :cc)))))))
   (message-sort-headers)
   (message-goto-body)
-  (save-excursion (insert (emacsconf-replace-plist-in-string attrs (plist-get template :body)))
+  (save-excursion (insert (string-trim (emacsconf-replace-plist-in-string attrs (plist-get template :body))))
                   (goto-char (point-min))
                   (emacsconf-mail-merge-wrap)))
 
@@ -71,6 +75,25 @@
         (mail-func (plist-get template :function)))
     (funcall mail-func (emacsconf-complete-volunteer) template)))
 
+(defun emacsconf-mail-template-to-first-group ()
+  "Draft the current template for the first group on the list."
+  (interactive)
+  (let* ((template (if (org-entry-get (point) "EMAIL_ID")
+                       (emacsconf-mail-merge-get-template-from-subtree)
+                     (emacsconf-mail-merge-get-template
+                      (completing-read "Template: " (org-property-values "EMAIL_ID")))))
+         (mail-func (plist-get template :function))
+				 (filtered-talks (emacsconf-mail-filter-talks-by-template template))
+				 (group (car (emacsconf-mail-groups (emacsconf-mail-filter-talks-by-template template)))))
+		(if filtered-talks
+				(progn
+					(funcall mail-func group template)
+					(when (plist-get template :log-note)
+						(mapc (lambda (talk)
+										(emacsconf-mail-log-message-when-sent talk (plist-get template :log-note)))
+									(cdr group))))
+			(message "All done!"))))
+
 (defun emacsconf-mail-template-to-group ()
   "Prompt for a speaker and e-mail current template to them."
   (interactive)
@@ -78,8 +101,31 @@
                        (emacsconf-mail-merge-get-template-from-subtree)
                      (emacsconf-mail-merge-get-template
                       (completing-read "Template: " (org-property-values "EMAIL_ID")))))
-         (mail-func (plist-get template :function)))
-    (funcall mail-func (emacsconf-mail-complete-email-group) template)))
+         (mail-func (plist-get template :function))
+				 (filtered-talks (emacsconf-mail-filter-talks-by-template template))
+				 (group (emacsconf-mail-complete-email-group
+								 filtered-talks)))
+		(if filtered-talks
+				(progn
+					(funcall mail-func group template)
+					(when (plist-get template :log-note)
+						(mapc (lambda (talk)
+										(emacsconf-mail-log-message-when-sent talk (plist-get template :log-note)))
+									(cdr group))))
+			(message "All done!"))))
+
+(defun emacsconf-mail-filter-talks-by-template (template)
+	(let ((list (emacsconf-prepare-for-display (emacsconf-filter-talks (emacsconf-get-talk-info)))))
+		(when list
+			(setq list (emacsconf-filter-talks-by-slugs (plist-get template :slugs) list)))
+		(when list
+			(setq list (emacsconf-filter-talks-by-logbook (plist-get template :log-note) list)))
+		(when list
+			(setq list
+						(seq-filter
+						 (lambda (o) (plist-get o :email))
+						 list)))
+		list))
 
 (defun emacsconf-mail-template-to-all-groups ()
   "Uses the current template to draft messages to all the speakers.
@@ -89,16 +135,15 @@ Group by e-mail."
                        (emacsconf-mail-merge-get-template-from-subtree)
                      (emacsconf-mail-merge-get-template
                       (completing-read "Template: " (org-property-values "EMAIL_ID")))))
-         (info (seq-filter (lambda (o)
-                             (if (plist-get template :slugs)
-                                 (member (plist-get o :slug)
-                                         (split-string (plist-get template :slugs) " "))
-                               t))
-                           (emacsconf-prepare-for-display (emacsconf-filter-talks (emacsconf-get-talk-info)))))
+         (info (emacsconf-mail-filter-talks-by-template template))
          (grouped (emacsconf-mail-group-by-email info))
          (mail-func (plist-get template :function)))
     (mapc (lambda (group)
-            (funcall mail-func group template))
+            (funcall mail-func group template)
+						(when (plist-get template :log-note)
+							(mapc (lambda (talk)
+											(emacsconf-mail-log-message-when-sent talk (plist-get template :log-note)))
+										(cdr group))))
           grouped)))
 
 (defun emacsconf-mail-log-message-when-sent (o message)
@@ -174,7 +219,8 @@ Group by e-mail."
                                            (org-end-of-meta-data) (point))
                                          (org-end-of-subtree)))
         :function (when (org-entry-get-with-inheritance "FUNCTION")
-                    (intern (org-entry-get-with-inheritance "FUNCTION")))))
+                    (intern (org-entry-get-with-inheritance "FUNCTION")))
+				:log-note (org-entry-get-with-inheritance "LOG_NOTE")))
 
 (defun emacsconf-mail-merge-get-template (id)
   "Return the information for the e-mail template with EMAIL_ID set to ID."
