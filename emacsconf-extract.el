@@ -81,7 +81,7 @@
 										"")))))))
 				(emacsconf-prepare-for-display (emacsconf-get-talk-info))))
 
-(defun emacsconf-extract-bbb-copy-files ()
+(defun emacsconf-extract-bbb-copy-files (&optional info)
 	(interactive)
 	(mapc
 	 (lambda (o)
@@ -94,7 +94,7 @@
 														(expand-file-name (concat (plist-get o :video-slug) "--bbb-" file) emacsconf-cache-dir)
 														t)))
 						 '("webcams.webm" "metadata.xml" "deskshare.webm" "deskshare.xml" "slides_new.xml" "webcams.opus"))))
-	 (emacsconf-prepare-for-display (emacsconf-get-talk-info))))
+	 (or info (emacsconf-prepare-for-display (emacsconf-get-talk-info)))))
 
 (defvar emacsconf-extract-dump-dir "/ssh:orga@res.emacsconf.org#46668:~/current/live0-streams/")
 (defun emacsconf-extract-dump-time-from-filename (f)
@@ -305,5 +305,23 @@
 		 (emacsconf-extract-question-headings
 			(emacsconf-get-slug-from-string (file-name-base (buffer-file-name)))))))
 	(insert "NOTE " question "\n\n"))
+
+(defun emacsconf-extract-wget-bbb (o)
+	(when (plist-get o :bbb-playback)
+				(let ((meeting-id (when (string-match "meetingId=\\(.+\\)"
+																							(plist-get o :bbb-playback))
+														(match-string 1 (plist-get o :bbb-playback)))))
+					(concat "mkdir " (plist-get o :slug) "\n"
+									"cd " (plist-get o :slug) "\n"
+									(mapconcat
+									 (lambda (file)
+										 (concat
+											"wget https://bbb.emacsverse.org/presentation/"
+											meeting-id "/" file "\n"))
+									 '("video/webcams.webm" "metadata.xml" "deskshare/deskshare.webm" "panzooms.xml" "cursor.xml" "deskshare.xml" "captions.json" "presentation_text.json" "slides_new.xml")
+									 "")
+									"cd ..\n"
+									))))
+
 (provide 'emacsconf-extract)
 ;;; emacsconf-extract.el ends here
