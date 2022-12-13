@@ -290,8 +290,8 @@
      emacsconf-tracks)))
 
 (defun emacsconf-index-card-video (video-id video-file talk extensions)
-  (let* ((video-base (and video-file (replace-regexp-in-string "reencoded\\|original" "main" (file-name-base video-file))))
-         (chapter-info (and video-file
+  (let* ((video-base (and (stringp video-file) (replace-regexp-in-string "reencoded\\|original" "main" (file-name-base video-file))))
+         (chapter-info (and (stringp video-file)
                             (emacsconf-make-chapter-strings
                              (expand-file-name
                               (concat video-base "--chapters.vtt")
@@ -302,13 +302,13 @@
           (append
            (list
             :source-src
-            (when video-file
+            (when (stringp video-file)
               (if (plist-get talk :public)
                   (format "%s%s/%s" emacsconf-media-base-url (plist-get talk :conf-year)
                           (file-name-nondirectory video-file))
                 (file-name-nondirectory video-file)))
             :captions
-            (and video-file
+            (and (stringp video-file)
                  (plist-get talk :captions-edited)
                  (let ((tracks
                         (emacsconf-video-subtitle-tracks
@@ -331,7 +331,7 @@
                   (plist-get chapter-info :html))
               "")
             :video-id video-id
-            :video-file-size (if (and video-file (file-exists-p video-file))
+            :video-file-size (if (and (stringp video-file) (file-exists-p video-file))
                                  (file-size-human-readable (file-attribute-size (file-attributes video-file))))
             :other-files
             (mapconcat
@@ -341,7 +341,6 @@
                  (concat "<li>" s "</li>")))
              (emacsconf-link-file-formats-as-list talk (or extensions emacsconf-main-extensions))
              "")
-            :poster (and video-file (format "https://media.emacsconf.org/%s/%s.png" (plist-get talk :conf-year) (file-name-base video-file)))
             :toobnix-info (if (plist-get talk :toobnix-url)
                               (format
                                (if (eq (plist-get talk :format) 'wiki)
@@ -360,19 +359,20 @@
      :video
      (emacsconf-replace-plist-in-string
       info
-      (if video-file
+      (if (stringp video-file)
           (if (eq (plist-get talk :format) 'wiki)
               "[[!template id=\"vid\" vidid=\"${video-id}\" src=\"${source-src}\" poster=\"${poster}\" ${captions}
 size=\"${video-file-size}\" duration=\"${video-duration}\" other_resources=\"\"\"${other-files}${transcript-link}${toobnix-info}\"\"\"]]
 ${chapter-list}
 "
             "<video controls preload=\"none\" poster=\"${poster}\" id=\"${video-id}\"><source src=\"${source-src}\" />${captions}${chapter-track}</video>${chapter-list}")
-        "The video for \"${title}\" will be posted here when available. You can also subscribe to the <a href=\"https://lists.gnu.org/mailman/listinfo/emacsconf-discuss\">emacsconf-discuss mailing list</a> for updates."))
+        (or (plist-get talk :video-note)
+						"The video for \"${title}\" will be posted here when available. You can also subscribe to the <a href=\"https://lists.gnu.org/mailman/listinfo/emacsconf-discuss\">emacsconf-discuss mailing list</a> for updates.")))
      :resources
      (emacsconf-replace-plist-in-string
       (append info
               (list :video-download
-                    (if video-file
+                    (if (stringp video-file)
                         (emacsconf-replace-plist-in-string
                          info
                          "<li><a href=\"${source-src}\">Download video (${video-duration}, ${video-file-size}B)</a></li>")
@@ -1043,6 +1043,104 @@ Entries are sorted chronologically, with different tracks interleaved."
       (when (member org-state '("WAITING_FOR_PREREC" "TO_ASSIGN" "TO_CAPTION" "TO_STREAM"))
         (emacsconf-publish-backstage-index)))))
 
+(defun emacsconf-publish-backstage-processing (by-status files)
+	(let ((list (append
+							 (assoc-default "TO_PROCESS" by-status)
+							 (assoc-default "PROCESSING" by-status)
+							 (assoc-default "TO_AUTOCAP" by-status))))
+		(format "<h1>%s talk(s) being processed (%d minutes)</h1>Not ready for captioning yet, but they will be eventually<ul class=\"videos\">%s</ul>"
+						(length list)
+						(emacsconf-sum :video-time list)
+						(mapconcat
+						 (lambda (f)
+							 (setq f (append
+												f
+												(list :extra
+															(if (plist-get f :caption-note) (concat "<div class=\"caption-note\">" (plist-get f :caption-note) "</div>") "")
+															:files
+															(emacsconf-publish-talk-files f files))))
+							 (format "<li><a name=\"%s\"></a><strong><a href=\"%s\">%s</a></strong><br />%s (id:%s)<br />%s</li>"
+											 (plist-get f :slug)
+											 (plist-get f :absolute-url)
+											 (plist-get f :title)
+											 (plist-get f :speakers)
+											 (plist-get f :slug)
+											 (emacsconf-index-card f)))
+						 list
+						 "\n"))))
+
+(defun emacsconf-publish-backstage-to-assign (by-status files)
+	(let ((list (assoc-default "TO_ASSIGN" by-status)))
+    (format "<h1>%s talk(s) to be captioned (%d minutes)</h1><p>You can e-mail <a href=\"mailto:sacha@sachachua.com\">sacha@sachachua.com</a> to call dibs on editing the captions for one of these talks. This year, we're experimenting with using OpenAI Whisper to provide auto-generated VTT that you can use as a starting point. If you're writing them from scratch, you can choose to include timing information, or we can probably figure them out afterwards with a forced alignment tool. More info: <a href=\"https://media.emacsconf.org/2022/backstage/editing-captions.html\">Editing captions</a>, <a href=\"https://emacsconf.org/captioning/\">captioning tips</a></p><ul class=\"videos\">%s</ul>"
+            (length list)
+            (emacsconf-sum :video-time list)
+            (mapconcat
+             (lambda (f)
+               (setq f (append
+                        f
+                        (list :extra
+                              (if (plist-get f :caption-note) (concat "<div class=\"caption-note\">" (plist-get f :caption-note) "</div>") "")
+                              :files
+                              (emacsconf-publish-talk-files f files))))
+               (format  "<li><a name=\"%s\"></a><strong><a href=\"%s\">%s</a></strong><br />%s (id:%s)<br />%s</li>"
+                        (plist-get f :slug)
+                        (plist-get f :absolute-url)
+                        (plist-get f :title)
+                        (plist-get f :speakers)
+                        (plist-get f :slug)
+                        (emacsconf-index-card f)))
+             list
+             "\n"))))
+
+(defun emacsconf-publish-backstage-to-caption (by-status files)
+	(format
+   "<h1>%d talk(s) being captioned (%s minutes)</h1>People are working on these ones, yay!<ul>%s</ul>"
+   (length (assoc-default "TO_CAPTION" by-status))
+   (emacsconf-sum :video-time (assoc-default "TO_CAPTION" by-status))
+   (mapconcat
+    (lambda (f)
+      (setq f (append
+               f
+               (list :extra
+                            
+                     (concat "<div class=\"caption-note\">"
+                             (emacsconf-surround "Being captioned by " (plist-get f :captioner) " " "")
+                             (emacsconf-surround "Note: " (plist-get f :caption-note) "" "")
+                             "</div>")
+                     :files
+                     (emacsconf-publish-talk-files f files))))
+      (format  "<li><a name=\"%s\"></a><strong><a href=\"%s%s\">%s</a></strong><br />%s (id:%s)<br />%s</li>"
+               (plist-get f :slug)
+               emacsconf-base-url
+               (plist-get f :url)
+               (plist-get f :title)
+               (plist-get f :speakers-with-pronouns)
+               (plist-get f :slug)
+               (emacsconf-index-card f)))
+    (assoc-default "TO_CAPTION" by-status)
+    "\n")))
+
+(defun emacsconf-publish-backstage-to-stream (by-status files)
+	(format
+          "<h1>%d captioned talk(s) ready for enjoyment (%d minutes)</h1><ol class=\"videos\">%s</ol>"
+          (length (assoc-default "TO_STREAM" by-status))
+          (emacsconf-sum :video-time (assoc-default "TO_STREAM" by-status))
+          (mapconcat (lambda (f)
+                       (format  "<li><a name=\"%s\"></a><strong><a href=\"%s%s\">%s</a></strong><br />%s (id:%s)<br />%s</li>"
+                                (plist-get f :slug)
+                                emacsconf-base-url
+                                (plist-get f :url)
+                                (plist-get f :title)
+                                (plist-get f :speakers-with-pronouns)
+                                (plist-get f :slug)
+                                (emacsconf-index-card (append f (list :extra (concat "Captioned by " (plist-get f :captioner))
+                                                                      :files (emacsconf-publish-talk-files f files)))
+                                                      emacsconf-main-extensions)))
+                     (assoc-default "TO_STREAM" by-status) "\n")))
+
+(defvar emacsconf-backstage-phase 'harvest) ; prerec
+
+
 (defun emacsconf-publish-backstage-index (&optional filename)
   (interactive)
   (setq filename (or filename (expand-file-name "index.html" emacsconf-backstage-dir)))
@@ -1066,10 +1164,12 @@ Entries are sorted chronologically, with different tracks interleaved."
            "")
 				 "<p>Schedule by status: (gray: waiting, light yellow: processing, yellow: to assign, light green: captioning, green: captioned and ready)<br />Updated by conf.org and the wiki repository</br />"
          "<img src=\"schedule.svg\" /></p>"
-         (format "<p>Waiting for %d talks (~%d minutes) out of %d total</p>"
-                 (length (assoc-default "WAITING_FOR_PREREC" by-status))
-                 (emacsconf-sum :time (assoc-default "WAITING_FOR_PREREC" by-status))
-                 (length talks))
+				 (if (eq emacsconf-backstage-phase 'prerec)
+						 (format "<p>Waiting for %d talks (~%d minutes) out of %d total</p>"
+										 (length (assoc-default "WAITING_FOR_PREREC" by-status))
+										 (emacsconf-sum :time (assoc-default "WAITING_FOR_PREREC" by-status))
+										 (length talks))
+					 "")
          "<ul>"
          (mapconcat
           (lambda (status)
@@ -1080,101 +1180,24 @@ Entries are sorted chronologically, with different tracks interleaved."
                                (assoc-default status by-status)
                                ", ")
                     "</li>"))
-          '("TO_PROCESS" "PROCESSING" "TO_ASSIGN" "TO_CAPTION" "TO_STREAM" "TO_ARCHIVE") "")
+					(pcase emacsconf-backstage-phase
+						('prerec '("TO_PROCESS" "PROCESSING" "TO_ASSIGN" "TO_CAPTION" "TO_STREAM"))
+						('harvest '("TO_ARCHIVE" "TO_REVIEW_QA" "TO_INDEX_QA" "TO_CAPTION_QA")))
+					"")
          "</ul>"
-         (let ((list (append
-		                  (assoc-default "TO_PROCESS" by-status)
-                      (assoc-default "PROCESSING" by-status)
-                      (assoc-default "TO_AUTOCAP" by-status))))
-           (format "<h1>%s talk(s) being processed (%d minutes)</h1>Not ready for captioning yet, but they will be eventually<ul class=\"videos\">%s</ul>"
-                   (length list)
-                   (emacsconf-sum :video-time list)
-                   (mapconcat
-                    (lambda (f)
-                      (setq f (append
-                               f
-                               (list :extra
-                                     (if (plist-get f :caption-note) (concat "<div class=\"caption-note\">" (plist-get f :caption-note) "</div>") "")
-                                     :files
-                                     (emacsconf-publish-talk-files f files))))
-                      (format  "<li><a name=\"%s\"></a><strong><a href=\"%s\">%s</a></strong><br />%s (id:%s)<br />%s</li>"
-                               (plist-get f :slug)
-                               (plist-get f :absolute-url)
-                               (plist-get f :title)
-                               (plist-get f :speakers)
-                               (plist-get f :slug)
-                               (emacsconf-index-card f)))
-                    list
-                    "\n")))
-         (let ((list (assoc-default "TO_ASSIGN" by-status)))
-           (format "<h1>%s talk(s) to be captioned (%d minutes)</h1><p>You can e-mail <a href=\"mailto:sacha@sachachua.com\">sacha@sachachua.com</a> to call dibs on editing the captions for one of these talks. This year, we're experimenting with using OpenAI Whisper to provide auto-generated VTT that you can use as a starting point. If you're writing them from scratch, you can choose to include timing information, or we can probably figure them out afterwards with a forced alignment tool. More info: <a href=\"https://media.emacsconf.org/2022/backstage/editing-captions.html\">Editing captions</a>, <a href=\"https://emacsconf.org/captioning/\">captioning tips</a></p><ul class=\"videos\">%s</ul>"
-                   (length list)
-                   (emacsconf-sum :video-time list)
-                   (mapconcat
-                    (lambda (f)
-                      (setq f (append
-                               f
-                               (list :extra
-                                     (if (plist-get f :caption-note) (concat "<div class=\"caption-note\">" (plist-get f :caption-note) "</div>") "")
-                                     :files
-                                     (emacsconf-publish-talk-files f files))))
-                      (format  "<li><a name=\"%s\"></a><strong><a href=\"%s\">%s</a></strong><br />%s (id:%s)<br />%s</li>"
-                               (plist-get f :slug)
-                               (plist-get f :absolute-url)
-                               (plist-get f :title)
-                               (plist-get f :speakers)
-                               (plist-get f :slug)
-                               (emacsconf-index-card f)))
-                    list
-                    "\n")))
-         (format
-          "<h1>%d talk(s) being captioned (%s minutes)</h1>People are working on these ones, yay!<ul>%s</ul>"
-          (length (assoc-default "TO_CAPTION" by-status))
-          (emacsconf-sum :video-time (assoc-default "TO_CAPTION" by-status))
-          (mapconcat
-           (lambda (f)
-             (setq f (append
-                      f
-                      (list :extra
-                            
-                            (concat "<div class=\"caption-note\">"
-                                    (emacsconf-surround "Being captioned by " (plist-get f :captioner) " " "")
-                                    (emacsconf-surround "Note: " (plist-get f :caption-note) "" "")
-                                    "</div>")
-                            :files
-                            (emacsconf-publish-talk-files f files))))
-             (format  "<li><a name=\"%s\"></a><strong><a href=\"%s%s\">%s</a></strong><br />%s (id:%s)<br />%s</li>"
-                      (plist-get f :slug)
-                      emacsconf-base-url
-                      (plist-get f :url)
-                      (plist-get f :title)
-                      (plist-get f :speakers-with-pronouns)
-                      (plist-get f :slug)
-                      (emacsconf-index-card f)))
-           (assoc-default "TO_CAPTION" by-status)
-           "\n"))
-         (format
-          "<h1>%d captioned talk(s) ready for enjoyment (%d minutes)</h1><ol class=\"videos\">%s</ol>"
-          (length (assoc-default "TO_STREAM" by-status))
-          (emacsconf-sum :video-time (assoc-default "TO_STREAM" by-status))
-          (mapconcat (lambda (f)
-                       (format  "<li><a name=\"%s\"></a><strong><a href=\"%s%s\">%s</a></strong><br />%s (id:%s)<br />%s</li>"
-                                (plist-get f :slug)
-                                emacsconf-base-url
-                                (plist-get f :url)
-                                (plist-get f :title)
-                                (plist-get f :speakers-with-pronouns)
-                                (plist-get f :slug)
-                                (emacsconf-index-card (append f (list :extra (concat "Captioned by " (plist-get f :captioner))
-                                                                      :files (emacsconf-publish-talk-files f files)))
-                                                      emacsconf-main-extensions)))
-                     (assoc-default "TO_STREAM" by-status) "\n"))
-				 (let ((status "TO_ARCHIVE"))
-					 (format
-						"<h1>%d talk(s) to archive (%d minutes)</h1>Last year, we copied the questions, answers, and notes into the wiki
-pages, removing people's nicks and combining duplicate
-things (ex: question was asked on IRC and was copied over to the
-pad). That way, it's easier for people to see the questions and
+				 (pcase emacsconf-backstage-phase
+					 ('prerec
+						(concat
+						 (emacsconf-publish-backstage-processing by-status files)
+						 (emacsconf-publish-backstage-to-assign by-status files) 
+						 (emacsconf-publish-backstage-to-caption by-status files)
+						 (emacsconf-publish-backstage-to-stream by-status files)))
+					 ('harvest
+						(let ((stages
+									 '(("TO_REVIEW_QA" .
+											"Please review the --bbb-webcams.webm file and/or the --bbb-webcams.vtt and tell us (emacsconf-submit@gnu.org) if a Q&amp;A session can be published or if it needs to be trimmed (lots of silence at the end of the recording, accidentally included sensitive information, etc.).")
+										 ("TO_INDEX_QA" .
+											"Please review the --bbb-webcams.webm file, the --bbb-webcams.vtt file, and possibly the --bbb-deskshare.webm file to make chapter markers so that people can jump to specific parts of the Q&amp;A session. The <a href=\"https://emacsconf.org/harvesting/\">harvesting page on the wiki</a> has some notes on the process. That way, it's easier for people to see the questions and
 answers without needing to listen to everything again, and the
 speakers can see any questions they've missed and all the
 wonderful feedback people have shared. You can see the talk pages
@@ -1184,51 +1207,70 @@ for examples of a Discussion section with sections for Q&A and
 feedback (ex: <a
 href=\"https://emacsconf.org/2021/talks/frownies/\">frownies</a>,
 <a
-href=\"https://emacsconf.org/2021/talks/freedom/\">freedom</a>).
-If you feel like collecting things from the Q&A (or any other
-one), that would be great. You can either edit the wiki page
-directly (which involves git and ssh), or you can e-mail things
-to <a
-href=\"mailto:emacsconf-submit@gnu.org\">emacsconf-submit@gnu.org</a>
-and I'll merge them in. - Sacha <ol class=\"videos\">%s</ol>"
-						(length (assoc-default status by-status))
-						(emacsconf-sum :video-time (assoc-default status by-status))
-						(mapconcat (lambda (f)
-												 (format  "<li><a name=\"%s\"></a><strong><a href=\"%s%s\">%s</a></strong><br />%s (id:%s)<br />%s</li>"
-																	(plist-get f :slug)
-																	emacsconf-base-url
-																	(plist-get f :url)
-																	(plist-get f :title)
-																	(plist-get f :speakers-with-pronouns)
-																	(plist-get f :slug)
-																	(emacsconf-index-card
-																	 (append f (list :extra
-																									 (concat
-																										"Captioned by " (plist-get f :captioner) "<br />"
-																										(format "Q&A archiving: <a href=\"%s-%s.txt\">IRC: %s-%s</a>"
-																														(format-time-string "%Y-%m-%d" (plist-get f :start-time))
-																														(plist-get (emacsconf-get-track f) :channel)
-																														(format-time-string "%Y-%m-%d" (plist-get f :start-time))
-																														(plist-get (emacsconf-get-track f) :channel)) 
-																										(emacsconf-surround ", <a href=\""
-																																				(if (file-exists-p (expand-file-name (concat (plist-get f :video-slug) "--pad.txt")
-																																																						 emacsconf-cache-dir))
-																																						(concat (plist-get f :video-slug) "--pad.txt"))
-																																				"\">Etherpad (Markdown)</a>" "")
-																										(emacsconf-surround ", <a href=\"" (plist-get f :bbb-playback) "\">BBB playback</a>" "")
-																										(emacsconf-surround ", <a href=\""
-																																				(if (file-exists-p (expand-file-name (concat (plist-get f :video-slug) "--bbb.txt")
-																																																						 emacsconf-cache-dir))
-																																						(concat (plist-get f :video-slug) "--bbb.txt"))
-																																				"\">BBB text chat</a>" "")
-																										(emacsconf-surround ", <a href=\""
-																																				(if (file-exists-p (expand-file-name (concat (plist-get f :video-slug) "--bbb-webcams.opus")
-																																																						 emacsconf-cache-dir))
-																																						(concat (plist-get f :video-slug) "--bbb-webcams.opus"))
-																																				"\">BBB audio only</a>" ""))
-																									 :files (emacsconf-publish-talk-files f files)))
-																	 emacsconf-main-extensions)))
-											 (assoc-default status by-status) "\n")))
+href=\"https://emacsconf.org/2021/talks/freedom/\">freedom</a>).")
+										 ("TO_CAPTION_QA" .
+											"Please edit the --bbb-webcams.vtt for the Q&amp;A talk you're interested in, correcting misrecognized words and cleaning it up so that it's nice to use as closed captions. See the QA note to find out which ones have large-model captions that might be more pleasant to edit."))))
+							(mapconcat
+							 (lambda (stage)
+								 (let ((status (car stage)))
+									 (format
+										"<h1>%s: %d talk(s) (%d minutes)</h1>%s<ol class=\"videos\">%s</ol>"
+										status
+										(length (assoc-default status by-status))
+										(emacsconf-sum :video-time (assoc-default status by-status))
+										(cdr stage)
+										(mapconcat
+										 (lambda (f)
+											 (format  "<li><a name=\"%s\"></a><strong><a href=\"%s%s\">%s</a></strong><br />%s (id:%s)<br />%s</li>"
+																(plist-get f :slug)
+																emacsconf-base-url
+																(plist-get f :url)
+																(plist-get f :title)
+																(plist-get f :speakers-with-pronouns)
+																(plist-get f :slug)
+																(emacsconf-index-card
+																 (append (list
+																					:video-note
+																					(unless (file-exists-p (expand-file-name (concat (plist-get f :video-slug) "--bbb-webcams.webm") emacsconf-cache-dir))
+																						"<div>No Q&A video for this talk</div>")
+																					:video-file
+																					(cond
+																					 ((file-exists-p (expand-file-name (concat (plist-get f :video-slug) "--answers.webm") emacsconf-cache-dir))
+																						(concat (plist-get f :video-slug) "--answers.webm"))
+																					 ((file-exists-p (expand-file-name (concat (plist-get f :video-slug) "--bbb-webcams.webm") emacsconf-cache-dir))
+																						(concat (plist-get f :video-slug) "--bbb-webcams.webm"))
+																					 (t t)) ;; omit video
+																					:video-id "-qanda"
+																					:extra
+																					(concat
+																					 (emacsconf-surround "QA note: " (plist-get f :qa-note) "<br />")
+																					 (format "Q&A archiving: <a href=\"%s-%s.txt\">IRC: %s-%s</a>"
+																									 (format-time-string "%Y-%m-%d" (plist-get f :start-time))
+																									 (plist-get (emacsconf-get-track f) :channel)
+																									 (format-time-string "%Y-%m-%d" (plist-get f :start-time))
+																									 (plist-get (emacsconf-get-track f) :channel)) 
+																					 (emacsconf-surround ", <a href=\""
+																															 (if (file-exists-p (expand-file-name (concat (plist-get f :video-slug) "--pad.txt")
+																																																		emacsconf-cache-dir))
+																																	 (concat (plist-get f :video-slug) "--pad.txt"))
+																															 "\">Etherpad (Markdown)</a>" "")
+																					 (emacsconf-surround ", <a href=\"" (plist-get f :bbb-playback) "\">BBB playback</a>" "")
+																					 (emacsconf-surround ", <a href=\""
+																															 (if (file-exists-p (expand-file-name (concat (plist-get f :video-slug) "--bbb.txt")
+																																																		emacsconf-cache-dir))
+																																	 (concat (plist-get f :video-slug) "--bbb.txt"))
+																															 "\">BBB text chat</a>" "")
+																					 (emacsconf-surround ", <a href=\""
+																															 (if (file-exists-p (expand-file-name (concat (plist-get f :video-slug) "--bbb-webcams.opus")
+																																																		emacsconf-cache-dir))
+																																	 (concat (plist-get f :video-slug) "--bbb-webcams.opus"))
+																															 "\">BBB audio only</a>" ""))
+																					:files (emacsconf-publish-talk-files f files))
+																				 f)
+																 emacsconf-main-extensions)))
+										 (assoc-default status by-status) "\n"))))
+							 stages
+							 "\n"))))
 				 (if (file-exists-p (expand-file-name "include-in-index-footer.html" emacsconf-cache-dir))
              (with-temp-buffer (insert-file-contents (expand-file-name "include-in-index-footer.html" emacsconf-cache-dir)) (buffer-string))
            "")
@@ -1755,7 +1797,7 @@ This video is available under the terms of the Creative Commons Attribution-Shar
     ))
 
 
-(defvar emacsconf-publish-autocommit-wiki nil)
+(defvar emacsconf-publish-autocommit-wiki t)
 (defun emacsconf-publish-commit-and-push-wiki-maybe (&optional do-it message)
 	(interactive (list t))
 	(let ((default-directory emacsconf-directory))
