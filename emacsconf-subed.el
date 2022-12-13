@@ -68,7 +68,7 @@ TYPE can be 'end if you want the match end instead of the beginning."
   (let (pos (found (string-match regexp string after)) result)
     (while (and found (< found before))
       (setq result (if (eq type 'end) (match-end 0) (match-beginning 0)))
-      (if (string-match regexp string (1+ found))
+      (if (and (< found (length string)) (string-match regexp string (1+ found)))
           (setq found (match-end 0))
         (setq found nil)))
     result))

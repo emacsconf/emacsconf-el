@@ -308,20 +308,194 @@
 
 (defun emacsconf-extract-wget-bbb (o)
 	(when (plist-get o :bbb-playback)
-				(let ((meeting-id (when (string-match "meetingId=\\(.+\\)"
-																							(plist-get o :bbb-playback))
-														(match-string 1 (plist-get o :bbb-playback)))))
-					(concat "mkdir " (plist-get o :slug) "\n"
-									"cd " (plist-get o :slug) "\n"
-									(mapconcat
-									 (lambda (file)
-										 (concat
-											"wget https://bbb.emacsverse.org/presentation/"
-											meeting-id "/" file "\n"))
-									 '("video/webcams.webm" "metadata.xml" "deskshare/deskshare.webm" "panzooms.xml" "cursor.xml" "deskshare.xml" "captions.json" "presentation_text.json" "slides_new.xml")
-									 "")
-									"cd ..\n"
-									))))
+		(let ((meeting-id (when (string-match "meetingId=\\(.+\\)"
+																					(plist-get o :bbb-playback))
+												(match-string 1 (plist-get o :bbb-playback)))))
+			(concat "mkdir " (plist-get o :slug) "\n"
+							"cd " (plist-get o :slug) "\n"
+							(mapconcat
+							 (lambda (file)
+								 (concat
+									"wget https://bbb.emacsverse.org/presentation/"
+									meeting-id "/" file "\n"))
+							 '("video/webcams.webm" "metadata.xml" "deskshare/deskshare.webm" "panzooms.xml" "cursor.xml" "deskshare.xml" "captions.json" "presentation_text.json" "slides_new.xml")
+							 "")
+							"cd ..\n"))))
 
+(defun emacsconf-extract-bbb-events-xml (o)
+	"Copy the events.xml from the raw BBB directory copied from bbb@bbb.emacsverse.org."
+	(if (plist-get o :bbb-playback)
+			(let ((meeting-id (when (string-match "meetingId=\\(.+\\)"
+																						(plist-get o :bbb-playback))
+													(match-string 1 (plist-get o :bbb-playback)))))
+				(format "scp ~/current/bbb-raw/%s/events.xml orga@media.emacsconf.org:~/backstage/%s--bbb-events.xml\n"
+								meeting-id
+								(plist-get o :video-slug)))
+		""))
+
+(defun emacsconf-extract-bbb-voice-events (file)
+	"Return a list of voice events.
+(:name participant :start-clock start-time :start-ms ... :stop-clock stop-time :stop-ms)."
+	(let ((dom (xml-parse-file file))
+				start-recording
+				stop-recording
+				start-ms stop-ms
+				participants results)
+		(setq start-recording
+					(date-to-time
+					 (dom-text
+						(dom-by-tag
+						 (dom-elements dom 'eventname "StartRecordingEvent")
+						 'date))))
+		(setq stop-recording
+					(date-to-time
+					 (dom-text
+						(dom-by-tag
+						 (dom-elements dom 'eventname "StopRecordingEvent")
+						 'date))))
+		(setq start-ms (* 1000 (time-to-seconds start-recording))
+					stop-ms (* 1000 (time-to-seconds stop-recording)))
+		;; get the participant names and put them in an alist
+		(setq participants
+					(mapcar (lambda (o) (list
+															 (dom-text (dom-by-tag o 'userId))
+															 :name (dom-text (dom-by-tag o 'name))))
+									(seq-filter
+									 (lambda (node) (string= (dom-attr node 'eventname)
+																					 "ParticipantJoinEvent"))
+									 (dom-by-tag dom 'event))))
+		;; get the voice events
+		(mapc (lambda (o)
+						(let ((participant (assoc-default
+																(dom-text (dom-by-tag o 'participant))
+																participants))
+									(time (date-to-time (dom-text (dom-by-tag o 'date))))
+									o-start o-stop)
+							(if (string= (dom-text (dom-by-tag o 'talking))
+													 "true")
+									;; start talking
+									(plist-put participant
+														 ;; although maybe timestampUTC will be useful somehow
+														 :start time)
+								;;  clamp it to start-recording and stop-recording
+								(when (and (time-less-p (plist-get participant :start)
+																				stop-recording)
+													 (time-less-p start-recording time))
+									(setq o-start
+												(- (max (* 1000 (time-to-seconds (plist-get participant :start)))
+																start-ms)
+													 start-ms)
+												o-stop
+												(- (min (* 1000 (time-to-seconds time))
+																stop-ms)
+													 start-ms))
+									(setq results
+												(cons (list
+															 :name
+															 (plist-get participant :name)
+															 :start-ms
+															 o-start
+															 :stop-ms
+															 o-stop
+															 :start-clock
+															 (plist-get participant :start)
+															 :stop-clock
+															 time
+															 :duration-ms
+															 (- o-stop o-start))
+															results))))))
+					(seq-filter
+					 (lambda (node) (string= (dom-attr node 'eventname)
+																	 "ParticipantTalkingEvent"))
+					 (dom-by-tag dom 'event)))
+		(nreverse results)))
+;; (emacsconf-extract-bbb-voice-events "~/proj/emacsconf/cache/emacsconf-2022-sqlite--using-sqlite-as-a-data-source-a-framework-and-an-example--andrew-hyatt--bbb-events.xml")
+;; Okay, now that we have voice events, what can we do with them?
+;; We can insert notes into the VTT for now to try to guess the speaker, when the speaker changes
+;; The audio is not split up by speaker, so the transcript is also not very split up
+;; Some speech-to-text systems can do speaker diarization, which also tries to identify speakers
+;; huh, is the StartRecordingEvent timestamp reliable? Am I misreading it?
+
+(defvar emacsconf-extract-irc-speaker-nick nil)
+(defun emacsconf-extract-irc-copy-line-to-other-window-as-list-item ()
+	(interactive)
+	(goto-char (line-beginning-position))
+	(when (looking-at "\\[[0-9:]+\\] <\\(.*?\\)> \\([^ ]+?:\\)?\\(.+\\)$")
+		(let ((line (string-trim (match-string 3))))
+			(setq line
+						(if (string= (or emacsconf-extract-irc-speaker-nick "")
+												 (match-string 1))
+								(concat "  - A: " line "\n")
+							(concat "- " line "\n")))
+			(other-window 1)
+			(insert line)
+			(other-window 1)
+			(forward-line 1))))
+
+(defvar emacsconf-extract-irc-map (make-sparse-keymap))
+(defalias 'emacsconf-extract-irc-other-window #'other-window)
+(defalias 'emacsconf-extract-irc-next-line #'next-line)
+(defalias 'emacsconf-extract-irc-previous-line #'previous-line)
+(defun emacsconf-extract-irc-open-talk-in-other-window (talk)
+	(interactive (list (emacsconf-complete-talk-info)))
+	(other-window 1)
+	(emacsconf-edit-wiki-page talk))
+
+(define-key emacsconf-extract-irc-map "c" #'emacsconf-extract-irc-copy-line-to-other-window-as-list-item)
+(define-key emacsconf-extract-irc-map "o" #'emacsconf-extract-irc-other-window)
+(define-key emacsconf-extract-irc-map "t" #'emacsconf-extract-irc-open-talk-in-other-window)
+(define-key emacsconf-extract-irc-map "n" #'emacsconf-extract-irc-next-line)
+(define-key emacsconf-extract-irc-map "p" #'emacsconf-extract-irc-previous-line)
+(mapc (lambda (sym)
+				(put sym 'repeat-map 'emacsconf-extract-irc-map))
+			'(emacsconf-extract-irc-copy-line-to-other-window-as-list-item
+				emacsconf-extract-irc-other-window
+				emacsconf-extract-irc-next-line
+				emacsconf-extract-irc-previous-line))
+
+;; (local-set-key (kbd "C-c C-c") emacsconf-extract-irc-map)
+
+(defun emacsconf-extract-publish-qa (talk &optional note)
+	(interactive (list (emacsconf-complete-talk-info)))
+	(setq talk (emacsconf-resolve-talk talk))
+	(let ((large-file-warning-threshold nil))
+		;; Copy the files
+		(unless (file-exists-p (expand-file-name (concat (plist-get talk :video-slug) "--answers.webm" emacsconf-cache-dir)))
+			(if (file-exists-p (expand-file-name (concat (plist-get talk :video-slug) "--bbb-deskshare.webm") emacsconf-cache-dir))
+					;; use the screenshare if available
+					(call-process "ffmpeg" nil (get-buffer-create "*ffmpeg*") t
+												"-y"
+												"-i" (expand-file-name (concat (plist-get talk :video-slug) "--bbb-deskshare.webm") emacsconf-cache-dir)
+												"-i" (expand-file-name (concat (plist-get talk :video-slug) "--bbb-webcams.opus") emacsconf-cache-dir)
+												"-c" "copy"
+												(expand-file-name (concat (plist-get talk :video-slug) "--answers.webm") emacsconf-cache-dir))
+				(copy-file
+				 (expand-file-name (concat (plist-get talk :video-slug) "--bbb-webcams.webm") emacsconf-cache-dir)
+				 (expand-file-name (concat (plist-get talk :video-slug) "--answers.webm") emacsconf-cache-dir)
+				 t)))
+		(unless (file-exists-p (expand-file-name (concat (plist-get talk :video-slug) "--answers.opus") emacsconf-cache-dir))
+			(copy-file
+			 (expand-file-name (concat (plist-get talk :video-slug) "--bbb-webcams.opus") emacsconf-cache-dir)
+			 (expand-file-name (concat (plist-get talk :video-slug) "--answers.opus") emacsconf-cache-dir)
+			 t))
+		(dolist (suffix '("--answers.webm" "--answers.opus"))
+			(unless (file-exists-p (expand-file-name (concat (plist-get talk :video-slug) suffix) emacsconf-backstage-dir))
+				(copy-file
+				 (expand-file-name (concat (plist-get talk :video-slug) suffix) emacsconf-cache-dir)
+				 (expand-file-name (concat (plist-get talk :video-slug) suffix) emacsconf-backstage-dir)
+				 t))
+			(unless (file-exists-p (expand-file-name (concat (plist-get talk :video-slug) suffix) emacsconf-public-media-directory))
+				(copy-file
+				 (expand-file-name (concat (plist-get talk :video-slug) suffix) emacsconf-backstage-dir)
+				 (expand-file-name (concat (plist-get talk :video-slug) suffix) emacsconf-public-media-directory)
+				 t)))
+		;; Update the org entry
+		(save-window-excursion
+			(emacsconf-go-to-talk talk)
+			(org-entry-put (point) "QA_PUBLIC" "t")
+			(org-entry-put (point) "QA_NOTE" (or note (concat "Q&A posted publicly." (emacsconf-surround " " (plist-get talk :qa-note) "" "")))))))
+;; (kill-new (mapconcat #'emacsconf-extract-bbb-events-xml (emacsconf-get-talk-info) ""))
+;; (dolist (slug '("haskell" "hyperorg" "health" "jupyter" "workflows" "wayland" "mail" "meetups" "orgsuperlinks" "rde" "science"))
+;; 	(emacsconf-extract-publish-qa slug))
 (provide 'emacsconf-extract)
 ;;; emacsconf-extract.el ends here

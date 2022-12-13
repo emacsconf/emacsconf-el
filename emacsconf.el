@@ -241,9 +241,11 @@
 
 (defun emacsconf-edit-wiki-page (search)
   (interactive (list (emacsconf-complete-talk)))
-  (setq search (emacsconf-get-slug-from-string search))
-  (find-file (expand-file-name (concat search ".md")
-                               (expand-file-name "talks" (expand-file-name emacsconf-year emacsconf-directory)))))
+  (setq search (if (stringp search) (emacsconf-get-slug-from-string search)
+								 (plist-get search :slug)))
+  (find-file (expand-file-name
+							(concat search ".md")
+              (expand-file-name "talks" (expand-file-name emacsconf-year emacsconf-directory)))))
 
 (defun emacsconf-find-caption-directives-from-slug (search)
   (interactive (list (emacsconf-complete-talk)))
@@ -321,7 +323,7 @@
 
 (defun emacsconf-go-to-talk (search)
   (interactive (list (emacsconf-complete-talk)))
-  (pop-to-buffer (find-file-noselect emacsconf-org-file))
+  (find-file emacsconf-org-file)
   (widen)
   (cond
    ((plist-get search :slug)
@@ -382,7 +384,6 @@
   (let ((heading (org-heading-components))
         (field-props '(                 
                        ;; Initial creation
-                       (:title "ITEM")
                        (:track "TRACK")
                        (:slug "SLUG")
                        (:speakers "NAME")                       
@@ -444,6 +445,7 @@
      o
      (list
       :point (point)
+			:title (org-entry-get (point) "ITEM")
       :year emacsconf-year
       :conf-year emacsconf-year
       :type (if (org-entry-get (point) "SLUG") 'talk 'headline)
@@ -475,10 +477,13 @@
 					                                 (org-entry-get (point) "SCHEDULED"))
 					                                t)))
 		                emacsconf-timezone-offset))))
-     (let* ((entry-props (org-entry-properties)))
-       (mapcar 
-        (lambda (o) (list (car o) (assoc-default (cadr o) entry-props)))
-        field-props)))))
+     (mapcar 
+      (lambda (prop)
+				(list
+				 (or (car (rassoc (list (car prop)) field-props))
+						 (intern (concat ":" (replace-regexp-in-string "_" "-" (downcase (car prop))))))
+				 (cdr prop)))
+			(org-entry-properties)))))
 
 (defvar emacsconf-abstract-heading-regexp "abstract" "Regexp matching heading for talk abstract.")
 
@@ -1454,5 +1459,13 @@ tracks with the ID in the cdr of that list."
 			(format-time-string "%-I:%M %P %Z" (plist-get talk :start-time) (plist-get talk :timezone))
 			" in "
 			(plist-get talk :timezone)))))
+
+(defun emacsconf-collect-prop (prop list)
+	(mapcar (lambda (o) (plist-get o prop)) list))
+
+(defun emacsconf-talk-file (talk suffix)
+	(and (file-exists-p (expand-file-name (concat (plist-get o :video-slug) suffix) emacsconf-cache-dir))
+			 (expand-file-name (concat (plist-get o :video-slug) suffix) emacsconf-cache-dir)))
+
 (provide 'emacsconf)
 ;;; emacsconf.el ends here
