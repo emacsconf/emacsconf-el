@@ -58,7 +58,7 @@
 (defcustom emacsconf-base-url "https://emacsconf.org/" "Includes trailing slash"
   :group 'emacsconf
   :type 'string)
-(defcustom emacsconf-publishing-phase 'program
+(defcustom emacsconf-publishing-phase 'resources
   "Controls what information to include.
 'program - don't include times
 'schedule - include times; use this leading up to the emacsconference
@@ -1220,7 +1220,7 @@ Filter by TRACK if given.  Use INFO as the list of talks."
   (let ((states
          '((open . "OPEN_Q UNSTREAMED_Q")
            (before . "TODO TO_REVIEW TO_ACCEPT WAITING_FOR_PREREC TO_PROCESS PROCESSING TO_AUTOCAP TO_ASSIGN TO_CAPTION TO_STREAM PLAYING CLOSED_Q")
-           (after . "TO_ARCHIVE TO_EXTRACT TO_FOLLOW_UP DONE")
+           (after . "TO_ARCHIVE TO_EXTRACT TO_REVIEW_QA TO_INDEX_QA TO_CAPTION_QA TO_FOLLOW_UP DONE")
            (cancelled . "CANCELLED"))))
     (if (string-match "live" (or (plist-get talk :q-and-a) ""))
         (or (car (seq-find (lambda (state)
@@ -1231,11 +1231,13 @@ Filter by TRACK if given.  Use INFO as the list of talks."
 
 (defun emacsconf-captions-edited-p (filename)
   "Return non-nil if FILENAME has been edited and is okay for inclusion."
-  (and (file-exists-p filename)
-       (with-temp-buffer
-         (insert-file-contents filename)
-         (goto-char (point-min))
-         (re-search-forward "captioned by" (line-end-position) t))))
+  (and
+	 filename
+	 (file-exists-p filename)
+   (with-temp-buffer
+     (insert-file-contents filename)
+     (goto-char (point-min))
+     (re-search-forward "captioned by" (line-end-position) t))))
 
 (defvar emacsconf-bbb-base-url "https://bbb.emacsverse.org/" "Include trailing slash.")
 (defun emacsconf-bbb-room-title-list (&optional info)
@@ -1463,9 +1465,15 @@ tracks with the ID in the cdr of that list."
 (defun emacsconf-collect-prop (prop list)
 	(mapcar (lambda (o) (plist-get o prop)) list))
 
-(defun emacsconf-talk-file (talk suffix)
-	(and (file-exists-p (expand-file-name (concat (plist-get o :video-slug) suffix) emacsconf-cache-dir))
-			 (expand-file-name (concat (plist-get o :video-slug) suffix) emacsconf-cache-dir)))
+(defun emacsconf-talk-file (talk suffix &optional always source)
+	(let ((filename (expand-file-name (concat (plist-get talk :video-slug) suffix)
+																		(if (eq source 'wiki-captions)
+																				(expand-file-name "captions"
+																													(expand-file-name (plist-get talk :year)
+																																						emacsconf-directory))
+																			)
+																		emacsconf-cache-dir)))
+		(and (or always (file-exists-p filename)) filename)))
 
 (provide 'emacsconf)
 ;;; emacsconf.el ends here

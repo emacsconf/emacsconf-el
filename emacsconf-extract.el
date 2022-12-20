@@ -22,7 +22,7 @@
 
 ;;; Code:
 
-(defun emacsconf-extract-extract-chat (filename)
+(defun emacsconf-extract-chat (filename)
 	(when (file-exists-p filename)
 		(message "%s" filename)
 		(mapcar
@@ -416,21 +416,54 @@
 ;; Some speech-to-text systems can do speaker diarization, which also tries to identify speakers
 ;; huh, is the StartRecordingEvent timestamp reliable? Am I misreading it?
 
-(defvar emacsconf-extract-irc-speaker-nick nil)
-(defun emacsconf-extract-irc-copy-line-to-other-window-as-list-item ()
+(defvar emacsconf-extract-irc-speaker-nick nil "*Nick for the speaker.")
+
+(defun emacsconf-extract-selected-irc ()
+	"Copy the lines that start with -."
+	(interactive)
+	(let ((results ""))
+		(save-excursion
+			(goto-char (point-min))
+			(while (re-search-forward "^\\( *- \\([QA]: \\)?\\)\\[[0-9:]+\\] <.*?> \\(.*\n\\)" nil t)
+				(setq results (concat results (match-string 1) (match-string 3)))
+				(replace-match "" nil t nil 1))
+			(kill-new results))))
+
+(defun emacsconf-extract-irc-backward-by-nick ()
+	(interactive)
+	(goto-char (line-beginning-position))
+	(when (looking-at "\\[[0-9:]+\\] <\\(.*?\\)> \\([^ :]+?\\)?[ :]\\(.+\\)$")
+		(save-excursion
+			(let ((nick (match-string 2)))
+				(while (and (re-search-backward (concat "\\[[0-9:]+\\] <" (regexp-quote nick) ">") nil t)
+										(y-or-n-p "Continue? "))
+					;; keep going backwards
+					)))))
+(defun emacsconf-extract-irc-copy-line-to-other-window-as-list-item (&optional prefix indent)
 	(interactive)
 	(goto-char (line-beginning-position))
 	(when (looking-at "\\[[0-9:]+\\] <\\(.*?\\)> \\([^ ]+?:\\)?\\(.+\\)$")
-		(let ((line (string-trim (match-string 3))))
+		(let ((line (string-trim (match-string 3)))
+					(prefix (or
+									 prefix
+									 (and (string= (or emacsconf-extract-irc-speaker-nick "")
+																 (match-string 1))
+												"A: ")
+									 "")))
 			(setq line
-						(if (string= (or emacsconf-extract-irc-speaker-nick "")
-												 (match-string 1))
-								(concat "  - A: " line "\n")
-							(concat "- " line "\n")))
+						(concat
+						 (if (or (string= prefix "A: ") indent) "  " "")
+						 "- "
+						 prefix
+						 line "\n"))
 			(other-window 1)
 			(insert line)
 			(other-window 1)
 			(forward-line 1))))
+
+(defun emacsconf-extract-irc-copy-line-to-other-window-as-question ()
+	(interactive)
+	(emacsconf-extract-irc-copy-line-to-other-window-as-list-item "Q: "))
 
 (defvar emacsconf-extract-irc-map (make-sparse-keymap))
 (defalias 'emacsconf-extract-irc-other-window #'other-window)
@@ -441,61 +474,201 @@
 	(other-window 1)
 	(emacsconf-edit-wiki-page talk))
 
-(define-key emacsconf-extract-irc-map "c" #'emacsconf-extract-irc-copy-line-to-other-window-as-list-item)
-(define-key emacsconf-extract-irc-map "o" #'emacsconf-extract-irc-other-window)
-(define-key emacsconf-extract-irc-map "t" #'emacsconf-extract-irc-open-talk-in-other-window)
-(define-key emacsconf-extract-irc-map "n" #'emacsconf-extract-irc-next-line)
-(define-key emacsconf-extract-irc-map "p" #'emacsconf-extract-irc-previous-line)
-(mapc (lambda (sym)
-				(put sym 'repeat-map 'emacsconf-extract-irc-map))
-			'(emacsconf-extract-irc-copy-line-to-other-window-as-list-item
-				emacsconf-extract-irc-other-window
-				emacsconf-extract-irc-next-line
-				emacsconf-extract-irc-previous-line))
+(require 'hydra)
+(defhydra emacsconf-extract-irc ()
+  "Make it easy to extract lines from IRC"
+  ("c" emacsconf-extract-irc-copy-line-to-other-window-as-list-item "copy")
+	("q" (emacsconf-extract-irc-copy-line-to-other-window-as-list-item "Q: ") "question")
+	("o" other-window "other")
+	("t" emacsconf-extract-irc-open-talk-in-other-window "talk")
+	("n" next-line "next")
+	("p" previous-line "previous")
+	("N" move-line-down "move down")
+	("P" move-line-up "move up")
+	("<right>" (progn (goto-char (line-beginning-position)) (insert "  ")) "indent")
+	("<left>" (progn (goto-char (line-beginning-position)) (delete-char 2)) "dedent")
+	("<prior>" scroll-down-command)
+	("<next>" scroll-up-command)
+	("a" (emacsconf-extract-irc-copy-line-to-other-window-as-list-item "A: ") "answer")
+	("l" (save-window-excursion (other-window 1) (consult-line)) "check line")
+	("r" (when (string-match )) (re-search-backward nil t))
+	(" " pop-to-mark-command)
+  )
 
-;; (local-set-key (kbd "C-c C-c") emacsconf-extract-irc-map)
+(defun emacsconf-extract-irc-anonymize-log (beg end speakers)
+	(interactive "r\nMNick(s): ")
+	(when (stringp speakers) (setq speakers (split-string speakers)))
+	(let ((text (buffer-substring beg end))
+				nicks)
+		(with-temp-buffer
+			(insert text)
+			(goto-char (point-min))
+			;; make a list of nicks
+			(while (re-search-forward "^\\[[0-9:]+\\] <\\(.*?\\)>" nil t)
+				(unless (member (match-string 1) speakers)
+					(add-to-list 'nicks (match-string 1))))
+			(goto-char (point-min))
+			(while (re-search-forward "^\\[[0-9:]+\\] <\\(.*?\\)> \\(.+\\)" nil t)
+				(replace-match
+				 (if (member (match-string 1) speakers)
+						 (concat "  - A: " (match-string 2))
+					 (format "- {{%d}} %s"
+									 (seq-position nicks (match-string 1))
+									 (propertize (match-string 2)
+															 'nick (match-string 1))))))
+			(goto-char (point-min))
+			(perform-replace (regexp-opt nicks) (lambda ()))
+			(setq text (buffer-string))
+			(other-window 1)
+			(insert text))))
 
-(defun emacsconf-extract-publish-qa (talk &optional note)
-	(interactive (list (emacsconf-complete-talk-info)))
-	(setq talk (emacsconf-resolve-talk talk))
-	(let ((large-file-warning-threshold nil))
-		;; Copy the files
-		(unless (file-exists-p (expand-file-name (concat (plist-get talk :video-slug) "--answers.webm" emacsconf-cache-dir)))
-			(if (file-exists-p (expand-file-name (concat (plist-get talk :video-slug) "--bbb-deskshare.webm") emacsconf-cache-dir))
-					;; use the screenshare if available
-					(call-process "ffmpeg" nil (get-buffer-create "*ffmpeg*") t
-												"-y"
-												"-i" (expand-file-name (concat (plist-get talk :video-slug) "--bbb-deskshare.webm") emacsconf-cache-dir)
-												"-i" (expand-file-name (concat (plist-get talk :video-slug) "--bbb-webcams.opus") emacsconf-cache-dir)
-												"-c" "copy"
-												(expand-file-name (concat (plist-get talk :video-slug) "--answers.webm") emacsconf-cache-dir))
-				(copy-file
-				 (expand-file-name (concat (plist-get talk :video-slug) "--bbb-webcams.webm") emacsconf-cache-dir)
-				 (expand-file-name (concat (plist-get talk :video-slug) "--answers.webm") emacsconf-cache-dir)
-				 t)))
-		(unless (file-exists-p (expand-file-name (concat (plist-get talk :video-slug) "--answers.opus") emacsconf-cache-dir))
+(defun emacsconf-private-qa (&optional info)
+	(seq-remove (lambda (o)
+								(or (null (emacsconf-talk-file o "--bbb-webcams.webm"))
+										(plist-get o :qa-public)))
+							(or info (emacsconf-get-talk-info))))
+;; sqlite detached localizing
+(defun emacsconf-extract-review-qa (talk)
+	(interactive (list (emacsconf-complete-talk-info (emacsconf-private-qa))))
+	(find-file (emacsconf-talk-file talk "--bbb-webcams.vtt")))
+
+(defun emacsconf-extract-publish-qa (talk &optional time)
+	(interactive (list (emacsconf-complete-talk-info (unless current-prefix-arg (emacsconf-private-qa)))
+										 (when current-prefix-arg
+											 (read-string "Time: "))))
+	(when (stringp talk) (setq talk (emacsconf-resolve-talk talk)))
+	(let ((buff (get-buffer-create "*ffmpeg*"))
+				(large-file-warning-threshold nil))
+		(cond
+		 ((emacsconf-talk-file talk "--bbb-deskshare.webm")
+			(apply 'call-process "ffmpeg" nil buff nil
+						 (append
+							(list
+							 "-y"
+							 "-i"
+							 (expand-file-name
+								(concat
+								 (plist-get talk :video-slug)
+								 "--bbb-deskshare.webm")
+								emacsconf-cache-dir))
+							(when time (list "-to" time))
+							(list
+							 "-i"
+							 (expand-file-name
+								(concat
+								 (plist-get talk :video-slug)
+								 "--bbb-webcams.opus")
+								emacsconf-cache-dir))
+							(when time (list "-to" time))
+							(list
+							 "-c"
+							 "copy"
+							 (expand-file-name
+								(concat
+								 (plist-get talk :video-slug)
+								 "--answers.webm")
+								emacsconf-cache-dir)))))
+		 (time
+			(apply 'call-process "ffmpeg" nil buff nil
+						 (append
+							(list
+							 "-y"
+							 "-i"
+							 (expand-file-name
+								(concat
+								 (plist-get talk :video-slug)
+								 "--bbb-webcams.webm")
+								emacsconf-cache-dir))
+							(when time (list "-to" time))
+							(list
+							 "-c"
+							 "copy"
+							 (expand-file-name
+								(concat
+								 (plist-get talk :video-slug)
+								 "--answers.webm")
+								emacsconf-cache-dir)))))
+		 (t
 			(copy-file
-			 (expand-file-name (concat (plist-get talk :video-slug) "--bbb-webcams.opus") emacsconf-cache-dir)
-			 (expand-file-name (concat (plist-get talk :video-slug) "--answers.opus") emacsconf-cache-dir)
+			 (expand-file-name
+				(concat
+				 (plist-get talk :video-slug)
+				 "--bbb-webcams.webm")
+				emacsconf-cache-dir)
+			 (expand-file-name
+				(concat
+				 (plist-get talk :video-slug)
+				 "--answers.webm")
+				emacsconf-cache-dir)
+			 t)))
+		(call-process "ffmpeg" nil buff nil "-y" "-i"
+									(emacsconf-talk-file talk "--answers.webm")
+									"-c" "copy"
+									(emacsconf-talk-file talk "--answers.opus" t))
+		(dolist (suffix '("opus" "webm"))
+			(copy-file
+			 (expand-file-name
+				(concat
+				 (plist-get talk :video-slug)
+				 "--answers." suffix)
+				emacsconf-cache-dir)
+			 (expand-file-name
+				(concat
+				 (plist-get talk :video-slug)
+				 "--answers." suffix)
+				emacsconf-backstage-dir)
+			 t)
+			(copy-file
+			 (expand-file-name
+				(concat
+				 (plist-get talk :video-slug)
+				 "--answers." suffix)
+				emacsconf-backstage-dir)
+			 (expand-file-name
+				(concat
+				 (plist-get talk :video-slug)
+				 "--answers." suffix)
+				emacsconf-public-media-directory)
 			 t))
-		(dolist (suffix '("--answers.webm" "--answers.opus"))
-			(unless (file-exists-p (expand-file-name (concat (plist-get talk :video-slug) suffix) emacsconf-backstage-dir))
-				(copy-file
-				 (expand-file-name (concat (plist-get talk :video-slug) suffix) emacsconf-cache-dir)
-				 (expand-file-name (concat (plist-get talk :video-slug) suffix) emacsconf-backstage-dir)
-				 t))
-			(unless (file-exists-p (expand-file-name (concat (plist-get talk :video-slug) suffix) emacsconf-public-media-directory))
-				(copy-file
-				 (expand-file-name (concat (plist-get talk :video-slug) suffix) emacsconf-backstage-dir)
-				 (expand-file-name (concat (plist-get talk :video-slug) suffix) emacsconf-public-media-directory)
-				 t)))
-		;; Update the org entry
 		(save-window-excursion
 			(emacsconf-go-to-talk talk)
-			(org-entry-put (point) "QA_PUBLIC" "t")
-			(org-entry-put (point) "QA_NOTE" (or note (concat "Q&A posted publicly." (emacsconf-surround " " (plist-get talk :qa-note) "" "")))))))
-;; (kill-new (mapconcat #'emacsconf-extract-bbb-events-xml (emacsconf-get-talk-info) ""))
+			(org-entry-put
+			 (point)
+			 "QA_PUBLIC" "t")
+			(unless (string-match "Q&A posted publicly." (or (org-entry-get (point) "QA_NOTE") ""))
+				(org-entry-put
+				 (point)
+				 "QA_NOTE"
+				 (concat "Q&A posted publicly."
+								 (emacsconf-surround " "
+																		 (org-entry-get (point) "QA_NOTE")
+																		 "" "")))))))
+;; (emacsconf-extract-publish-qa "workflows" "13:56.000") (emacsconf-extract-publish-qa "journalism") (emacsconf-extract-publish-qa "handwritten" "28:36.240")
+   ;; (kill-new (mapconcat #'emacsconf-extract-bbb-events-xml (emacsconf-get-talk-info) ""))
 ;; (dolist (slug '("haskell" "hyperorg" "health" "jupyter" "workflows" "wayland" "mail" "meetups" "orgsuperlinks" "rde" "science"))
 ;; 	(emacsconf-extract-publish-qa slug))
+
+(defun emacsconf-extract-add-help-index-qa (talk)
+  (interactive (list (emacsconf-complete-talk-info)))
+	(if (stringp talk) (setq talk (emacsconf-resolve-talk talk)))
+	(when (and (emacsconf-talk-file talk "--answers.vtt")
+						 (not (emacsconf-talk-file talk "--answers--chapters.vtt")))
+		(with-current-buffer (find-file-noselect (expand-file-name (concat (plist-get talk :slug) ".md") (expand-file-name "talks" (expand-file-name emacsconf-year emacsconf-directory))))
+			(goto-char (point-min))
+			(unless (re-search-forward "help_with_chapter_markers" nil t)
+				(when (re-search-forward (concat (plist-get talk :slug) "-before)") nil t)
+					(forward-line 1)
+					(insert (format "[[!template id=\"help\"
+volunteer=\"\"
+summary=\"Q&A could be indexed with chapter markers\"
+tags=\"help_with_chapter_markers\"
+message=\"\"\"The Q&A session for this talk does not have chapter markers yet.
+Would you like to help? See [[help_with_chapter_markers]] for more details. You can use the vidid=\"%s-qanda\" if adding the markers to this wiki page, or e-mail your chapter notes to <emacsconf-submit@gnu.org>.\"\"\"]]
+
+" (plist-get talk :slug)))
+					(save-buffer))))))
+
+;; (mapc #'emacsconf-extract-add-help-index-qa (emacsconf-prepare-for-display (emacsconf-get-talk-info)))
+
 (provide 'emacsconf-extract)
 ;;; emacsconf-extract.el ends here

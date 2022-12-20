@@ -164,7 +164,7 @@ TYPE can be 'end if you want the match end instead of the beginning."
              (when current (setq result (cons current result)))
              (setq current
                    (list nil (elt o 1) (elt o 2)
-                         (string-trim (replace-regexp-in-string "^NOTE[ \n]+" " " (elt o 4))))))
+                         (string-trim (replace-regexp-in-string "^NOTE[ \n]+\\|[ \n]+" " " (elt o 4))))))
          ;; update the end time to include the current subtitle
          (when current (setf (elt current 2) (elt o 2)))))
      subtitles)
