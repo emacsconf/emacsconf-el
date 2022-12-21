@@ -51,6 +51,7 @@
 (defun emacsconf-publish-update-talk (talk)
   "Publish the schedule page and the page for this talk."
   (interactive (list (emacsconf-complete-talk-info)))
+	(when (stringp talk) (setq talk (emacsconf-resolve-talk talk)))
   (when (functionp 'emacsconf-upcoming-insert-or-update)
     (emacsconf-upcoming-insert-or-update))
 	(emacsconf-publish-with-wiki-change
@@ -288,9 +289,7 @@
   (let* ((video-base (and (stringp video-file) (replace-regexp-in-string "reencoded\\|original" "main" (file-name-base video-file))))
          (chapter-info (and (stringp video-file)
                             (emacsconf-make-chapter-strings
-                             (expand-file-name
-                              (concat video-base "--chapters.vtt")
-                              emacsconf-cache-dir)
+														 (plist-get talk :chapter-file)
                              (plist-get talk :track-base-url)
                              video-id)))
          (info
@@ -443,7 +442,8 @@ resources."
                         :base-url
                         (concat emacsconf-media-base-url (plist-get o :conf-year) "/")
                         :track-base-url
-                        (format "/%s/captions/" (plist-get o :conf-year)))
+                        (format "/%s/captions/" (plist-get o :conf-year))
+												:chapter-file (emacsconf-talk-file o "--main--chapters.vtt"))
                   o))
   (concat
    (if (plist-get o :qa-public) "# Talk\n\n" "")
@@ -460,7 +460,9 @@ resources."
                                        :toobnix-url nil
 																			 :captions-edited (plist-get o :qa-captions-edited)
                                        :video-file (emacsconf-talk-file o "--answers.webm")
-																			 :audio-file (emacsconf-talk-file o "--answers.opus"))
+																			 :audio-file (emacsconf-talk-file o "--answers.opus")
+																			 :chapter-file (emacsconf-talk-file o "--answers--chapters.vtt"))
+																			
                                       o)
                                      (list "--answers.webm" "--answers.vtt" "--answers--chapters.vtt" "--answers.opus")))
      "")))
@@ -1378,9 +1380,8 @@ answers without needing to listen to everything again. You can see <a href=\"htt
                          :video-id (concat "qanda-" (plist-get f :slug))
                          :track-base-url
                          (format "/%s/captions/" (plist-get f :conf-year))
-                         :video-file (expand-file-name
-                                      (concat (file-name-sans-extension (plist-get f :video-slug)) "--answers.webm")
-                                      emacsconf-cache-dir))
+                         :video-file
+												 (emacsconf-talk-file f "--answers.webm"))
                         f)
                        (list "--answers.vtt" "--answers--chapters.vtt" "--answers.webm"))
                     "")))
@@ -2372,6 +2373,20 @@ This video is available under the terms of the Creative Commons Attribution-Shar
 					(org-entry-put (point) "QA_YOUTUBE" output)))
 			output)))
 
+(defun emacsconf-publish-talk-file ()
+	(interactive)
+	(emacsconf-upload-to-backstage)
+	(mapc (lambda (file)
+          (copy-file file (expand-file-name (file-name-nondirectory file)
+                                            emacsconf-public-media-directory)
+                     t))
+        (or (dired-get-marked-files)
+            (list (buffer-file-name))))
+	(mapc #'emacsconf-publish-update-talk
+				(seq-uniq (seq-map #'emacsconf-get-slug-from-string (or (dired-get-marked-files)
+																																(list (buffer-file-name))))))
+	(emacsconf-publish-public-index)
+	(emacsconf-publish-backstage-index))
 
 ;; 
 (provide 'emacsconf-publish)

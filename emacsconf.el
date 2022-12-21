@@ -317,7 +317,7 @@
   (cond
 	 ((and search (stringp search) (string-match "\\(.*?\\) - " search))
 		(match-string 1 search))
-	 ((and (stringp search) (string-match (concat "^" emacsconf-id "-" emacsconf-year "-\\(.+?\\)--") search))
+	 ((and (stringp search) (string-match (concat emacsconf-id "-" emacsconf-year "-\\(.+?\\)--") search))
 		(match-string 1 search))
    (t search)))
 
@@ -1466,14 +1466,18 @@ tracks with the ID in the cdr of that list."
 	(mapcar (lambda (o) (plist-get o prop)) list))
 
 (defun emacsconf-talk-file (talk suffix &optional always source)
-	(let ((filename (expand-file-name (concat (plist-get talk :video-slug) suffix)
-																		(if (eq source 'wiki-captions)
-																				(expand-file-name "captions"
-																													(expand-file-name (plist-get talk :year)
-																																						emacsconf-directory))
-																			)
-																		emacsconf-cache-dir)))
-		(and (or always (file-exists-p filename)) filename)))
+	(let ((wiki-filename
+				 (expand-file-name (concat (plist-get talk :video-slug) suffix)
+													 (expand-file-name "captions"
+																						 (expand-file-name (plist-get talk :year)
+																															 emacsconf-directory))))
+				(cache-filename
+				 (expand-file-name (concat (plist-get talk :video-slug) suffix)
+													 emacsconf-cache-dir)))
+		(cond
+		 ((and (file-exists-p wiki-filename) (not (eq source 'cache))) wiki-filename)
+		 ((and (file-exists-p cache-filename) (not (eq source 'wiki-captions))) cache-filename)
+		 (always cache-filename))))
 
 (provide 'emacsconf)
 ;;; emacsconf.el ends here
