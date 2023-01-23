@@ -638,22 +638,15 @@ ${pad-info}${irc-info}${status-info}${schedule-info}\n"
 (defun emacsconf-publish-format-transcript (talk &optional video-id lang)
   "Format the transcript for TALK, adding paragraph markers when possible."
 	(require 'subed)  
-  (let* ((paragraphs (expand-file-name
-                      (concat (plist-get talk :video-slug) "--main--paragraphs.vtt")
-                      emacsconf-cache-dir))
-         (chapters (expand-file-name
-                    (concat (plist-get talk :video-slug) "--main--chapters.vtt")
-                    emacsconf-cache-dir))
+  (let* ((chapters (plist-get talk :chapter-file))
          (subtitles
-          (subed-parse-file (expand-file-name
-                             (concat (plist-get talk :video-slug)
-																		 (if lang
-																				 (format "--main_%s.vtt" lang)
-																			 "--main.vtt"))
-                             emacsconf-cache-dir)))
-         (pars (or
-                (subed-parse-file paragraphs)
-                (subed-parse-file chapters))))
+          (subed-parse-file (if lang
+																(format "%s_%s.vtt"
+																				(file-name-sans-extension
+																				 (plist-get talk :caption-file))
+																				lang)
+															(plist-get talk :caption-file))))
+         (pars (subed-parse-file chapters)))
     (if subtitles
         (format "<a name=\"%s-%s-transcript%s\"></a>
 # %s
@@ -666,7 +659,7 @@ ${pad-info}${irc-info}${status-info}${schedule-info}\n"
                 (emacsconf-surround "-" lang "" "")
 								(if lang (assoc-default lang emacsconf-publish-subtitle-languages) "Transcript")
 								(emacsconf-format-transcript-from-list
-                 subtitles pars (concat "mainVideo-" (plist-get talk :slug))))
+                 subtitles pars (concat video-id "-" (plist-get talk :slug))))
       "")))
 
 (defun emacsconf-publish-after-page (talk &optional info)
@@ -683,12 +676,19 @@ ${pad-info}${irc-info}${status-info}${schedule-info}\n"
 				 (let ((transcripts
 								(mapconcat
 								 (lambda (lang)
-									 (let ((filename (expand-file-name
-																		(concat (plist-get talk :video-slug)
-																						(emacsconf-surround  "--main_" lang ".vtt" "--main.vtt"))
-																		emacsconf-cache-dir)))
+									 (let ((filename
+													(emacsconf-talk-file
+													 talk
+													 (if lang
+															 (format "--main_%s.vtt" lang)
+														 "--main.vtt"))))
 										 (if (emacsconf-captions-edited-p filename) ; todo: cache this somewhere
-												 (emacsconf-publish-format-transcript talk "mainVideo" lang)
+												 (emacsconf-publish-format-transcript
+													(append
+													 (list :chapter-file (emacsconf-talk-file talk "--main--chapters.vtt")
+																 :caption-file (emacsconf-talk-file talk "--main.vtt"))
+													 talk)
+													"mainVideo" lang)
 											 "")))
 								 (cons nil (mapcar 'car emacsconf-publish-subtitle-languages))
 								 "")))
@@ -1389,7 +1389,7 @@ answers without needing to listen to everything again. You can see <a href=\"htt
       "</ol>")))
 
 (defun emacsconf-make-chapter-strings (filename track-base-url &optional target)
-  (let ((chapters (subed-parse-file filename)))
+  (let ((chapters (and filename (subed-parse-file filename))))
     (when chapters
       (list
        :track (format "<track kind=\"chapters\" label=\"Chapters\" src=\"%s\" />"
@@ -1811,7 +1811,7 @@ This video is available under the terms of the Creative Commons Attribution-Shar
     ))
 
 
-(defvar emacsconf-publish-autocommit-wiki t)
+(defvar emacsconf-publish-autocommit-wiki nil)
 (defun emacsconf-publish-commit-and-push-wiki-maybe (&optional do-it message)
 	(interactive (list t))
 	(let ((default-directory emacsconf-directory))
@@ -2388,5 +2388,22 @@ This video is available under the terms of the Creative Commons Attribution-Shar
 	(emacsconf-publish-public-index)
 	(emacsconf-publish-backstage-index))
 
+(defun emacsconf-publish-process-answers-chapters (file)
+	(interactive (list (read-file-name "Chapters file: ")))
+	(let ((slug (emacsconf-get-slug-from-string (file-name-nondirectory file))))
+		(unless (string= (expand-file-name file)
+										 (expand-file-name (file-name-nondirectory file)
+																			 emacsconf-cache-dir))
+			(copy-file file (expand-file-name (file-name-nondirectory file)
+																				emacsconf-cache-dir)
+								 t))
+		(chmod file #o644)
+		(copy-file file (expand-file-name (file-name-nondirectory file)
+																			emacsconf-public-media-directory)
+							 t)
+		(copy-file file (expand-file-name (file-name-nondirectory file)
+																			emacsconf-backstage-dir)
+							 t)
+		(emacsconf-publish-update-talk slug)))
 ;; 
 (provide 'emacsconf-publish)
