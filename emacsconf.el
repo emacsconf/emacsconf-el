@@ -894,22 +894,22 @@
 
 (with-eval-after-load 'embark
   (add-to-list 'embark-target-finders 'emacsconf-embark-finder)
-  (embark-define-keymap embark-emacsconf-actions
-    "Keymap for emacsconference-related things"
-    ("a" emacsconf-announce)
-    ("c" emacsconf-find-captions-from-slug)
-    ("d" emacsconf-find-caption-directives-from-slug)
-    ("p" emacsconf-set-property-from-slug)
-    ("w" emacsconf-edit-wiki-page)
-    ("s" emacsconf-set-start-time-for-slug)
-    ("W" emacsconf-browse-wiki-page)
-    ("u" emacsconf-update-talk)
-    ("it" emacsconf-insert-talk-title)
-    ("m" emacsconf-mail-speaker-from-slug)
-    ("n" emacsconf-notmuch-search-mail-from-entry)
-    ("f" org-forward-heading-same-level)
-    ("b" org-backward-heading-same-level)
-    ("RET" emacsconf-go-to-talk))
+  (defvar-keymap embark-emacsconf-actions
+    :doc "Keymap for emacsconference-related things"
+    "a" #'emacsconf-announce
+    "c" #'emacsconf-find-captions-from-slug
+    "d" #'emacsconf-find-caption-directives-from-slug
+    "p" #'emacsconf-set-property-from-slug
+    "w" #'emacsconf-edit-wiki-page
+    "s" #'emacsconf-set-start-time-for-slug
+    "W" #'emacsconf-browse-wiki-page
+    "u" #'emacsconf-update-talk
+    "t" #'emacsconf-insert-talk-title
+    "m" #'emacsconf-mail-speaker-from-slug
+    "n" #'emacsconf-notmuch-search-mail-from-entry
+    "f" #'org-forward-heading-same-level
+    "b" #'org-backward-heading-same-level
+    "RET" #'emacsconf-go-to-talk)
   (add-to-list 'embark-keymap-alist '(emacsconf . embark-emacsconf-actions)))
 
 ;;; Status updates
