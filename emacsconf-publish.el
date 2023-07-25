@@ -411,7 +411,7 @@
 [[${meta} copyright=\"Copyright &copy; ${year} ${speakers}\"]]
 [[!inline pages=\"internal(${year}/info/${slug}-nav)\" raw=\"yes\"]]
 
-<!-- Initially generated with emacsconf-generate-talk-page and then left alone for manual editing -->
+<!-- Initially generated with emacsconf-publish-talk-page and then left alone for manual editing -->
 <!-- You can manually edit this file to update the abstract, add links, etc. --->\n
 
 # ${title}
@@ -428,6 +428,17 @@ ${abstract-md}
 ${categories}
 "))))))
 
+(defun emacsconf-publish-talk-p (talk)
+	"Return non-nil if the talk is ready to be published.
+Talks that are pending review will not be published yet."
+	(pcase (plist-get talk :status)
+		('nil nil)
+		("TODO" nil)
+		("TO_REVIEW" nil)
+		("TO_ACCEPT" nil)
+		("CANCELLED" nil)
+		(_ t)))
+
 (defun emacsconf-publish-talk-pages (emacsconf-info force)
   (interactive (list (emacsconf-get-talk-info) (> (prefix-numeric-value current-prefix-arg) 1)))
   "Populate year/talks/*.md files.
@@ -435,7 +446,8 @@ These should include the nav and schedule files, which will be
 rewritten as needed.  After they are generated, they should be all
 right to manually edit to include things like additional
 resources."
-  (mapc (lambda (o) (emacsconf-publish-talk-page o force)) (emacsconf-filter-talks emacsconf-info)))
+  (mapc (lambda (o) (emacsconf-publish-talk-page o force))
+				(emacsconf-filter-talks emacsconf-info)))
 
 (defun emacsconf-wiki-talk-resources (o)
   (setq o (append (list :format 'wiki
@@ -753,7 +765,7 @@ Back to the [[talks]]  \n"
 (defun emacsconf-publish-info-pages (&optional info)
   "Populate year/info/*-nav, -before, and -after files."
   (interactive)
-  (setq info (or info (emacsconf-get-talk-info)))
+  (setq info (or info (seq-filter 'emacsconf-publish-talk-p (emacsconf-get-talk-info))))
   (emacsconf-publish-with-wiki-change
     (let* ((talks (seq-remove (lambda (o) (string= (plist-get o :status) "CANCELLED"))
                               (sort (emacsconf-filter-talks info) #'emacsconf-sort-by-scheduled))))
@@ -774,12 +786,12 @@ Back to the [[talks]]  \n"
             (emacsconf-publish-before-page o info))
           info)))
 
-(defun emacsconf-publish-talks-page (emacsconf-info)
-  (interactive "p")
-  (let ((info emacsconf-info))
-    (with-temp-buffer
-      (find-file "talk-details.md")
-      (erase-buffer)
+(defun emacsconf-publish-talks-page (&optional emacsconf-info)
+  (interactive)
+  (let ((info (or emacsconf-info
+									(seq-filter #'emacsconf-publish-talk-p
+															(emacsconf-get-talk-info)))))
+    (with-temp-file (expand-file-name "talk-details.md" (expand-file-name emacsconf-year emacsconf-directory))
       (insert (format "<table><thead><th>Duration</th><th>Title</th><th>Speakers</th></thead><tbody>%s</tbody></table>"
                       (mapconcat
                        (lambda (o)
@@ -789,9 +801,7 @@ Back to the [[talks]]  \n"
                                    (plist-get o :duration)
                                    (emacsconf-format-talk-link o)
                                    (plist-get o :speakers))))
-                       info "\n")))
-      (save-buffer))))
-
+                       info "\n"))))))
 
 (defun emacsconf-generate-main-schedule-with-tracks (&optional info)
   (interactive)
@@ -2389,8 +2399,14 @@ This video is available under the terms of the Creative Commons Attribution-Shar
 	(emacsconf-publish-backstage-index))
 
 (defun emacsconf-publish-process-answers-chapters (file)
-	(interactive (list (read-file-name "Chapters file: ")))
+	(interactive (list
+								(if (string-match "chapters" (buffer-file-name))
+										(buffer-file-name)
+									(read-file-name "Chapters file: "))))
 	(let ((slug (emacsconf-get-slug-from-string (file-name-nondirectory file))))
+		(emacsconf-with-talk-heading slug
+			(when (string= (org-get-todo-state) "TO_INDEX_QA")
+				(org-todo "TO_CAPTION_QA")))
 		(unless (string= (expand-file-name file)
 										 (expand-file-name (file-name-nondirectory file)
 																			 emacsconf-cache-dir))
