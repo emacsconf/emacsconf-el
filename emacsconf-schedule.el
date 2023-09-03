@@ -448,7 +448,7 @@ Each function should take the info and manipulate it as needed, returning the ne
               (unless (plist-get o :buffer)
                 (plist-put o :buffer
                            (number-to-string 
-                            (if (string-match "live" (plist-get o :q-and-a))
+                            (if (string-match "live" (or (plist-get o :q-and-a) "live"))
                                 emacsconf-schedule-default-buffer-minutes-for-live-q-and-a
                               emacsconf-schedule-default-buffer-minutes)))))
             o)

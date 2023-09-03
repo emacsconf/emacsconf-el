@@ -392,7 +392,6 @@
                        (:public-email "PUBLIC_EMAIL")
                        (:emergency "EMERGENCY")
                        (:buffer "BUFFER")
-                       (:duration "TIME")
                        (:min-time "MIN_TIME")
                        (:max-time "MAX_TIME")
                        (:availability "AVAILABILITY")
@@ -623,7 +622,7 @@
   (unless (or (null (plist-get o :status))
               (null (plist-get o :email))
               (string= (plist-get o :status) "CANCELLED")
-              (string-match "after" (plist-get o :q-and-a)))
+              (string-match "after" (or (plist-get o :q-and-a) "")))
     (if (null (plist-get o :video-file))
 				(progn
 					(plist-put o :live-time (plist-get o :start-time))
@@ -920,9 +919,9 @@
     (kill-new
      (format "%d captioned (%d minutes), %d received and waiting to be captioned (%d minutes)"
              (length (emacsconf-collect-field-for-status "CAPTIONED" :title))
-             (apply '+ (seq-map 'string-to-number (conf-collect-field-for-status "CAPTIONED" :duration)))
+             (apply '+ (seq-map 'string-to-number (conf-collect-field-for-status "CAPTIONED" :time)))
              (length (emacsconf-collect-field-for-status "PREREC_RECEIVED" :title))
-             (apply '+ (seq-map 'string-to-number (conf-collect-field-for-status "PREREC_RECEIVED" :duration)))))))
+             (apply '+ (seq-map 'string-to-number (conf-collect-field-for-status "PREREC_RECEIVED" :time)))))))
 
 ;; Timezones
 (defvar emacsconf-date "2022-12-03" "Starting date of EmacsConf.")

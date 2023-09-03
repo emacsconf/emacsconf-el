@@ -63,9 +63,9 @@
 (defun emacsconf-publish-add-talk ()
   "Add the current talk to the wiki."
   (interactive)
-  (emacsconf-publish-update-talk)
+  (emacsconf-publish-talk-page (emacsconf-get-talk-info-for-subtree))
   (emacsconf-publish-info-pages)
-  (emacsconf-publish-schedule)
+	(emacsconf-publish-talks-page)
   (magit-status-setup-buffer emacsconf-directory))
 
 (defun emacsconf-update-conf-html ()
@@ -377,8 +377,10 @@
 (defun emacsconf-format-speaker-info (o)
   (let ((extra-info (mapconcat #'identity
                                (delq nil (list
-                                          (unless (string= (plist-get o :pronunciation) "nil") (plist-get o :pronunciation))
+                                          (unless (string= (plist-get o :pronunciation) "nil")
+																						(emacsconf-surround "Pronunciation: " (plist-get o :pronunciation) ""))
                                           (when (plist-get o :irc) (format "IRC: %s" (plist-get o :irc)))
+																					(plist-get o :public-contact)
                                           (when (plist-get o :public-email) (format "<mailto:%s>" (plist-get o :public-email)))))
                                ", ")))
     (concat (plist-get o :speakers-with-pronouns)
@@ -440,12 +442,12 @@ Talks that are pending review will not be published yet."
 		(_ t)))
 
 (defun emacsconf-publish-talk-pages (emacsconf-info force)
-  (interactive (list (emacsconf-get-talk-info) (> (prefix-numeric-value current-prefix-arg) 1)))
   "Populate year/talks/*.md files.
 These should include the nav and schedule files, which will be
 rewritten as needed.  After they are generated, they should be all
 right to manually edit to include things like additional
 resources."
+	(interactive (list (emacsconf-get-talk-info) (> (prefix-numeric-value current-prefix-arg) 1)))
   (mapc (lambda (o) (emacsconf-publish-talk-page o force))
 				(emacsconf-filter-talks emacsconf-info)))
 
@@ -494,7 +496,7 @@ resources."
      (append o
              (list :format
                    (concat (or (plist-get o :video-time)
-                               (plist-get o :duration))
+                               (plist-get o :time))
                            "-min talk"
                            (if (plist-get o :q-and-a)
                                (format " followed by %s Q&A (%s)  "
@@ -513,9 +515,9 @@ resources."
                    (format "Discuss on IRC: [#%s](%s)  \n" (plist-get o :channel)
                            (plist-get o :webchat-url))
                    :status-info
-                   (if (member emacsconf-publishing-phase '(program schedule)) (format "Status: %s  \n" (plist-get o :status-label)) "")
+                   (if (member emacsconf-publishing-phase '(cfp program schedule)) (format "Status: %s  \n" (plist-get o :status-label)) "")
                    :schedule-info
-                   (if (and (member emacsconf-publishing-phase '(program schedule))
+                   (if (and (member emacsconf-publishing-phase '(cfp program schedule))
                             (not (emacsconf-talk-all-done-p o))
                             (not (string= (plist-get o :status) "CANCELLED")))
                        (let ((start (org-timestamp-to-time (org-timestamp-split-range timestamp)))
@@ -715,6 +717,10 @@ ${pad-info}${irc-info}${status-info}${schedule-info}\n"
 						 ""))
 			 "")
      (emacsconf-format-email-questions-and-comments talk) "\n"
+		 (if (eq emacsconf-publishing-phase 'cfp)
+				 (format "\n----\nGot an idea for an EmacsConf talk or session? We'd love to hear from you! Check out the [[Call for Participation|/%s/cfp]] for details.\n" emacsconf-year)
+			 ""
+			 )
      "\n\n<!-- End of emacsconf-publish-after-page -->\n")))
 
 (defun emacsconf-sort-by-track-then-schedule (a b)
@@ -798,7 +804,7 @@ Back to the [[talks]]  \n"
                          (if (null (plist-get o :slug))
                              (format "<tr><td colspan=\"3\">%s</td></tr>" (emacsconf-format-talk-link o))
                            (format "<tr><td>%s</td><td>%s</td><td>%s</td><tr>" 
-                                   (plist-get o :duration)
+                                   (plist-get o :time)
                                    (emacsconf-format-talk-link o)
                                    (plist-get o :speakers))))
                        info "\n"))))))
@@ -968,9 +974,9 @@ Entries are sorted chronologically, with different tracks interleaved."
     (format "<div>%d talks total: %d captioned (%d min), %d waiting for captions (%d min)</div>"
                     (length talks)
                     (length captioned)
-                    (apply '+ (mapcar (lambda (info) (string-to-number (plist-get info :duration))) captioned))
+                    (apply '+ (mapcar (lambda (info) (string-to-number (plist-get info :time))) captioned))
                     (length received)
-                    (apply '+ (mapcar (lambda (info) (string-to-number (plist-get info :duration)))
+                    (apply '+ (mapcar (lambda (info) (string-to-number (plist-get info :time)))
                                       received)))))
 
 (defun emacsconf-publish-sched-directive (o)

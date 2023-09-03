@@ -94,7 +94,7 @@
         (org-entry-put (point) "PRESENT" (or (plist-get info :present) "?"))
         (org-entry-put (point) "DURATION"
                        (or (plist-get info :video-duration)
-                           (concat "~ " (plist-get info :duration))))
+                           (concat "~ " (plist-get info :time))))
         (org-entry-put (point) "BUFFER"
                        (format "%s (ending ~ %s)"
                                (plist-get info :buffer)
@@ -104,7 +104,7 @@
                                  (+
                                   (time-to-seconds
                                    (org-timestamp-to-time (org-timestamp-split-range (org-timestamp-from-string (plist-get info :scheduled)))))
-                                  (* 60 (string-to-number (plist-get info :duration)))
+                                  (* 60 (string-to-number (plist-get info :time)))
                                   (* 60 (string-to-number (plist-get info :buffer)))))
                                 emacsconf-timezone)))
         (org-entry-put (point) "Q_AND_A" 
