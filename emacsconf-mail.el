@@ -244,15 +244,113 @@ Group by e-mail."
                     (emacsconf-mail-merge-get-template-from-subtree))
                 (error "Could not find template %s" id)))))))))
 
+(defun emacsconf-mail-parse-submission (body)
+	"Extract data from EmacsConf 2023 submissions in BODY."
+	(let (data
+				(fields '((:title "^Talk title")
+									(:description "^Talk description")
+									(:format "^Format")
+									(:intro "^Introduction for you and your talk")
+									(:name "^Speaker name")
+									(:availability "^Speaker availability")
+									(:q-and-a "^Preferred Q&A approach")
+									(:public "^Public contact information")
+									(:private "^Private emergency contact information")
+									(:release "^Please include this speaker release"))))
+		(with-temp-buffer
+			(insert body)
+			(goto-char (point-min))
+			;; Try to parse it
+			(while fields
+				;; skip the field title
+				(when (and (or (looking-at (cadar fields))
+											 (re-search-forward (cadar fields) nil t))
+									 (re-search-forward "\\(:[ \t\n]+\\|\n\n\\)" nil t))
+					;; get the text between this and the next field
+					(setq data (plist-put data (caar fields)
+																(buffer-substring (point)
+																									(or
+																									 (when (and (cdr fields)
+																															(re-search-forward (cadr (cadr fields)) nil t))
+																										 (goto-char (match-beginning 0))
+																										 (point))
+																									 (point-max))))))
+				(setq fields (cdr fields)))
+			(if (string-match "[0-9]+" (or (plist-get data :format) ""))
+					(plist-put data :time (match-string 0 (or (plist-get data :format) ""))))
+			data)))
+
+(defun emacsconf-mail-add-submission (slug)
+	"Add the submission from the current e-mail."
+	(interactive "MTalk ID: ")
+	(let* ((props (notmuch-show-get-message-properties))
+				 (from (plist-get (plist-get props :headers) :From))
+				 (body (plist-get
+								(car
+								 (plist-get props :body))
+								:content))
+				 (date (format-time-string "%Y-%m-%d"
+																	 (date-to-time (plist-get (plist-get props :headers) :Date))))
+				 (to-notify (format-time-string
+										 "%Y-%m-%d"
+										 (time-add
+											(days-to-time 7)
+											(date-to-time (plist-get (plist-get props :headers) :Date)))))
+				 (data (emacsconf-mail-parse-submission body)))
+		(when (string-match "<\\(.*\\)>" from)
+			(setq from (match-string 1 from)))
+		(with-current-buffer
+				(find-file emacsconf-org-file)
+			;;  go to the submissions entry
+			(goto-char (org-find-property "CUSTOM_ID" "submissions"))
+			(when (org-find-property "CUSTOM_ID" slug)
+				(error "Duplicate talk ID")))
+		(find-file emacsconf-org-file)
+		(delete-other-windows)
+		(outline-next-heading)
+		(org-insert-heading)
+		(insert " " (or (plist-get data :title) "") "\n")
+		(org-todo "TO_REVIEW")
+		(org-entry-put (point) "CUSTOM_ID" slug)
+		(org-entry-put (point) "SLUG" slug)
+		(org-entry-put (point) "TRACK" "General")
+		(org-entry-put (point) "EMAIL" from)
+		(org-entry-put (point) "DATE_SUBMITTED" date)
+		(org-entry-put (point) "DATE_TO_NOTIFY" to-notify)
+		(when (plist-get data :time)
+			(org-entry-put (point) "TIME" (plist-get data :time)))
+		(when (plist-get data :availability)
+			(org-entry-put (point) "AVAILABILITY"
+										 (replace-regexp-in-string "\n+" " "
+																							 (plist-get data :availability))))
+		(when (plist-get data :public)
+			(org-entry-put (point) "PUBLIC_CONTACT"
+										 (replace-regexp-in-string "\n+" " "
+																							 (plist-get data :public))))
+		(when (plist-get data :private)
+			(org-entry-put (point) "EMERGENCY"
+										 (replace-regexp-in-string "\n+" " "
+																							 (plist-get data :private))))
+		(when (plist-get data :q-and-a)
+			(org-entry-put (point) "Q_AND_A"
+										 (replace-regexp-in-string "\n+" " "
+																							 (plist-get data :q-and-a))))
+		(save-excursion
+			(insert body))
+		(re-search-backward org-drawer-regexp)
+		(org-fold-hide-drawer-toggle 'off)
+		(org-end-of-meta-data)
+		(split-window-below)))
+
 (defun emacsconf-mail-merge-fill (string)
   "Fill in the values for STRING using the properties at point.
 Include some other things, too, such as emacsconf-year, title, name, email, url, and duration."
   (let (start (values `(("year" . ,emacsconf-year)
-                  ("title" . ,(org-entry-get (point) "ITEM"))
-                  ("name" . ,(org-entry-get (point) "NAME"))
-                  ("email" . ,(org-entry-get (point) "EMAIL"))
-                  ("url" . ,(format "%s%s/talks/%s" emacsconf-base-url emacsconf-year (org-entry-get (point) "SLUG")))
-                  ("duration" . ,(org-entry-get (point) "TIME")))))
+												("title" . ,(org-entry-get (point) "ITEM"))
+												("name" . ,(org-entry-get (point) "NAME"))
+												("email" . ,(org-entry-get (point) "EMAIL"))
+												("url" . ,(format "%s%s/talks/%s" emacsconf-base-url emacsconf-year (org-entry-get (point) "SLUG")))
+												("duration" . ,(org-entry-get (point) "TIME")))))
     (while (string-match "\\${\\([-a-zA-Z_]+?\\)}" string start)
       (if (assoc-default (match-string 1 string) values)
           (setq string (replace-match (assoc-default (match-string 1 string) values) t t string))
