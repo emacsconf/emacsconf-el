@@ -38,6 +38,9 @@
   "Conference year. String for easy inclusion."
   :group 'emacsconf
   :type 'string)
+(defcustom emacsconf-date "2023-12-03" "Starting date of EmacsConf."
+	:group 'emacsconf
+	:type 'string)
 (defcustom emacsconf-directory "~/vendor/emacsconf-wiki"
   "Directory where the wiki files are."
   :group 'emacsconf
@@ -927,7 +930,6 @@
              (apply '+ (seq-map 'string-to-number (conf-collect-field-for-status "PREREC_RECEIVED" :time)))))))
 
 ;; Timezones
-(defvar emacsconf-date "2022-12-03" "Starting date of EmacsConf.")
 (defvar emacsconf-timezone-offset
   (format-time-string "%z" (date-to-time emacsconf-date) emacsconf-timezone)
   "Timezone offset for `emacsconf-timezone' on `emacsconf-date'.")
