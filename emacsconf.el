@@ -34,7 +34,7 @@
   "Name of conference"
   :group 'emacsconf
   :type 'string)
-(defcustom emacsconf-year "2022"
+(defcustom emacsconf-year "2023"
   "Conference year. String for easy inclusion."
   :group 'emacsconf
   :type 'string)
@@ -83,6 +83,9 @@
   "Emergency contact information."
   :type 'string
   :group 'emacsconf)
+(defcustom emacsconf-review-days 7 "Number of days for review for early acceptance."
+	:type 'natnum
+	:group 'emacsconf)
 
 (defvar emacsconf-stream-base "https://live0.emacsconf.org/")
 (defvar emacsconf-chat-base "https://chat.emacsconf.org/")
@@ -948,8 +951,11 @@
 (defun emacsconf-timezone-strings (o &optional timezones)
   (mapcar (lambda (tz) (emacsconf-timezone-string o tz)) (or timezones emacsconf-timezones)))
 
+;;;###autoload
 (defun emacsconf-convert-from-timezone (timezone time)
-  (interactive (list (completing-read "From zone: " tzc-time-zones)
+  (interactive (list (progn
+											 (require 'tzc)
+											 (completing-read "From zone: " tzc-time-zones))
                      (read-string "Time: ")))
   (let* ((from-offset (format-time-string "%z" (date-to-time emacsconf-date) timezone))
          (time

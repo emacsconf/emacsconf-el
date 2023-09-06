@@ -280,6 +280,26 @@ Group by e-mail."
 					(plist-put data :time (match-string 0 (or (plist-get data :format) ""))))
 			data)))
 
+;;;###autoload
+(defun emacsconf-mail-review ()
+	(interactive)
+	(let ((notification-date (format-time-string
+														"%Y-%m-%d"
+														(time-add
+														 (days-to-time emacsconf-review-days)
+														 (date-to-time (plist-get (plist-get (notmuch-show-get-message-properties) :headers) :Date))))))
+		(notmuch-show-reply)
+		(message-goto-body)
+		(save-excursion
+			(insert (format
+							 "Thanks for submitting your proposal! (TODO: feedback) We're experimenting
+with early acceptance this year, so we'll wait a week (~ %s) in case the
+other volunteers want to chime in regarding your talk. =)
+
+"
+							 notification-date)))))
+
+;;;###autoload
 (defun emacsconf-mail-add-submission (slug)
 	"Add the submission from the current e-mail."
 	(interactive "MTalk ID: ")
@@ -294,7 +314,7 @@ Group by e-mail."
 				 (to-notify (format-time-string
 										 "%Y-%m-%d"
 										 (time-add
-											(days-to-time 7)
+											(days-to-time emacsconf-review-days)
 											(date-to-time (plist-get (plist-get props :headers) :Date)))))
 				 (data (emacsconf-mail-parse-submission body)))
 		(when (string-match "<\\(.*\\)>" from)
