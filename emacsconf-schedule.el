@@ -74,6 +74,10 @@ Each function should take the info and manipulate it as needed, returning the ne
      (cdr (seq-filter (lambda (o) (string-match "LUNCH" (elt o title-field)))
                  list)))))
 
+(defun emacsconf-schedule-set-all-tracks-to-general (info)
+	"Set all tracks to General."
+	(mapcar (lambda (o) (plist-put o :track "General")) info))
+
 (defun emacsconf-schedule-strategy-pack-everything-in-just-as-confirmed (&optional info)
   (let* ((emacsconf-schedule-break-time 10)
          (emacsconf-schedule-lunch-time 30)
@@ -81,14 +85,14 @@ Each function should take the info and manipulate it as needed, returning the ne
          (emacsconf-schedule-default-buffer-minutes 5)
          (emacsconf-schedule-default-buffer-minutes-for-live-q-and-a 10)
          (emacsconf-schedule-tweaked-allocations '(("indieweb" . 20)
-                                                   ("maint" . 20)
-                                                   ("workflows" . 20)))
+                                 ("maint" . 20)
+                                 ("workflows" . 20)))
          (emacsconf-schedule-strategies '(emacsconf-schedule-allocate-buffer-time
-                                          emacsconf-schedule-override-breaks
-                                          emacsconf-schedule-allocate-buffer-time-at-most-max-time
-                                          emacsconf-schedule-allocate-max-time
-                                          emacsconf-schedule-allocate-at-most
-                                          emacsconf-schedule-tweak-allocations)))
+                        emacsconf-schedule-override-breaks
+                        emacsconf-schedule-allocate-buffer-time-at-most-max-time
+                        emacsconf-schedule-allocate-max-time
+                        emacsconf-schedule-allocate-at-most
+                        emacsconf-schedule-tweak-allocations)))
     (emacsconf-schedule-prepare info)))
 
 (defun emacsconf-schedule-allocate-buffer-time-at-most-max-time (info)
