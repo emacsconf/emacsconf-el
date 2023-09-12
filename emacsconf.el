@@ -242,10 +242,12 @@
   (car (sort (seq-remove #'file-directory-p (directory-files path 'full filter t)) #'file-newer-than-file-p)))
 
 (defun emacsconf-find-captions-from-slug (search)
+	"Edit captions file."
   (interactive (list (emacsconf-complete-talk)))
   (emacsconf-with-talk-heading search (emacsconf-subed-find-captions)))
 
 (defun emacsconf-edit-wiki-page (search)
+	"Open the wiki page for the talk matching SEARCH."
   (interactive (list (emacsconf-complete-talk)))
   (setq search (if (stringp search) (emacsconf-get-slug-from-string search)
 								 (plist-get search :slug)))
@@ -299,13 +301,16 @@
 ;; (setq emacsconf-complete-talk-cache (mapcar (lambda (o) (string-join (delq nil (mapcar (lambda (f) (plist-get o f)) '(:slug :title :speakers :irc))) " - ")) (emacsconf-get-talk-info)))
 
 (defun emacsconf-complete-talk (&optional info)
+	"Offer talks for completion.
+If INFO is specified, limit it to that list."
   (let ((choices
 				 (if (and (null info) emacsconf-complete-talk-cache)
 						 emacsconf-complete-talk-cache
 					 (mapcar (lambda (o)
 										 (string-join
 											(delq nil
-														(mapcar (lambda (f) (plist-get o f)) '(:slug :title :speakers :irc)))
+														(mapcar (lambda (f) (plist-get o f))
+																		'(:slug :title :speakers :irc)))
 											" - "))
 									 (or info (emacsconf-get-talk-info))))))
     (completing-read
@@ -328,6 +333,7 @@
    (t search)))
 
 (defun emacsconf-go-to-talk (search)
+	"Jump to the talk heading matching SEARCH."
   (interactive (list (emacsconf-complete-talk)))
   (find-file emacsconf-org-file)
   (widen)
@@ -889,18 +895,20 @@
 
 ;;; Embark
 (defun emacsconf-embark-finder ()
+	"Identify when we're on a talk subtree."
   (when (and (derived-mode-p 'org-mode)
              (org-entry-get-with-inheritance "SLUG"))
     (cons 'emacsconf (org-entry-get-with-inheritance "SLUG"))))
 
 (defun emacsconf-insert-talk-title (search)
+	"Insert the talk title matching SEARCH."
   (interactive (list (emacsconf-complete-talk)))
   (insert (plist-get (emacsconf-search-talk-info search) :title)))
 
 (with-eval-after-load 'embark
   (add-to-list 'embark-target-finders 'emacsconf-embark-finder)
   (defvar-keymap embark-emacsconf-actions
-    :doc "Keymap for emacsconference-related things"
+    :doc "Keymap for emacsconf-related things"
     "a" #'emacsconf-announce
     "c" #'emacsconf-find-captions-from-slug
     "d" #'emacsconf-find-caption-directives-from-slug
@@ -957,7 +965,12 @@
 (defun emacsconf-convert-from-timezone (timezone time)
   (interactive (list (progn
 											 (require 'tzc)
-											 (completing-read "From zone: " tzc-time-zones))
+											 (if (org-entry-get (point) "TIMEZONE")
+													 (completing-read (format "From zone (%s): "
+																										(org-entry-get (point) "TIMEZONE"))
+																						tzc-time-zones nil nil nil nil
+																						(org-entry-get (point) "TIMEZONE"))
+												 (completing-read "From zone: " tzc-time-zones nil t)))
                      (read-string "Time: ")))
   (let* ((from-offset (format-time-string "%z" (date-to-time emacsconf-date) timezone))
          (time
@@ -973,6 +986,11 @@
               "%b %d %H:%M %z"
               time
               emacsconf-timezone))))
+
+(defun emacsconf-timezone-set (timezone)
+	"Set the timezone for the current Org entry."
+	(interactive (list (progn (require 'tzc) (completing-read "Timezone: " tzc-time-zones))))
+	(org-entry-put (point) "TIMEZONE" timezone))
 
 ;;; Etherpad
 (defvar emacsconf-review-comments-heading "Comments")
@@ -1486,5 +1504,55 @@ tracks with the ID in the cdr of that list."
 		 ((and (file-exists-p cache-filename) (not (eq source 'wiki-captions))) cache-filename)
 		 (always cache-filename))))
 
+(with-eval-after-load 'org
+	(defun emacsconf-el-complete ()
+		"Complete a file from the Emacsconf Elisp library."
+		(concat "emacsconf-el:"
+						(file-name-base
+						 (read-file-name
+							"File: "
+							(file-name-directory (locate-library "emacsconf.el"))))))
+	(defun emacsconf-el-open (link _)
+		"Visit a file from the Emacsconf Elisp library."
+		(find-file
+		 (expand-file-name
+			link
+			(file-name-directory (locate-library "emacsconf.el")))))
+
+	(defun emacsconf-el-export (link description format _)
+		"Export link to emacsconf-el file."
+		(format "<a href=\"https://git.emacsconf.org/emacsconf-el/tree/%s\">%s</a>"
+						link (or description link)))
+	
+	(org-link-set-parameters
+	 "emacsconf-el"
+	 :complete #'emacsconf-el-complete
+	 :export #'emacsconf-el-export
+	 :follow #'emacsconf-el-open)
+
+	(defun emacsconf-ansible-complete ()
+		"Complete a file from the Emacsconf Elisp library."
+		(concat "emacsconf-el:"
+						(file-name-base
+						 (read-file-name
+							"File: "
+							emacsconf-ansible-directory))))
+	(defun emacsconf-ansible-open (link _)
+		"Visit a file from the Emacsconf Elisp library."
+		(find-file
+		 (expand-file-name
+			link
+			emacsconf-ansible-directory)))
+
+	(defun emacsconf-ansible-export (link description format _)
+		"Export link to emacsconf-el file."
+		(format "<a href=\"https://git.emacsconf.org/emacsconf-ansible/tree/%s\">%s</a>"
+						link (or description link)))
+	
+	(org-link-set-parameters
+	 "emacsconf-ansible"
+	 :complete #'emacsconf-ansible-complete
+	 :export #'emacsconf-ansible-export
+	 :follow #'emacsconf-ansible-open))
 (provide 'emacsconf)
 ;;; emacsconf.el ends here
