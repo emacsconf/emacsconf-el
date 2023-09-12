@@ -572,6 +572,7 @@ ${pad-info}${irc-info}${status-info}${schedule-info}\n"
 		 (seq-filter (lambda (o) (string-match "vtt$" o)) emacsconf-main-extensions))))
 
 (defun emacsconf-publish-format-talk-page-schedule (talk info)
+	"Add the schedule image for TALK based on INFO."
 	(concat
 	 "\nThe following image shows where the talk is in the schedule for "
    (format-time-string "%a %Y-%m-%d" (plist-get talk :start-time) emacsconf-timezone) ". Solid lines show talks with Q&A via BigBlueButton. Dashed lines show talks with Q&A via IRC or Etherpad."
@@ -2145,6 +2146,7 @@ when the host has opened the Q&A.</p>
              (emacsconf-prepare-for-display (emacsconf-get-talk-info)))))
         '("before" "open" "after")))
 (defun emacsconf-publish-bbb-redirect (talk &optional status)
+	"Update the publicly-available redirect for TALK."
   (interactive (list (emacsconf-complete-talk-info)))
   (let ((bbb-filename (expand-file-name (format "bbb-%s.html" (plist-get talk :slug))
                                         emacsconf-publish-current-dir))
@@ -2167,8 +2169,7 @@ The Q&A room for ${title} has finished. You can find more information about the 
           (_
            "<html><head><body>
 There is no live Q&A room for ${title}. You can find more information about the talk at <a href=\"${base-url}${url}\">${base-url}${url}</a>.</body></html>"
-           )
-          ))))))
+           )))))))
 
 (defun emacsconf-publish-media-files-on-change (talk)
   "Publish the files and update the index."

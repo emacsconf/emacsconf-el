@@ -246,17 +246,18 @@ Group by e-mail."
 
 (defun emacsconf-mail-parse-submission (body)
 	"Extract data from EmacsConf 2023 submissions in BODY."
-	(let (data
-				(fields '((:title "^Talk title")
-									(:description "^Talk description")
-									(:format "^Format")
-									(:intro "^Introduction for you and your talk")
-									(:name "^Speaker name")
-									(:availability "^Speaker availability")
-									(:q-and-a "^Preferred Q&A approach")
-									(:public "^Public contact information")
-									(:private "^Private emergency contact information")
-									(:release "^Please include this speaker release"))))
+	(when (listp body) (setq body (plist-get (car body) :content)))
+	(let ((data (list :body body))
+				(fields '((:title "^[* ]*Talk title")
+									(:description "^[* ]*Talk description")
+									(:format "^[* ]*Format")
+									(:intro "^[* ]*Introduction for you and your talk")
+									(:name "^[* ]*Speaker name")
+									(:availability "^[* ]*Speaker availability")
+									(:q-and-a "^[* ]*Preferred Q&A approach")
+									(:public "^[* ]*Public contact information")
+									(:private "^[* ]*Private emergency contact information")
+									(:release "^[* ]*Please include this speaker release"))))
 		(with-temp-buffer
 			(insert body)
 			(goto-char (point-min))
@@ -299,12 +300,14 @@ other volunteers want to chime in regarding your talk. =)
 "
 							 notification-date)))))
 
+;; Documented in https://sachachua.com/blog/2023/09/emacsconf-capturing-submissions-from-e-mails/
 ;;;###autoload
 (defun emacsconf-mail-add-submission (slug)
 	"Add the submission from the current e-mail."
 	(interactive "MTalk ID: ")
 	(let* ((props (notmuch-show-get-message-properties))
-				 (from (plist-get (plist-get props :headers) :From))
+				 (from (or (plist-get (plist-get props :headers) :Reply-To)
+									 (plist-get (plist-get props :headers) :From)))
 				 (body (plist-get
 								(car
 								 (plist-get props :body))
@@ -356,7 +359,7 @@ other volunteers want to chime in regarding your talk. =)
 										 (replace-regexp-in-string "\n+" " "
 																							 (plist-get data :q-and-a))))
 		(save-excursion
-			(insert body))
+			(insert (plist-get data :body)))
 		(re-search-backward org-drawer-regexp)
 		(org-fold-hide-drawer-toggle 'off)
 		(org-end-of-meta-data)
