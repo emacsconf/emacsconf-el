@@ -282,6 +282,7 @@ Final files should be stored in /data/emacsconf/stream/YEAR/video-slug--main.web
    filename))
 
 (defun emacsconf-stream-open-pad (talk)
+	"Open the Etherpad collaborative document for TALK."
   (interactive (list (emacsconf-complete-talk-info)))
 	(setq talk (emacsconf-resolve-talk talk))
 	(emacsconf-stream-track-ssh

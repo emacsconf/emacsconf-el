@@ -58,6 +58,7 @@ Each function should take the info and manipulate it as needed, returning the ne
           info))
 
 (defun emacsconf-schedule-prepare (&optional info)
+	"Apply `emacsconf-schedule-strategies' to INFO to determine the schedule."
   (emacsconf-schedule-based-on-info
    (seq-reduce (lambda (prev val) (funcall val prev))
                emacsconf-schedule-strategies
@@ -77,6 +78,19 @@ Each function should take the info and manipulate it as needed, returning the ne
 (defun emacsconf-schedule-set-all-tracks-to-general (info)
 	"Set all tracks to General."
 	(mapcar (lambda (o) (plist-put o :track "General")) info))
+
+(defun emacsconf-schedule-fix-start (info)
+	"Make all talks fixed-time."
+	(mapcar (lambda (o) (plist-put o :fixed-time t)) info))
+
+(defvar emacsconf-schedule-default-buffer-minutes-for-dev 25)
+(defun emacsconf-schedule-allow-extra-q-and-a-for-dev (info)
+	"Set development time"
+  (mapcar (lambda (o)
+						(when (and (string= (plist-get o :track) "Development")
+											 (string-match "live" (or (plist-get o :q-and-a) "")))
+							(plist-put o :buffer (number-to-string emacsconf-schedule-default-buffer-minutes-for-dev)))
+						o) info))
 
 (defun emacsconf-schedule-strategy-pack-everything-in-just-as-confirmed (&optional info)
   (let* ((emacsconf-schedule-break-time 10)
@@ -131,9 +145,11 @@ Each function should take the info and manipulate it as needed, returning the ne
           '(hline)))
      sched nil)))
 (defun emacsconf-schedule-inflate-sexp (sequence &optional info include-time)
-  "Pairs with `emacsconf-schedule-dump-sexp'."
+  "Takes a list of talk IDs and returns a list that includes the scheduling info.
+Pairs with `emacsconf-schedule-dump-sexp'."
   (setq info (or info (emacsconf-get-talk-info)))
-  (let ((by-assoc (mapcar (lambda (o) (cons (intern (plist-get o :slug)) o)) (emacsconf-filter-talks info)))
+  (let ((by-assoc (mapcar (lambda (o) (cons (intern (plist-get o :slug)) o))
+													(emacsconf-filter-talks info)))
         date)
     (mapcar
      (lambda (seq)
@@ -235,6 +251,7 @@ Each function should take the info and manipulate it as needed, returning the ne
 (defvar emacsconf-schedule-svg-modify-functions '(emacsconf-schedule-svg-color-by-track) "Functions to run to modify the display of each item.")
 (defvar emacsconf-use-absolute-url nil "Non-nil means try to use absolute URLs.")
 (defun emacsconf-schedule-svg-track (svg base-x base-y width height start-time end-time info)
+	"Draw the actual rectangles and text for the talks."
   (let ((scale (/ width (float-time (time-subtract end-time start-time)))))
     (mapc
      (lambda (o)
@@ -301,6 +318,7 @@ Each function should take the info and manipulate it as needed, returning the ne
      info)))
 
 (defun emacsconf-schedule-svg-day (elem label width height start end tracks)
+	"Add the time scale and the talks on a given day."
   (let* ((label-margin 15)
          (track-height (/ (- height (* 2 label-margin)) (length tracks)))
          (x 0) (y label-margin)
@@ -342,6 +360,7 @@ Each function should take the info and manipulate it as needed, returning the ne
     elem))
 
 (defun emacsconf-schedule-svg-color-by-track (o node &optional parent)
+	"Color sessions based on track."
   (let ((track (emacsconf-get-track (plist-get o :track))))
     (when track
       (dom-set-attribute node 'fill (plist-get track :color)))))
@@ -353,6 +372,7 @@ Each function should take the info and manipulate it as needed, returning the ne
                        "green")))
 
 (defun emacsconf-schedule-svg (width height &optional info)
+	"Make the schedule SVG for INFO."
   (setq info (emacsconf-prepare-for-display (or info (emacsconf-get-talk-info))))
   (let ((days (seq-group-by (lambda (o)
                               (format-time-string "%Y-%m-%d" (plist-get o :start-time) emacsconf-timezone))
@@ -373,6 +393,12 @@ Each function should take the info and manipulate it as needed, returning the ne
              days))))
 
 (defun emacsconf-schedule-svg-color-by-status (o node &optional _)
+	"Set talk color based on status.
+Processing: palegoldenrod,
+Waiting to be assigned a captioner: yellow,
+Captioning in progress: lightgreen,
+Ready to stream: green,
+Other status: gray"
   (unless (plist-get o :invalid)
     (dom-set-attribute node 'fill
                        (pcase (plist-get o :status)
@@ -389,6 +415,7 @@ Each function should take the info and manipulate it as needed, returning the ne
                          (_ "gray")))))
 
 (defun emacsconf-schedule-svg-days (width height days)
+	"Display multiple days."
   (let ((svg (svg-create width height))
         (day-height (/ height (length days)))
         (y 0))
@@ -398,11 +425,11 @@ Each function should take the info and manipulate it as needed, returning the ne
        (let ((group (dom-node 'g `((transform . ,(format "translate(0,%d)" y))))))
          (dom-append-child svg group)
          (emacsconf-schedule-svg-day group
-                                     (plist-get day :label)
-                                     width day-height
-                                     (date-to-time (plist-get day :start))
-                                     (date-to-time (plist-get day :end))
-                                     (plist-get day :tracks)))
+                   (plist-get day :label)
+                   width day-height
+                   (date-to-time (plist-get day :start))
+                   (date-to-time (plist-get day :end))
+                   (plist-get day :tracks)))
        (setq y (+ y day-height)))
      days)
     svg))
@@ -447,6 +474,9 @@ Each function should take the info and manipulate it as needed, returning the ne
 (defvar emacsconf-schedule-default-buffer-minutes-for-live-q-and-a 15)
 (defvar emacsconf-schedule-default-buffer-minutes 5)
 (defun emacsconf-schedule-allocate-buffer-time (info)
+	"Allocate buffer time based on whether INFO has live Q&A.
+Uses `emacsconf-schedule-default-buffer-minutes' and
+`emacsconf-schedule-default-buffer-minutes-for-live-q-and-a'."
   (mapcar (lambda (o)
             (when (plist-get o :slug)
               (unless (plist-get o :buffer)
@@ -712,8 +742,8 @@ If emacsconf-schedule-apply is non-nil, update `emacsconf-org-file' and the wiki
 (defvar emacsconf-schedule-validate-live-q-and-a-sessions-buffer 5 "Number of minutes' allowance for a streamer to adjust audio and get set up.
 Try to avoid overlapping the start of live Q&A sessions.")
 (defun emacsconf-schedule-validate-live-q-and-a-sessions-are-staggered (schedule)
-  "Return nil if there are no errors.
-Try to avoid overlapping the start of live Q&A sessions."
+  "Try to avoid overlapping the start of live Q&A sessions.
+Return nil if there are no errors."
   (when emacsconf-schedule-validate-live-q-and-a-sessions-buffer
     (let (last-end)
       (delq nil
