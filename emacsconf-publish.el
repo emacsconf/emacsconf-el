@@ -220,10 +220,10 @@
       (plist-get o :qa-link)
       "</td>"
       "<td>" (if (plist-get o :pad-url)
-                 (format "<a href=\"%s\" target=\"_blank\" rel=\"noreferrer\">Open pad</a>" (plist-get o :pad-url))
+                 (format "<a href=\"%s\" target=\"_blank\" rel=\"noreferrer\">Pad</a>" (plist-get o :pad-url))
                "")
       "</td>"
-      "<td>" (format "<a href=\"%s\" target=\"_blank\" rel=\"noreferrer\">Open chat</a>" (plist-get o :webchat-url))
+      "<td>" (format "<a href=\"%s\" target=\"_blank\" rel=\"noreferrer\">Chat</a>" (plist-get o :webchat-url))
       ""
       "</td>"
       "<td>" (format-time-string "%-l:%M" (plist-get o :start-time) emacsconf-timezone) "</td>"

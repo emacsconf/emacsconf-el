@@ -411,7 +411,9 @@ If INFO is specified, limit it to that list."
                        (:timezone "TIMEZONE")
                        (:irc "IRC")
                        (:pronunciation "PRONUNCIATION")                       
-                       (:pronouns "PRONOUNS") 
+                       (:pronouns "PRONOUNS")
+											 (:date-submitted "DATE_SUBMITTED")
+											 (:date-to-notify "DATE_TO_NOTIFY")
                        ;; Scheduling
                        (:scheduled "SCHEDULED")
                        (:time "TIME")
