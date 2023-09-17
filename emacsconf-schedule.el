@@ -365,11 +365,14 @@ Pairs with `emacsconf-schedule-dump-sexp'."
     (when track
       (dom-set-attribute node 'fill (plist-get track :color)))))
 
-(defun emacsconf-schedule-svg-color-by-availability (o node &optional parent)
-  (dom-set-attribute node 'fill
-                     (if (string-match "^[><]" (plist-get o :availability))
-                         "gray"
-                       "green")))
+(defun emacsconf-schedule-svg-color-by-availability (o node &optional _)
+	(dom-set-attribute node 'fill
+										 (cond
+											((string-match "^<" (or (plist-get o :availability) ""))
+											 "lightblue")
+											((string-match "^>" (or (plist-get o :availability) ""))
+											 "peachpuff")
+											(t "gray"))))
 
 (defun emacsconf-schedule-svg (width height &optional info)
 	"Make the schedule SVG for INFO."
@@ -406,12 +409,14 @@ Other status: gray"
                                   "PROCESSING"
                                   "TO_AUTOCAP"))
                           "palegoldenrod")
-                         ((rx (or "TO_ASSIGN"))
+                         ("TO_ASSIGN"
                           "yellow")
-                         ((rx (or "TO_CAPTION"))
+                         ("TO_CAPTION"
                           "lightgreen")
-                         ((rx (or "TO_STREAM"))
+                         ("TO_STREAM"
                           "green")
+												 ("TODO"
+													"lightgray")
                          (_ "gray")))))
 
 (defun emacsconf-schedule-svg-days (width height days)
@@ -570,7 +575,27 @@ Talks with a FIXED_TIME property are not moved."
                 (setq end-time (time-add (org-get-scheduled-time (point)) (seconds-to-time duration)))
                 (setq current-time (time-add end-time (* (string-to-number (or (plist-get talk :buffer) "0")) 60))))))))))))
 
-(defun emacsconf-schedule-validate-time-constraints (&optional info)
+(defun emacsconf-schedule-get-key-func ()
+	"Get the sorting key for the current entry."
+	(org-entry-get (point) "SLUG"))
+(defun emacsconf-schedule-sort-compare-func (a b)
+	(let* ((entry-a (emacsconf-resolve-talk a emacsconf-schedule-draft))
+				 (entry-b (emacsconf-resolve-talk b emacsconf-schedule-draft))
+				 (track-index-a (or (seq-position emacsconf-tracks (emacsconf-get-track (plist-get entry-a :track))) 0))
+				 (track-index-b (or (seq-position emacsconf-tracks (emacsconf-get-track (plist-get entry-b :track))) 0)))
+		(cond
+		 ((string= (plist-get entry-a :status) "CANCELLED") nil)
+		 ((string= (plist-get entry-b :status) "CANCELLED") t)
+		 ((< track-index-a track-index-b) t)
+		 ((> track-index-a track-index-b) nil)
+		 ((string< (plist-get entry-a :scheduled)
+							 (plist-get entry-b :scheduled)) t)
+		 (t nil))))
+(defun emacsconf-schedule-sort-entries ()
+	(interactive)
+	(org-sort-entries nil ?f #'emacsconf-schedule-get-key-func #'emacsconf-schedule-sort-compare-func))
+
+(defun emacsconf-schedule-validate-time-constraints (info &rest _)
   (interactive)
   (let* ((info (or info (emacsconf-get-talk-info)))
          (results (delq nil
@@ -588,9 +613,9 @@ Talks with a FIXED_TIME property are not moved."
                                   (constraint (emacsconf-schedule-get-time-constraint o)))
                               (when constraint
                                 (setq result (apply #'emacsconf-schedule-check-time
-                                                      (plist-get o :slug)
-                                                      o
-                                                      constraint))
+                                                    (plist-get o :slug)
+                                                    o
+                                                    constraint))
                                 (when result (plist-put o :invalid result))
                                 result)))
                           info)))))
@@ -640,7 +665,7 @@ Both start and end time are tested."
     (when diff
       (list (concat "Missing talks: " (string-join diff ", "))))))
 
-(defun emacsconf-schedule-validate-no-duplicates (sched)
+(defun emacsconf-schedule-validate-no-duplicates (sched &optional info)
   (let* ((sched-slugs (mapcar (lambda (o) (plist-get o :slug))
                               (emacsconf-filter-talks sched)))
          (dupes (seq-filter (lambda (o) (> (length (cdr o)) 1))
@@ -648,12 +673,14 @@ Both start and end time are tested."
     (when dupes
       (list (concat "Duplicate talks: " (mapconcat 'car dupes ", "))))))
 
+(defvar emacsconf-schedule-validation-functions '(emacsconf-schedule-validate-time-constraints
+																emacsconf-schedule-validate-live-q-and-a-sessions-are-staggered
+																emacsconf-schedule-validate-all-talks-present
+																emacsconf-schedule-validate-no-duplicates))
 (defun emacsconf-schedule-validate (sched &optional info)
-  (append
-   (emacsconf-schedule-validate-time-constraints sched)
-   (emacsconf-schedule-validate-live-q-and-a-sessions-are-staggered sched)
-   (emacsconf-schedule-validate-all-talks-present sched info)
-   (emacsconf-schedule-validate-no-duplicates sched)))
+	(seq-mapcat (lambda (func)
+								(funcall func sched info))
+							emacsconf-schedule-validation-functions))
 
 (defun emacsconf-schedule-inflate-tracks (tracks schedule)
   (mapcar
@@ -741,7 +768,7 @@ If emacsconf-schedule-apply is non-nil, update `emacsconf-org-file' and the wiki
 
 (defvar emacsconf-schedule-validate-live-q-and-a-sessions-buffer 5 "Number of minutes' allowance for a streamer to adjust audio and get set up.
 Try to avoid overlapping the start of live Q&A sessions.")
-(defun emacsconf-schedule-validate-live-q-and-a-sessions-are-staggered (schedule)
+(defun emacsconf-schedule-validate-live-q-and-a-sessions-are-staggered (schedule &rest _)
   "Try to avoid overlapping the start of live Q&A sessions.
 Return nil if there are no errors."
   (when emacsconf-schedule-validate-live-q-and-a-sessions-buffer

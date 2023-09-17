@@ -156,6 +156,11 @@ Group by e-mail."
 (defun emacsconf-mail-group-by-email (info)
   (seq-group-by (lambda (o) (plist-get o :email)) info))
 
+(defun emacsconf-mail-speaker-from-slug (talk)
+	"E-mail the speaker for TALK."
+	(interactive (list (emacsconf-complete-talk-info)))
+  (compose-mail (plist-get talk :email)))
+
 (defun emacsconf-mail-speaker (&optional subject body talk)
   "Compose a message to the speaker of the current talk."
   (interactive (list nil nil (emacsconf-complete-talk-info)))
@@ -247,39 +252,54 @@ Group by e-mail."
 (defun emacsconf-mail-parse-submission (body)
 	"Extract data from EmacsConf 2023 submissions in BODY."
 	(when (listp body) (setq body (plist-get (car body) :content)))
-	(let ((data (list :body body))
-				(fields '((:title "^[* ]*Talk title")
-									(:description "^[* ]*Talk description")
-									(:format "^[* ]*Format")
-									(:intro "^[* ]*Introduction for you and your talk")
-									(:name "^[* ]*Speaker name")
-									(:availability "^[* ]*Speaker availability")
-									(:q-and-a "^[* ]*Preferred Q&A approach")
-									(:public "^[* ]*Public contact information")
-									(:private "^[* ]*Private emergency contact information")
-									(:release "^[* ]*Please include this speaker release"))))
+	(let* ((data (list :body body))
+				 (fields '((:title "^[* ]*Talk title")
+									 (:description "^[* ]*Talk description")
+									 (:format "^[* ]*Format")
+									 (:intro "^[* ]*Introduction for you and your talk")
+									 (:name "^[* ]*Speaker name")
+									 (:availability "^[* ]*Speaker availability")
+									 (:q-and-a "^[* ]*Preferred Q&A approach")
+									 (:public "^[* ]*Public contact information")
+									 (:private "^[* ]*Private emergency contact information")
+									 (:release "^[* ]*Please include this speaker release")))
+				 field
+				 (field-regexp (mapconcat
+												(lambda (o)
+													(concat "\\(?:" (cadr o) "\\)"))
+												fields "\\|")))
 		(with-temp-buffer
 			(insert body)
 			(goto-char (point-min))
 			;; Try to parse it
-			(while fields
-				;; skip the field title
-				(when (and (or (looking-at (cadar fields))
-											 (re-search-forward (cadar fields) nil t))
-									 (re-search-forward "\\(:[ \t\n]+\\|\n\n\\)" nil t))
-					;; get the text between this and the next field
-					(setq data (plist-put data (caar fields)
-																(buffer-substring (point)
-																									(or
-																									 (when (and (cdr fields)
-																															(re-search-forward (cadr (cadr fields)) nil t))
-																										 (goto-char (match-beginning 0))
-																										 (point))
-																									 (point-max))))))
-				(setq fields (cdr fields)))
+			(catch 'done
+				(while (not (eobp))
+					;; skip the field title
+					(unless (looking-at field-regexp)
+						(unless (re-search-forward field-regexp nil t)
+							(throw 'done nil)))
+					(goto-char (match-beginning 0))
+					(setq field (seq-find (lambda (o)
+																	(looking-at (cadr o)))
+																fields))
+					(when field
+						;; get the text between this and the next field
+						(re-search-forward "\\(:[ \t\n]+\\|\n\n\\)" nil t)
+						(setq data
+									(plist-put
+									 data
+									 (car field)
+									 (buffer-substring
+										(point)
+										(or (and
+												 (re-search-forward field-regexp nil t)
+												 (goto-char (match-beginning 0))
+												 (point))
+												(point-max))))))))
 			(if (string-match "[0-9]+" (or (plist-get data :format) ""))
 					(plist-put data :time (match-string 0 (or (plist-get data :format) ""))))
-			data)))
+			data)
+))
 
 ;;;###autoload
 (defun emacsconf-mail-review ()
@@ -293,9 +313,9 @@ Group by e-mail."
 		(message-goto-body)
 		(save-excursion
 			(insert (format
-							 "Thanks for submitting your proposal! (TODO: feedback) We're experimenting
-with early acceptance this year, so we'll wait a week (~ %s) in case the
-other volunteers want to chime in regarding your talk. =)
+							 "Thanks for submitting your proposal! (TODO: feedback)
+
+We'll wait a week (~ %s) in case the other volunteers want to chime in regarding your talk. =)
 
 "
 							 notification-date)))))
@@ -470,7 +490,8 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
        (format "from:%s or to:%s" o o))
      (split-string (plist-get talk :email) " *, *")
      " or ")
-    " or (" emacsconf-id " and " (plist-get talk :slug) ")")))
+    ;; " or (" emacsconf-id " and " (plist-get talk :slug) ")"
+		)))
 
 ;;; Volunteers
 

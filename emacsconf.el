@@ -280,14 +280,15 @@
   (emacsconf-get-slug-from-string (emacsconf-complete-talk)))
 
 (defun emacsconf-export-slug (link description format _)
-  (let ((path (format "https://emacsconf.org/%s/talks/%s" emacsconf-year link))
-        (desc (or description link)))
+  (let* ((path (format "https://emacsconf.org/%s/talks/%s" emacsconf-year link))
+         (talk (emacsconf-resolve-talk link))
+				 (desc (or description link)))
     (pcase format
       (`html
-       (format "<a href=\"#%s\">%s</a>" link desc))
+       (format "<a href=\"#%s\" title=\"%s\">%s</a>" link (plist-get talk :title) desc))
       (`ascii (format "%s (%s)" desc path))
-      (`markdown
-       (format "[[%s|%s/talks/%s]]" desc emacsconf-year link))
+      (`md
+       (format "[%s](%s \"%s\")" desc path (plist-get talk :title)))
       (_ path))))
 
 (with-eval-after-load 'org
@@ -812,9 +813,9 @@ If INFO is specified, limit it to that list."
 				 prev)))
 ;; (emacsconf-previous-talk (emacsconf-resolve-talk "lspbridge"))
 
-(defun emacsconf-resolve-talk (talk)
+(defun emacsconf-resolve-talk (talk &optional info)
   "Return the plist for TALK."
-  (if (stringp talk) (emacsconf-find-talk-info talk) talk))
+  (if (stringp talk) (emacsconf-find-talk-info talk info) talk))
 
 (defun emacsconf-find-talk-info (filter &optional info)
   (setq info (or info (emacsconf-filter-talks (emacsconf-get-talk-info))))
@@ -921,7 +922,7 @@ If INFO is specified, limit it to that list."
     "u" #'emacsconf-update-talk
     "t" #'emacsconf-insert-talk-title
     "m" #'emacsconf-mail-speaker-from-slug
-    "n" #'emacsconf-notmuch-search-mail-from-entry
+    "n" #'emacsconf-mail-notmuch-search-for-talk
     "f" #'org-forward-heading-same-level
     "b" #'org-backward-heading-same-level
     "RET" #'emacsconf-go-to-talk)
@@ -1556,5 +1557,12 @@ tracks with the ID in the cdr of that list."
 	 :complete #'emacsconf-ansible-complete
 	 :export #'emacsconf-ansible-export
 	 :follow #'emacsconf-ansible-open))
+
+(defun emacsconf-end-of-week (date)
+	"Useful for analyzing data. Assumes week ends Sunday."
+	(let ((d (decode-time (date-to-time date))))
+		(format-time-string "%Y-%m-%d"
+												(encode-time
+												 (decoded-time-add d (make-decoded-time :day (% (- 7 (decoded-time-weekday d)) 7)))))))
 (provide 'emacsconf)
 ;;; emacsconf.el ends here
