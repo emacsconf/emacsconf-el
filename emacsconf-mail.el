@@ -510,5 +510,24 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
   (let ((email (if (string-match "<\\(.*?\\)>" volunteer) (match-string 1) volunteer)))
     (notmuch-search (format "from:%s or to:%s" email email))))
 
+(defun emacsconf-mail-check-for-zzz-before-sending ()
+	"Throw an error if the ZZZ todo marker is still in the message.
+Good for adding to `message-send-hook'."
+	(save-excursion
+		(goto-char (point-min))
+		(when (re-search-forward "ZZZ" nil t)
+			(unless (yes-or-no-p "ZZZ marker found. Send anyway? ")
+				(error "ZZZ marker found.")))))
+
+(defun emacsconf-mail-insert-info (talk)
+	"Insert mail info for TALK for easy reference.
+This includes NAME_SHORT and EMAIL_NOTES."
+	(interactive (list (emacsconf-complete-talk-info)))
+	(setq talk (emacsconf-resolve-talk talk))
+	(let ((info (concat (emacsconf-surround "Hi, " (plist-get talk :speakers-short) "!\n\n" "")
+											(emacsconf-surround "--- ZZZ ---\n" (plist-get talk :email-notes) "\n------\n\n" ""))))
+		(unless (string= info "")
+			(save-excursion (insert info)))))
+
 (provide 'emacsconf-mail)
 ;;; emacsconf-mail.el ends here
