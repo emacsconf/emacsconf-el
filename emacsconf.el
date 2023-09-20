@@ -61,15 +61,17 @@
 (defcustom emacsconf-base-url "https://emacsconf.org/" "Includes trailing slash"
   :group 'emacsconf
   :type 'string)
-(defcustom emacsconf-publishing-phase 'resources
+(defcustom emacsconf-publishing-phase 'program
   "Controls what information to include.
 'program - don't include times
 'schedule - include times; use this leading up to the emacsconference
 'resources - after EmacsConf, don't need status"
   :group 'emacsconf
   :type '(choice
+          (const :tag "CFP: include invitation" cfp)
           (const :tag "Program: Don't include times" program)
           (const :tag "Schedule: Include detailed times" schedule)
+					(const :tag "Conference: Show IRC and watching info" conference)
           (const :tag "Resources: Don't include status" resources)))
 
 (defcustom emacsconf-org-file nil
@@ -415,6 +417,7 @@ If INFO is specified, limit it to that list."
                        (:pronouns "PRONOUNS")
 											 (:date-submitted "DATE_SUBMITTED")
 											 (:date-to-notify "DATE_TO_NOTIFY")
+											 (:email-notes "EMAIL_NOTES")
                        ;; Scheduling
                        (:scheduled "SCHEDULED")
                        (:time "TIME")
@@ -683,11 +686,15 @@ If INFO is specified, limit it to that list."
   (let ((track (emacsconf-get-track (plist-get o :track))))
     (when track
       (plist-put o :watch-url (concat emacsconf-base-url emacsconf-year "/watch/" (plist-get track :id)))
-      (plist-put o :webchat-url (concat emacsconf-chat-base "?join=emacsconf,"
-                                        (replace-regexp-in-string "#" ""
-                                                                  (plist-get track :channel))))
+      (plist-put o :webchat-url
+								 (concat emacsconf-chat-base "?join=emacsconf"
+												 (if (eq emacsconf-publishing-phase 'conference)
+														 (concat ","
+																		 (replace-regexp-in-string "#" ""
+																															 (plist-get track :channel)))
+													 "")))
 			(plist-put o :track-id (plist-get track :id))) 
-		(plist-put o :channel (plist-get track :channel))
+		(plist-put o :channel (if (eq emacsconf-publishing-phase 'conference) (plist-get track :channel) "emacsconf"))
     (plist-put o :bbb-backstage (concat emacsconf-media-base-url emacsconf-year "/backstage/current/room/" (plist-get o :slug)))
     (cond
      ((string= (or (plist-get o :q-and-a) "") "")
@@ -922,6 +929,7 @@ If INFO is specified, limit it to that list."
     "u" #'emacsconf-update-talk
     "t" #'emacsconf-insert-talk-title
     "m" #'emacsconf-mail-speaker-from-slug
+    "M" #'emacsconf-mail-insert-info
     "n" #'emacsconf-mail-notmuch-search-for-talk
     "f" #'org-forward-heading-same-level
     "b" #'org-backward-heading-same-level

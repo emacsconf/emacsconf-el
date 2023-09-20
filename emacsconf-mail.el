@@ -156,6 +156,7 @@ Group by e-mail."
 (defun emacsconf-mail-group-by-email (info)
   (seq-group-by (lambda (o) (plist-get o :email)) info))
 
+;;;###autoload
 (defun emacsconf-mail-speaker-from-slug (talk)
 	"E-mail the speaker for TALK."
 	(interactive (list (emacsconf-complete-talk-info)))
@@ -480,6 +481,7 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
 
 ;;; Notmuch
 
+;;;###autoload
 (defun emacsconf-mail-notmuch-search-for-talk (talk)
   "Search for e-mail related to TALK."
   (interactive (list (emacsconf-complete-talk-info))) 
