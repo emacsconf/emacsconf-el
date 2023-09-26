@@ -38,21 +38,45 @@
       (assoc email grouped))))
 
 (defun emacsconf-mail-prepare (template email attrs)
-  (compose-mail
-   email
-   (emacsconf-replace-plist-in-string attrs (or (plist-get template :subject) ""))
-   (delq nil
-         (list
-          (if (plist-get template :reply-to) (cons "Reply-To" (emacsconf-replace-plist-in-string attrs (plist-get template :reply-to))))
-          (if (plist-get template :mail-followup-to)
-              (cons "Mail-Followup-To" (emacsconf-replace-plist-in-string attrs (plist-get template :mail-followup-to))))
-          (if (plist-get template :cc)
-              (cons "Cc" (emacsconf-replace-plist-in-string attrs (plist-get template :cc)))))))
+	"Prepare the e-mail following TEMPLATE. Send it to EMAIL.
+Use ATTRS to fill in the template."
+	(if (and (derived-mode-p 'message-mode) (string-match "unsent mail" (buffer-name)))
+			;; add to headers
+			(progn
+				(when (plist-get template :subject)
+					(message-replace-header "Subject" (format "%s (was %s)"
+																										(emacsconf-replace-plist-in-string attrs (or (plist-get template :subject) ""))
+																										(message-field-value "Subject"))))
+				(when (plist-get template :reply-to)
+					(message-replace-header "Reply-To"
+																	(concat (emacsconf-replace-plist-in-string attrs (plist-get template :reply-to))
+																					(if (message-field-value "Reply-To") (concat ", " (message-field-value "Reply-To")) ""))))
+				(when (plist-get template :mail-followup-to)
+					(message-replace-header "Mail-Followup-To"
+																	(concat (emacsconf-replace-plist-in-string attrs (plist-get template :mail-followup-to))
+																					(if (message-field-value "Mail-Followup-To") (concat ", " (message-field-value "Mail-Followup-To")) ""))))
+				(when (plist-get template :cc)
+					(message-replace-header "Cc"
+																	(concat (emacsconf-replace-plist-in-string attrs (plist-get template :cc))
+																					(if (message-field-value "Cc") (concat ", " (message-field-value "Cc")) "")))))
+		;; compose a new message
+		(compose-mail
+		 email
+		 (emacsconf-replace-plist-in-string attrs (or (plist-get template :subject) ""))
+		 (delq nil
+					 (list
+						(if (plist-get template :reply-to) (cons "Reply-To" (emacsconf-replace-plist-in-string attrs (plist-get template :reply-to))))
+						(if (plist-get template :mail-followup-to)
+								(cons "Mail-Followup-To" (emacsconf-replace-plist-in-string attrs (plist-get template :mail-followup-to))))
+						(if (plist-get template :cc)
+								(cons "Cc" (emacsconf-replace-plist-in-string attrs (plist-get template :cc))))))))
   (message-sort-headers)
   (message-goto-body)
-  (save-excursion (insert (string-trim (emacsconf-replace-plist-in-string attrs (plist-get template :body))))
-                  (goto-char (point-min))
-                  (emacsconf-mail-merge-wrap)))
+  (save-excursion
+		(insert (string-trim (emacsconf-replace-plist-in-string attrs (plist-get template :body)))
+						"\n\n")
+    (goto-char (point-min))
+    (emacsconf-mail-merge-wrap)))
 
 (defun emacsconf-mail-template-to-me ()
   "Might be useful for testing."
@@ -304,6 +328,7 @@ Group by e-mail."
 
 ;;;###autoload
 (defun emacsconf-mail-review ()
+	"Let the speaker know we've received their proposal."
 	(interactive)
 	(let ((notification-date (format-time-string
 														"%Y-%m-%d"
@@ -314,7 +339,7 @@ Group by e-mail."
 		(message-goto-body)
 		(save-excursion
 			(insert (format
-							 "Thanks for submitting your proposal! (TODO: feedback)
+							 "Thanks for submitting your proposal! (ZZZ TODO: feedback)
 
 We'll wait a week (~ %s) in case the other volunteers want to chime in regarding your talk. =)
 
@@ -512,6 +537,7 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
   (let ((email (if (string-match "<\\(.*?\\)>" volunteer) (match-string 1) volunteer)))
     (notmuch-search (format "from:%s or to:%s" email email))))
 
+;;;###autoload
 (defun emacsconf-mail-check-for-zzz-before-sending ()
 	"Throw an error if the ZZZ todo marker is still in the message.
 Good for adding to `message-send-hook'."
