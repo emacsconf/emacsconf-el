@@ -38,7 +38,13 @@
   "Conference year. String for easy inclusion."
   :group 'emacsconf
   :type 'string)
+(defcustom emacsconf-cfp-deadline "2023-09-14" "Deadline for proposals."
+	:group 'emacsconf
+	:type 'string)
 (defcustom emacsconf-date "2023-12-03" "Starting date of EmacsConf."
+	:group 'emacsconf
+	:type 'string)
+(defcustom emacsconf-video-target-date "2023-11-04" "Target date for receiving talk videos from the speakers."
 	:group 'emacsconf
 	:type 'string)
 (defcustom emacsconf-directory "~/vendor/emacsconf-wiki"
@@ -287,7 +293,7 @@
 				 (desc (or description link)))
     (pcase format
       (`html
-       (format "<a href=\"#%s\" title=\"%s\">%s</a>" link (plist-get talk :title) desc))
+       (format "<a href=\"%s\" title=\"%s\">%s</a>" path (plist-get talk :title) desc))
       (`ascii (format "%s (%s)" desc path))
       (`md
        (format "[%s](%s \"%s\")" desc path (plist-get talk :title)))
@@ -378,7 +384,7 @@ If INFO is specified, limit it to that list."
     ("TO_AUTOCAP" . "Processing uploaded video")
     ("TO_ASSIGN" . "Waiting for a caption volunteer")
     ("TO_CAPTION" . "Processing uploaded video")
-    ("TO_STREAM" . "Talk captioned")
+    ("TO_STREAM" . "Ready to stream")
     ("PLAYING" . "Now playing on the conference livestream")
     ("CLOSED_Q" . "Q&A starting (not yet open for joining)")
     ("OPEN_Q" . "Q&A open for participation")
@@ -505,6 +511,7 @@ If INFO is specified, limit it to that list."
 (defvar emacsconf-abstract-heading-regexp "abstract" "Regexp matching heading for talk abstract.")
 
 (defun emacsconf-get-subtree-entry (heading-regexp)
+	"Return the text for the subtree matching HEADING-REGEXP."
   (car
    (delq nil
          (org-map-entries
@@ -514,9 +521,9 @@ If INFO is specified, limit it to that list."
           nil 'tree))))
 
 (defun emacsconf-get-talk-abstract-from-subtree (o)
-  "Add the abstract from a subheading with a title matching Abstract."
+  "Add the abstract from a subheading.
+The subheading should match `emacsconf-abstract-heading-regexp'."
   (plist-put o :abstract (substring-no-properties (or (emacsconf-get-subtree-entry "abstract") ""))))
-
 
 (defun emacsconf-get-talk-comments-from-subtree (o)
   (setq o (plist-put o :comments
@@ -542,6 +549,7 @@ If INFO is specified, limit it to that list."
                              (plist-get o :comments))))))
 
 (defun emacsconf-convert-talk-abstract-to-markdown (o)
+	"Set the :abstract-md property to a Markdown version of the abstract."
   (plist-put o :abstract-md (org-export-string-as (or (plist-get o :abstract) "") 'md t)))
 
 (defun emacsconf-summarize-times (time timezones)
@@ -626,7 +634,9 @@ If INFO is specified, limit it to that list."
     emacsconf-add-checkin-time
     emacsconf-add-timezone-conversions
     emacsconf-add-speakers-with-pronouns
-    emacsconf-add-live-info))
+    emacsconf-add-live-info)
+	"Functions to collect information.")
+
 (defun emacsconf-add-speakers-with-pronouns (o)
   (plist-put o :speakers-with-pronouns
              (cond
@@ -743,6 +753,7 @@ If INFO is specified, limit it to that list."
              info)))
 
 (defun emacsconf-get-talk-info-for-subtree ()
+	"Run `emacsconf-talk-info-functions' to extract the info for this entry."
   (seq-reduce (lambda (prev val) (save-excursion (save-restriction (funcall val prev))))
               emacsconf-talk-info-functions
               nil))
@@ -906,20 +917,36 @@ If INFO is specified, limit it to that list."
 ;;; Embark
 (defun emacsconf-embark-finder ()
 	"Identify when we're on a talk subtree."
-  (when (and (derived-mode-p 'org-mode)
-             (org-entry-get-with-inheritance "SLUG"))
-    (cons 'emacsconf (org-entry-get-with-inheritance "SLUG"))))
+  (cond
+	 ((and (derived-mode-p 'org-mode)
+				 (let ((context (org-element-context)))
+					 (and (org-element-type-p context 'link)
+								(string= (org-element-property :type context) "emacsconf"))))
+		(cons 'emacsconf (org-element-property :path (org-element-context))))
+	 ((and (derived-mode-p 'org-mode)
+				 (org-entry-get-with-inheritance "SLUG"))
+		(cons 'emacsconf (org-entry-get-with-inheritance "SLUG")))
+	 ((emacsconf-resolve-talk (symbol-name (symbol-at-point)))
+		(cons 'emacsconf (symbol-name (symbol-at-point))))))
 
 (defun emacsconf-insert-talk-title (search)
 	"Insert the talk title matching SEARCH."
   (interactive (list (emacsconf-complete-talk)))
   (insert (plist-get (emacsconf-search-talk-info search) :title)))
 
+(defun emacsconf-message-talk-info (talk prop)
+	"Briefly display info for TALK"
+	(interactive
+	 (list (emacsconf-complete-talk-info)
+				 (completing-read "Property: " '("pronouns" "availability"))))
+	(message "%s" (plist-get (emacsconf-resolve-talk talk) (intern (concat ":" (downcase prop))))))
+
 (with-eval-after-load 'embark
   (add-to-list 'embark-target-finders 'emacsconf-embark-finder)
   (defvar-keymap embark-emacsconf-actions
     :doc "Keymap for emacsconf-related things"
     "a" #'emacsconf-announce
+		"I" #'emacsconf-message-talk-info
     "c" #'emacsconf-find-captions-from-slug
     "d" #'emacsconf-find-caption-directives-from-slug
     "p" #'emacsconf-set-property-from-slug
@@ -976,7 +1003,8 @@ If INFO is specified, limit it to that list."
 (defun emacsconf-convert-from-timezone (timezone time)
   (interactive (list (progn
 											 (require 'tzc)
-											 (if (org-entry-get (point) "TIMEZONE")
+											 (if (and (derived-mode-p 'org-mode)
+																(org-entry-get (point) "TIMEZONE"))
 													 (completing-read (format "From zone (%s): "
 																										(org-entry-get (point) "TIMEZONE"))
 																						tzc-time-zones nil nil nil nil
@@ -1063,11 +1091,7 @@ If INFO is specified, limit it to that list."
 
 
 (defvar emacsconf-time-constraints
-  '(("saturday morning break" "10:00" "11:30")
-    ("saturday lunch" "11:30" "13:30")
-    ("saturday closing remarks" "16:30" "17:30")
-    ("sunday morning break" "10:00" "11:30")
-    ("sunday lunch" "11:30" "13:30")
+  '(("saturday closing remarks" "16:30" "17:30")
     ("sunday closing remarks" "16:30" "17:30")))
 
 (defun emacsconf-validate-no-overlaps (&optional info)
@@ -1572,5 +1596,29 @@ tracks with the ID in the cdr of that list."
 		(format-time-string "%Y-%m-%d"
 												(encode-time
 												 (decoded-time-add d (make-decoded-time :day (% (- 7 (decoded-time-weekday d)) 7)))))))
+
+(defun emacsconf-count-submissions-by-week (&optional info cfp-deadline)
+	"Count submissions in INFO by distance to CFP-DEADLINE."
+	(setq cfp-deadline (or cfp-deadline emacsconf-cfp-deadline))
+	(setq info (or info (emacsconf-get-talk-info)))
+	(cons '("Weeks to CFP end date" "Count" "Hours")
+				(mapcar (lambda (entry)
+									(list (car entry)
+												(length (cdr entry))
+												(apply '+ (mapcar 'cdr (cdr entry)))))
+								(seq-group-by
+								 'car
+								 (sort
+									(seq-keep
+									 (lambda (o)
+										 (and (emacsconf-publish-talk-p o)
+													(plist-get o :date-submitted)
+													(cons (floor (/ (days-between (plist-get o :date-submitted) cfp-deadline)
+																					-7.0))
+																(string-to-number
+																 (or (plist-get o :video-duration)
+																		 (plist-get o :time))))))
+									 info)
+									(lambda (a b) (< (car a) (car b))))))))
 (provide 'emacsconf)
 ;;; emacsconf.el ends here
