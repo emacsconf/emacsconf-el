@@ -642,11 +642,17 @@ Both start and end time are tested."
 (defun emacsconf-schedule-get-time-constraint (o)
   (unless (string-match "after the event" (or (plist-get o :q-and-a) ""))
     (let ((avail (or (plist-get o :availability) ""))
-          hours)
-      (when (string-match "\\([<>]\\)=? *\\([0-9]+:[0-9]+\\) *EST" avail)
-        (if (string= (match-string 1 avail) ">")
-            (list (match-string 2 avail) nil)
-          (list nil (match-string 2 avail)))))))
+          hours
+					start
+					(pos 0)
+					(result (list nil nil)))
+      (while (string-match "\\([<>]\\)=? *\\([0-9]+:[0-9]+\\) *EST" avail pos)
+        (setf (elt result (if (string= (match-string 1 avail) ">")
+															0
+														1))
+							(match-string 2 avail))
+				(setq pos (match-end 0)))
+			result)))
 
 (defun emacsconf-schedule-validate-all-talks-present (sched &optional list)
   (let* ((sched-slugs (mapcar (lambda (o) (plist-get o :slug))

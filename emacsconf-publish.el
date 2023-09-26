@@ -492,49 +492,50 @@ resources."
         (timestamp (org-timestamp-from-string (plist-get o :scheduled))))
     (emacsconf-replace-plist-in-string
      (append o
-             (list :format
-                   (concat (or (plist-get o :video-time)
-                               (plist-get o :time))
-                           "-min talk"
-                           (if (plist-get o :q-and-a)
-                               (format " followed by %s Q&A%s"
-                                       (plist-get o :q-and-a)
-																			 (if (eq emacsconf-publishing-phase 'conference)
-																					 (format " (%s)"  
-																									 (if (string-match "live" (plist-get o :q-and-a))
-																											 (if (eq 'after (emacsconf-bbb-status o))
-																													 "done"
-																												 (format "<https://emacsconf.org/current/%s/room>" (plist-get o :slug)))
-																										 (emacsconf-publish-webchat-link o)))
-																				 ""))
-                             ""))
-                   :pad-info
-                   (if emacsconf-publish-include-pads
-                       (format "Etherpad: <https://pad.emacsconf.org/%s-%s>  \n" emacsconf-year (plist-get o :slug))
-                     "")
-                   :irc-info
-                   (format "Discuss on IRC: [#%s](%s)  \n" (plist-get o :channel)
-                           (plist-get o :webchat-url))
-                   :status-info
-                   (if (member emacsconf-publishing-phase '(cfp program schedule conference)) (format "Status: %s  \n" (plist-get o :status-label)) "")
-                   :schedule-info
-                   (if (and (member emacsconf-publishing-phase '(schedule conference))
-                            (not (emacsconf-talk-all-done-p o))
-                            (not (string= (plist-get o :status) "CANCELLED")))
-                       (let ((start (org-timestamp-to-time (org-timestamp-split-range timestamp)))
-                             (end (org-timestamp-to-time (org-timestamp-split-range timestamp t))))
-                         (format
-                          "<div>Times in different timezones:</div><div class=\"times\" start=\"%s\" end=\"%s\"><div class=\"conf-time\">%s</div><div class=\"others\"><div>which is the same as:</div>%s</div></div><div><a href=\"/%s/watch/%s/\">Find out how to watch and participate</a></div>"
-                          (format-time-string "%Y-%m-%dT%H:%M:%SZ" start t)
-                          (format-time-string "%Y-%m-%dT%H:%M:%SZ" end t)
-                          (emacsconf-timezone-string o emacsconf-timezone)
-                          (string-join (emacsconf-timezone-strings
-                                        o
-                                        (seq-remove (lambda (zone) (string= emacsconf-timezone zone))
-                                                    emacsconf-timezones)) "<br />")
-                          emacsconf-year
-                          (plist-get (emacsconf-get-track (plist-get o :track)) :id)))
-                     "")))
+             (list
+							:format
+              (concat (or (plist-get o :video-time)
+                          (plist-get o :time))
+                      "-min talk"
+                      (if (plist-get o :q-and-a)
+                          (format " followed by %s Q&A%s"
+                                  (plist-get o :q-and-a)
+																	(if (eq emacsconf-publishing-phase 'conference)
+																			(format " (%s)"
+																							(if (string-match "live" (plist-get o :q-and-a))
+																									(if (eq 'after (emacsconf-bbb-status o))
+																											"done"
+																										(format "<https://emacsconf.org/current/%s/room>" (plist-get o :slug)))
+																								(emacsconf-publish-webchat-link o)))
+																		""))
+                        ""))
+              :pad-info
+              (if emacsconf-publish-include-pads
+                  (format "Etherpad: <https://pad.emacsconf.org/%s-%s>  \n" emacsconf-year (plist-get o :slug))
+                "")
+              :irc-info
+              (format "Discuss on IRC: [#%s](%s)  \n" (plist-get o :channel)
+                      (plist-get o :webchat-url))
+              :status-info
+              (if (member emacsconf-publishing-phase '(cfp program schedule conference)) (format "Status: %s  \n" (plist-get o :status-label)) "")
+              :schedule-info
+              (if (and (member emacsconf-publishing-phase '(schedule conference))
+                       (not (emacsconf-talk-all-done-p o))
+                       (not (string= (plist-get o :status) "CANCELLED")))
+                  (let ((start (org-timestamp-to-time (org-timestamp-split-range timestamp)))
+                        (end (org-timestamp-to-time (org-timestamp-split-range timestamp t))))
+                    (format
+                     "<div>Times in different timezones:</div><div class=\"times\" start=\"%s\" end=\"%s\"><div class=\"conf-time\">%s</div><div class=\"others\"><div>which is the same as:</div>%s</div></div><div><a href=\"/%s/watch/%s/\">Find out how to watch and participate</a></div>"
+                     (format-time-string "%Y-%m-%dT%H:%M:%SZ" start t)
+                     (format-time-string "%Y-%m-%dT%H:%M:%SZ" end t)
+                     (emacsconf-timezone-string o emacsconf-timezone)
+                     (string-join (emacsconf-timezone-strings
+                                   o
+                                   (seq-remove (lambda (zone) (string= emacsconf-timezone zone))
+                                               emacsconf-timezones)) "<br />")
+                     emacsconf-year
+                     (plist-get (emacsconf-get-track (plist-get o :track)) :id)))
+                "")))
      (concat
       "[[!toc  ]]
 Format: ${format}  
