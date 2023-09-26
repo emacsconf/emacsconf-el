@@ -376,7 +376,7 @@ Pairs with `emacsconf-schedule-dump-sexp'."
 
 (defun emacsconf-schedule-svg (width height &optional info)
 	"Make the schedule SVG for INFO."
-  (setq info (emacsconf-prepare-for-display (or info (emacsconf-get-talk-info))))
+  (setq info (or info (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
   (let ((days (seq-group-by (lambda (o)
                               (format-time-string "%Y-%m-%d" (plist-get o :start-time) emacsconf-timezone))
                             (sort (seq-filter (lambda (o)

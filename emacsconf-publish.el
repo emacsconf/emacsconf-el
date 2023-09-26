@@ -55,7 +55,7 @@
   (when (functionp 'emacsconf-upcoming-insert-or-update)
     (emacsconf-upcoming-insert-or-update))
 	(emacsconf-publish-with-wiki-change
-		(let ((info (emacsconf-prepare-for-display (emacsconf-get-talk-info))))
+		(let ((info (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
 			(emacsconf-publish-before-page talk info)
 			(emacsconf-publish-after-page talk info)
 			(emacsconf-publish-schedule info))))
@@ -65,7 +65,6 @@
   (interactive)
   (emacsconf-publish-talk-page (emacsconf-get-talk-info-for-subtree))
   (emacsconf-publish-info-pages)
-	(emacsconf-publish-talks-page)
   (magit-status-setup-buffer emacsconf-directory))
 
 (defun emacsconf-update-conf-html ()
@@ -94,7 +93,6 @@
           (force (or force (yes-or-no-p "Overwrite existing talk pages? "))))
       (emacsconf-publish-info-pages info)
       (emacsconf-publish-schedule info)
-      (emacsconf-publish-talk-pages info force)
       (magit-status emacsconf-directory))))
 
 (declare-function 'emacsconf-ical-generate-all "emacsconf-ical")
@@ -162,7 +160,7 @@
 ;; (emacsconf-publish-format-track-as-org (car emacsconf-tracks) "US/Eastern")
 ;; (emacsconf-get-talk-info)
 (defun emacsconf-publish-format-track-as-org (track tz &optional info)
-  (setq info (or info (emacsconf-prepare-for-display (emacsconf-get-talk-info))))
+  (setq info (or info (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
   (concat
    "** " (plist-get track :name) "  :" (plist-get track :id) ":\n:PROPERTIES:\n:CATEGORY: " (plist-get track :id) "\n:END:\n"
    (mapconcat
@@ -205,7 +203,7 @@
 
 (defun emacsconf-publish-schedule-org-files (&optional info)
   (interactive)
-  (setq info (or info (emacsconf-prepare-for-display (emacsconf-get-talk-info))))
+  (setq info (or info (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
   (mapc (lambda (tz) (emacsconf-publish-schedule-org-for-timezone tz info))
         emacsconf-timezones))
 
@@ -247,7 +245,7 @@
                                              (format "<a href=\"%s\" target=\"_blank\" rel=\"noreferrer\">Join Q&A</a>" (plist-get o :bbb-room)))
                                             o)
                                   o)))
-                      (emacsconf-prepare-for-display (emacsconf-get-talk-info)))))
+                      (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))
     (mapc
      (lambda (track)
        (let*
@@ -266,14 +264,14 @@
               "</h1><table>"
               "<tr><th colspan=\"6\" style=\"text-align: left\">Saturday</th></tr>"
               (emacsconf-publish-format-res-talks
-               (emacsconf-prepare-for-display
+               (emacsconf-publish-prepare-for-display
                 (emacsconf-filter-talks-by-time
                  (format "2022-12-03T08:00:00%s" emacsconf-timezone-offset)
                  (format "2022-12-03T18:00:00%s" emacsconf-timezone-offset)
                  track-talks)))
               "<tr><th colspan=\"6\" style=\"text-align: left\">Sunday</th></tr>"
               (emacsconf-publish-format-res-talks
-               (emacsconf-prepare-for-display
+               (emacsconf-publish-prepare-for-display
                 (emacsconf-filter-talks-by-time
                  (format "2022-12-04T08:00:00%s" emacsconf-timezone-offset)
                  (format "2022-12-04T18:00:00%s" emacsconf-timezone-offset)
@@ -441,7 +439,7 @@ Talks that are pending review will not be published yet."
 		("CANCELLED" nil)
 		(_ t)))
 
-(defun emacsconf-publish-talk-pages (emacsconf-info force)
+(defun emacsconf-publish-talk-pages (emacsconf-info &optional force)
   "Populate year/talks/*.md files.
 These should include the nav and schedule files, which will be
 rewritten as needed.  After they are generated, they should be all
@@ -499,13 +497,16 @@ resources."
                                (plist-get o :time))
                            "-min talk"
                            (if (plist-get o :q-and-a)
-                               (format " followed by %s Q&A (%s)  "
+                               (format " followed by %s Q&A%s"
                                        (plist-get o :q-and-a)
-                                       (if (string-match "live" (plist-get o :q-and-a))
-                                           (if (eq 'after (emacsconf-bbb-status o))
-                                               "done"
-                                             (format "<https://emacsconf.org/current/%s/room>" (plist-get o :slug)))
-                                         (emacsconf-publish-webchat-link o)))
+																			 (if (eq emacsconf-publishing-phase 'conference)
+																					 (format " (%s)"  
+																									 (if (string-match "live" (plist-get o :q-and-a))
+																											 (if (eq 'after (emacsconf-bbb-status o))
+																													 "done"
+																												 (format "<https://emacsconf.org/current/%s/room>" (plist-get o :slug)))
+																										 (emacsconf-publish-webchat-link o)))
+																				 ""))
                              ""))
                    :pad-info
                    (if emacsconf-publish-include-pads
@@ -536,7 +537,7 @@ resources."
                      "")))
      (concat
       "[[!toc  ]]
-Format: ${format}
+Format: ${format}  
 ${pad-info}${irc-info}${status-info}${schedule-info}\n" 
       (if (plist-get o :alternate-apac)
           (format "[[!inline pages=\"internal(%s/inline-alternate)\" raw=\"yes\"]]  \n" emacsconf-year)
@@ -610,9 +611,10 @@ ${pad-info}${irc-info}${status-info}${schedule-info}\n"
    (emacsconf-format-talk-schedule-info talk) "\n\n"))
 
 (defun emacsconf-publish-before-page (talk &optional info)
-  "Info included before the abstract."
+  "Generate the page that has the info included before the abstract.
+This includes the intro note, the schedule, and talk resources."
   (interactive (list (emacsconf-complete-talk-info)))
-  (setq info (or info (emacsconf-prepare-for-display (emacsconf-get-talk-info))))
+  (setq info (or info (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
   (with-temp-file (expand-file-name (format "%s-before.md" (plist-get talk :slug))
                                     (expand-file-name "info" (expand-file-name emacsconf-year emacsconf-directory)))
     
@@ -624,10 +626,8 @@ ${pad-info}${irc-info}${status-info}${schedule-info}\n"
 			(insert
 			 (if (plist-get talk :public) (emacsconf-wiki-talk-resources talk) "")
 			 "\n# Description\n"))
-    ;; Contact information
-    ;; (insert "\n\n" (emacsconf-format-email-questions-and-comments talk) "\n")
     (insert "<!-- End of emacsconf-publish-before-page -->")))
-;; (emacsconf-publish-before-page (emacsconf-resolve-talk "rms"))
+
 
 (defun emacsconf-format-transcript-from-list (subtitles paragraphs video-id &optional lang)
   "Return subtitle directives for SUBTITLES split by PARAGRAPHS."
@@ -679,7 +679,8 @@ ${pad-info}${irc-info}${status-info}${schedule-info}\n"
       "")))
 
 (defun emacsconf-publish-after-page (talk &optional info)
-  "Info included before the abstract."
+  "Generate the page with info included after the abstract.
+This includes captions, contact, and an invitation to participate."
   (interactive (list (emacsconf-complete-talk-info)))
   ;; Contact information
   (with-temp-file (expand-file-name (format "%s-after.md" (plist-get talk :slug))
@@ -719,34 +720,34 @@ ${pad-info}${irc-info}${status-info}${schedule-info}\n"
 						 ""))
 			 "")
      (emacsconf-format-email-questions-and-comments talk) "\n"
-		 (pcase emacsconf-publishing-phase
-			 ('cfp
-				(format "\n----\nGot an idea for an EmacsConf talk or session? We'd love to hear from you! Check out the [[Call for Participation|/%s/cfp]] for details.\n" emacsconf-year)
-				"")
-			 (_ ""))
+		 (if (eq emacsconf-publishing-phase 'cfp)
+				 (format "\n----\nGot an idea for an EmacsConf talk or session? We'd love to hear from you! Check out the [[Call for Participation|/%s/cfp]] for details.\n" emacsconf-year)
+			 "")
      "\n\n<!-- End of emacsconf-publish-after-page -->\n")))
 
 (defun emacsconf-sort-by-track-then-schedule (a b)
   ;; Gen,Dev; then by time
   (cond
+	 ((and (plist-get a :speakers)
+				 (not (plist-get b :speakers))) t)
+	 ((and (plist-get b :speakers)
+				 (not (plist-get a :speakers))) nil)
    ((string< (plist-get a :track)
              (plist-get b :track)) nil)
-   ((string< (plist-get a :track)
-             (plist-get b :track)) t)
+   ((string< (plist-get b :track)
+             (plist-get a :track)) t)
    ((time-less-p (plist-get a :start-time)
                  (plist-get b :start-time)) t)
    (t nil)))
 
-(defun emacsconf-generate-nav-pages (&optional talks)
-  (interactive (list
-                (emacsconf-active-talks
-                 (sort (emacsconf-filter-talks (emacsconf-get-talk-info))
-                       (if (member emacsconf-publishing-phase '(schedule conference))
-                           #'emacsconf-sort-by-scheduled
-                         #'emacsconf-sort-by-track-then-schedule)))))
+(defun emacsconf-publish-nav-pages (&optional talks)
+	"Generate links to the next and previous talks.
+During the schedule and conference phase, the talks are sorted by time.
+ Otherwise, they're sorted by track and then schedule."
+  (interactive (list (emacsconf-publish-prepare-for-display (or emacsconf-schedule-draft (emacsconf-get-talk-info)))))
   (let* ((next-talks (cdr talks))
          (prev-talks (cons nil talks))
-         (label (if (eq emacsconf-publishing-phase 'schedule)
+         (label (if (member emacsconf-publishing-phase '(schedule conference))
                     "time"
                   "track")))
     (unless (file-directory-p (expand-file-name "info" (expand-file-name emacsconf-year emacsconf-directory)))
@@ -767,22 +768,25 @@ Back to the [[talks]]  \n"
                           "</div>
 ")))))))
 
-(defun emacsconf-prepare-for-display (info)
-  "Sort by scheduled and remove cancelled talks."
-  (seq-remove (lambda (o) (string= (plist-get o :status) "CANCELLED"))
-              (sort (emacsconf-filter-talks info) #'emacsconf-sort-by-scheduled)))
+(defun emacsconf-publish-prepare-for-display (&optional talks)
+	"Return the sequence of TALKS to publish."
+  (seq-filter 'emacsconf-publish-talk-p
+              (sort (copy-sequence (or talks emacsconf-schedule-draft (emacsconf-filter-talks (emacsconf-get-talk-info))))
+										(if (member emacsconf-publishing-phase '(schedule conference))
+												#'emacsconf-sort-by-scheduled
+											#'emacsconf-sort-by-track-then-schedule))))
+
 (defun emacsconf-publish-info-pages (&optional info)
   "Populate year/info/*-nav, -before, and -after files."
-  (interactive)
-  (setq info (or info (seq-filter 'emacsconf-publish-talk-p (emacsconf-get-talk-info))))
+  (interactive (list nil))
+  (setq info (or info (emacsconf-publish-prepare-for-display info)))
   (emacsconf-publish-with-wiki-change
-    (let* ((talks (seq-remove (lambda (o) (string= (plist-get o :status) "CANCELLED"))
-                              (sort (emacsconf-filter-talks info) #'emacsconf-sort-by-scheduled))))
-      (emacsconf-generate-nav-pages talks)
-      (mapc (lambda (o)
-              (emacsconf-publish-before-page o talks)
-              (emacsconf-publish-after-page o talks))
-            talks))))
+    (emacsconf-publish-nav-pages info)
+		(emacsconf-publish-schedule info)
+    (mapc (lambda (o)
+            (emacsconf-publish-before-page o info)
+            (emacsconf-publish-after-page o info))
+          info)))
 
 (defun emacsconf-publish-before-pages (&optional info)
   "Populate -before files."
@@ -796,10 +800,13 @@ Back to the [[talks]]  \n"
           info)))
 
 (defun emacsconf-publish-talks-page (&optional emacsconf-info)
+	"Generate a list of talks."
   (interactive)
   (let ((info (or emacsconf-info
-									(seq-filter #'emacsconf-publish-talk-p
-															(emacsconf-get-talk-info)))))
+									(sort
+									 (seq-filter #'emacsconf-publish-talk-p
+															 (or emacsconf-schedule-draft (emacsconf-get-talk-info)))
+									 #'emacsconf-sort-by-track-then-schedule))))
     (with-temp-file (expand-file-name "talk-details.md" (expand-file-name emacsconf-year emacsconf-directory))
       (insert (format "<table><thead><th>Duration</th><th>Title</th><th>Speakers</th></thead><tbody>%s</tbody></table>"
                       (mapconcat
@@ -813,72 +820,78 @@ Back to the [[talks]]  \n"
                        info "\n"))))))
 
 (defun emacsconf-generate-main-schedule-with-tracks (&optional info)
-  (interactive)
-  (setq info (or info (emacsconf-schedule-inflate-sexp emacsconf-schedule-plan
-                                                       (emacsconf-get-talk-info))))
+  (interactive (list nil))
+  (setq info (or info (emacsconf-publish-prepare-for-display info)))
   (with-temp-file (expand-file-name "schedule-details.md"
                                     (expand-file-name emacsconf-year emacsconf-directory))
     ;; By track
-    (let ((links
-           (mapconcat (lambda (track)
-                        (concat (cadr track) ": "
-                                (mapconcat (lambda (sec)
-                                             (format "<a href=\"#%s-%s\">%s</a>"
-                                                     (car track) (car sec) (cadr sec)))
-                                           '(("sat" "Saturday")
-                                             ("sun" "Sunday"))
-                                           " - ")))
-                      '(("gen" "General")
-                        ("dev" "Development"))
-                      " | ")))
-      (insert (mapconcat
-               (lambda (track)
-                 (let* ((id (elt track 0))
-                        (label (elt track 1))
-                        (start (elt track 2))
-                        (end (elt track 3))
-                        (sequence (emacsconf-schedule-get-subsequence info start end))
-                        (sat (cdr (emacsconf-schedule-get-subsequence sequence "Saturday" "Sunday")))
-                        (sun (cdr (emacsconf-schedule-get-subsequence sequence "Sunday"))))
-                   (format "\n\n<a name=\"%s\"></a>\n
+    (let* ((by-day (mapcar (lambda (o))
+													 (seq-group-by (lambda (o)
+																					 (format-time-string "%Y-%m-%d" nil emacsconf-timezone))
+																				 info)))
+					 (links
+						(mapconcat (lambda (track)
+												 (concat (cadr track) ": "
+																 (mapconcat (lambda (sec)
+																							(format "<a href=\"#%s-%s\">%s</a>"
+																											(car track) (car sec) (cadr sec)))
+																						(mapcar (lambda (day)
+																											(list (downcase (format-time-string "%a" (date-to-time (car day))))
+																														(format-time-string "%A" (date-to-time (car day)))))
+																										by-day)
+                                          " - ")))
+										 (mapcar (lambda (o) (list (plist-get o :id)
+																							 (plist-get o :name)))
+														 emacsconf-tracks)
+                     " | ")))
+      (insert
+			 (mapconcat
+        (lambda (track)
+          (let* ((id (elt track 0))
+                 (label (elt track 1))
+                 (start (elt track 2))
+                 (end (elt track 3)))
+            (format "\n\n<a name=\"%s\"></a>\n
 <div class=\"%s\">
 ## %s\n\n%s\n</div>\n"
-                           id
-                           label
-                           label
-                           (mapconcat
-                            (lambda (section)
-                              (let ((section-id (elt section 0))
-                                    (section-label (elt section 1))
-                                    (section-seq (caddr section)))
-                                (format "%s\n\n<a name=\"%s-%s\"></a>\n### %s track - %s\n%s\n"
-                                        links
-                                        id section-id
-                                        label
-                                        section-label
-                                        (emacsconf-format-main-schedule
-                                         section-seq))))
-                            `(("sat" "Saturday, Dec 3" ,sat)
-                              ("sun" "Sunday, Dec 4" ,sun))
-                            "\n\n")
-                           )))
-               '(("gen" "General" "^GEN Sat" "^DEV Sat")
-                 ("dev" "Development" "^DEV Sat"))
-               "\n")))
+                    id
+                    label
+                    label
+                    (mapconcat
+                     (lambda (section)
+                       (let ((section-id (elt section 0))
+                             (section-label (elt section 1))
+                             (section-seq (caddr section)))
+                         (format "%s\n\n<a name=\"%s-%s\"></a>\n### %s track - %s\n%s\n"
+                                 links
+                                 id section-id
+                                 label
+                                 section-label
+                                 (emacsconf-publish-format-main-schedule
+                                  section-seq))))
+                     `(("sat" "Saturday, Dec 3" ,sat)
+                       ("sun" "Sunday, Dec 4" ,sun))
+                     "\n\n")
+                    ))
+					()
+					)
+        '(("gen" "General" "^GEN Sat" "^DEV Sat")
+          ("dev" "Development" "^DEV Sat"))
+        "\n")))
     (let ((by-day (sort (seq-remove (lambda (s) (string-match "^\\(GEN\\|DEV\\)" (plist-get s :title)))
                                     info)
                         #'emacsconf-sort-by-scheduled)))
       (insert
        "\n<a name=\"by-day\"></a>\n\n# By day\n\n## Saturday\n"
        ;; Everything all together
-       (emacsconf-format-main-schedule
+       (emacsconf-publish-format-main-schedule
         (emacsconf-schedule-get-subsequence
          by-day
          "Saturday opening remarks"
          "Saturday closing remarks"))
        "\n\n## Sunday\n"
        ;; Everything all together
-       (emacsconf-format-main-schedule
+       (emacsconf-publish-format-main-schedule
         (emacsconf-schedule-get-subsequence
          by-day
          "Sunday opening remarks"
@@ -889,7 +902,7 @@ Back to the [[talks]]  \n"
   "Return a list with the schedule for INFO.
 Entries are sorted chronologically, with different tracks interleaved."
   (setq info (or info (emacsconf-get-talk-info)))
-  (let* ((by-day (emacsconf-by-day (emacsconf-prepare-for-display info)))
+  (let* ((by-day (emacsconf-by-day (emacsconf-publish-prepare-for-display info)))
          (cancelled (seq-filter (lambda (o) (string= (plist-get o :status) "CANCELLED")) info))
          (dates (seq-map (lambda (o) (plist-get (cadr o) :start-time)) by-day))
          (links (mapcar (lambda (o)
@@ -920,7 +933,7 @@ Entries are sorted chronologically, with different tracks interleaved."
                      (format "<div class=\"schedule\" data-start=\"%s\" data-end=\"%s\" data-tracks=\"General,Development\">\n"
                              (format-time-string "%FT%T%z" day-start t)
                              (format-time-string "%FT%T%z" day-end t))
-                     (emacsconf-format-main-schedule (cdr day))
+                     (emacsconf-publish-format-main-schedule (cdr day))
                      "</div>")))
                 by-day
                 "\n\n")
@@ -934,21 +947,38 @@ Entries are sorted chronologically, with different tracks interleaved."
      )))
 
 (defun emacsconf-publish-schedule (&optional info)
+	"Generate the schedule or program."
   (interactive)
   (emacsconf-publish-schedule-svg-snippets)
+	(setq info (or info (emacsconf-publish-prepare-for-display info)))
   (with-temp-file (expand-file-name "schedule-details.md" (expand-file-name emacsconf-year emacsconf-directory))
     (insert
      (if (member emacsconf-publishing-phase '(cfp program))
-         (let ((sorted (emacsconf-prepare-for-display (or info (emacsconf-get-talk-info)))))
-           (concat
-            "<a href=\"#development\">Jump to development talks</a>\n<a name=\"general\"></a>\n<h1><span class=\"sched-track General\">General talks</span></h1>\n"
-            (emacsconf-format-main-schedule
-             (seq-filter (lambda (o) (string= (plist-get o :track) "General")) sorted))
-            "\n<a name=\"development\"></a>\n
-<h1><span class=\"sched-track Development\">Development talks</h1>
-\n"
-            (emacsconf-format-main-schedule
-             (seq-filter (lambda (o) (string= (plist-get o :track) "Development")) sorted))))
+         (let ((sorted (emacsconf-publish-prepare-for-display (or info (emacsconf-get-talk-info)))))
+					 (mapconcat (lambda (track)
+												(concat
+												 "Jump to: "
+												 ;; links to other tracks
+												 (string-join (seq-keep (lambda (track-link)
+																									(unless (string= (plist-get track-link :id)
+																																	 (plist-get track :id))
+																										(format "<a href=\"#%s\">%s</a>"
+																														(plist-get track-link :id)
+																														(plist-get track-link :name))))
+																								emacsconf-tracks)
+																			" | ")
+												 "\n\n"
+												 (let ((track-talks (seq-filter (lambda (o) (string= (plist-get o :track)
+																																						 (plist-get track :name)))
+																												sorted)))
+													 (format
+														"<h1 id=\"%s\" class=\"sched-track %s\">%s (%d talks)</h1>\n%s"
+														(plist-get track :id)
+														(plist-get track :name)
+														(plist-get track :name)
+														(length track-talks)
+														(emacsconf-publish-format-main-schedule track-talks)))))
+											emacsconf-tracks "\n\n"))
        (emacsconf-publish-format-interleaved-schedule info))))
   (when (member emacsconf-publishing-phase '(cfp program))
     (with-temp-file (expand-file-name "draft-schedule.md" (expand-file-name emacsconf-year emacsconf-directory))
@@ -983,11 +1013,14 @@ Entries are sorted chronologically, with different tracks interleaved."
                                       received)))))
 
 (defun emacsconf-publish-sched-directive (o)
+	"Format the schedule directive with info for O."
   (format "[[!template id=sched%s]]"
           (let ((result "")
                 (attrs (append
                         (pcase emacsconf-publishing-phase
-													('program nil)
+													('program
+													 (list
+														:time (plist-get o :time)))
 													((or 'schedule 'conference)
 													 (list
 														:status (pcase (plist-get o :status)
@@ -1017,7 +1050,7 @@ Entries are sorted chronologically, with different tracks interleaved."
                          :title (plist-get o :title)
                          :url (concat "/" (plist-get o :url))
                          :speakers (plist-get o :speakers)
-												 :track (plist-get o :track)
+												 :track (if (member emacsconf-publishing-phase '(schedule conference)) (plist-get o :track))
                          :watch (plist-get o :watch-url)
 												 :slug (plist-get o :slug)
                          :note
@@ -1038,11 +1071,11 @@ Entries are sorted chronologically, with different tracks interleaved."
                     (val (pop attrs)))
                 (when val
                   (setq result (concat result " " (substring (symbol-name field) 1) "=\"\"\"" val "\"\"\"")))))
-            result)
-					))
+            result)))
 
-(defun emacsconf-format-main-schedule (info)
-  (mapconcat #'emacsconf-publish-sched-directive (emacsconf-active-talks info) "\n"))
+(defun emacsconf-publish-format-main-schedule (info)
+	"Include the schedule information for INFO."
+  (mapconcat #'emacsconf-publish-sched-directive info "\n"))
 
 (defun emacsconf-publish-talk-files (talk files)
   (seq-filter (lambda (o)
@@ -1167,7 +1200,7 @@ Entries are sorted chronologically, with different tracks interleaved."
 (defun emacsconf-publish-backstage-index (&optional filename)
   (interactive)
   (setq filename (or filename (expand-file-name "index.html" emacsconf-backstage-dir)))
-  (let ((info (emacsconf-prepare-for-display (emacsconf-get-talk-info))))
+  (let ((info (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
     (let ((emacsconf-schedule-svg-modify-functions '(emacsconf-schedule-svg-color-by-status)))
       (with-temp-file (expand-file-name "schedule.svg" emacsconf-backstage-dir)
         (svg-print (emacsconf-schedule-svg 800 200 info))))
@@ -1343,7 +1376,7 @@ answers without needing to listen to everything again. You can see <a href=\"htt
   (interactive (list (expand-file-name "index.html" emacsconf-public-media-directory)))
   (setq filename (or filename (expand-file-name "index.html" emacsconf-public-media-directory)))
   (let ((files (directory-files emacsconf-public-media-directory))
-				(info (emacsconf-public-talks (emacsconf-prepare-for-display (emacsconf-get-talk-info)))))
+				(info (emacsconf-public-talks (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))
 		(emacsconf-publish-playlist (expand-file-name "index.m3u" emacsconf-public-media-directory)
                                 (concat emacsconf-name emacsconf-year)
                                 info
@@ -1368,7 +1401,7 @@ answers without needing to listen to everything again. You can see <a href=\"htt
 
 (defun emacsconf-publish-public-index-on-wiki ()
   (interactive)
-  (let ((info (emacsconf-prepare-for-display (emacsconf-filter-talks (emacsconf-get-talk-info))))
+  (let ((info (emacsconf-publish-prepare-for-display (emacsconf-filter-talks (emacsconf-get-talk-info))))
         (files (directory-files emacsconf-public-media-directory)))
     (with-temp-file (expand-file-name "all-include.md" (expand-file-name emacsconf-year emacsconf-directory)) 
       (insert
@@ -1850,7 +1883,7 @@ This video is available under the terms of the Creative Commons Attribution-Shar
 
 (defun emacsconf-publish-schedule-svg-snippets ()
   (interactive)
-  (let* ((info (emacsconf-prepare-for-display (emacsconf-get-talk-info)))
+  (let* ((info (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))
          (by-day (emacsconf-by-day info))
          (year-dir (expand-file-name emacsconf-year emacsconf-directory))
          (width 800)
@@ -2037,7 +2070,7 @@ if (video) {
 // @license-end
 </script>
 ")
-         (info (emacsconf-prepare-for-display (emacsconf-get-talk-info)))
+         (info (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))
          (emacsconf-publishing-phase 'conference)
          (emacsconf-use-absolute-url t))
     (when emacsconf-directory
@@ -2146,7 +2179,7 @@ when the host has opened the Q&A.</p>
             (mapc
              (lambda (talk)
                (emacsconf-publish-bbb-redirect talk (intern state)))
-             (emacsconf-prepare-for-display (emacsconf-get-talk-info)))))
+             (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))
         '("before" "open" "after")))
 (defun emacsconf-publish-bbb-redirect (talk &optional status)
 	"Update the publicly-available redirect for TALK."
