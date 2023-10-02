@@ -693,7 +693,8 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
                                      emacsconf-year
                                      (plist-get o :slug)))
 	(plist-put o :intro-expanded (emacsconf-pad-expand-intro o))
-  (let ((track (emacsconf-get-track (plist-get o :track))))
+  (let ((track (seq-find (lambda (track) (string= (plist-get o :track) (plist-get track :name)))
+												 emacsconf-tracks)))
     (when track
       (plist-put o :watch-url (concat emacsconf-base-url emacsconf-year "/watch/" (plist-get track :id)))
       (plist-put o :webchat-url
@@ -723,9 +724,10 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
       (plist-put o :qa-link (format "<a href=\"%s\">%s</a>" (plist-get o :webchat-url) (plist-get o :qa-info))))
      ((string-match "pad" (plist-get o :q-and-a))
       (plist-put o :qa-info "Etherpad")
-      (plist-put o :qa-link (format "<a href=\"%s\">%s</a>"
-                                    (plist-get o :pad-url)
-                                    (plist-get o :qa-info))))
+      (plist-put o :qa-link (if (plist-get o :pad-url)
+																(format "<a href=\"%s\">%s</a>"
+																				(plist-get o :pad-url)
+																				(plist-get o :qa-info)))))
      (t (plist-put o :qa-info "none")
         (plist-put o :qa-link "none")))
     (plist-put o :pad-url (format "https://pad.emacsconf.org/%s-%s" emacsconf-year (plist-get o :slug)))
@@ -1183,6 +1185,8 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
           :status "offline")))
 
 (defun emacsconf-get-track (name)
+	"Get the track for NAME.
+NAME could be a track name, a talk name, or a list."
   (when (and (listp name) (plist-get name :track))
 		(setq name (plist-get name :track)))
 	(if (stringp name)
@@ -1192,7 +1196,7 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
 								 emacsconf-tracks)
 			 (let ((talk (emacsconf-resolve-talk name)))
 				 (seq-find (lambda (track) (or (string= (plist-get talk :track) (plist-get track :name))
-																		 (string= (plist-get talk :track) (plist-get track :id))))
+																			 (string= (plist-get talk :track) (plist-get track :id))))
 									 emacsconf-tracks))
 			 name)
 		name))

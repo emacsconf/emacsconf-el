@@ -720,9 +720,12 @@ If emacsconf-schedule-apply is non-nil, update `emacsconf-org-file' and the wiki
          (when (and (boundp 'emacsconf-schedule-apply) emacsconf-schedule-apply)
            (emacsconf-schedule-update-from-info schedule))
          (with-temp-file ,filename
-           (svg-print (emacsconf-schedule-svg 800 200 schedule)))
+           (svg-print (emacsconf-schedule-svg 800 400 schedule)))
          (clear-image-cache)
-         (mapconcat (lambda (o) (format "- %s\n" o)) (append validation (list (format "[[file:%s]]" filename))))))
+         (mapconcat (lambda (o) (format "- %s\n" o))
+										validation
+										;; (append validation (list (format "[[file:%s]]" filename)))
+										)))
      (when (and (boundp 'emacsconf-schedule-apply) emacsconf-schedule-apply)
        (emacsconf-publish-before-pages)
        (emacsconf-publish-schedule)
