@@ -159,6 +159,8 @@ Pairs with `emacsconf-schedule-dump-sexp'."
            (error "Not yet implemented")
          (let ((start-prop (or (plist-get (cdr seq) :start)
                                (and (stringp (cdr seq)) (cdr seq))))
+							 (buffer-prop (when (plist-get (cdr seq) :buffer)
+															(number-to-string (plist-get (cdr seq) :buffer))))
                (time-prop (or (plist-get (cdr seq) :time) ; this is duration in minutes
                               (and (numberp (cdr seq)) (cdr seq))))
                (track-prop (plist-get (cdr seq) :track)))
@@ -173,6 +175,8 @@ Pairs with `emacsconf-schedule-dump-sexp'."
                                               emacsconf-timezone)
                :start-time (date-to-time start-prop)
                :fixed-time t))
+						(when buffer-prop
+							(list :buffer buffer-prop))
             (when track-prop
               (list :track track-prop))
             (when time-prop
