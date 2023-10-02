@@ -40,36 +40,43 @@
 (defun emacsconf-mail-prepare (template email attrs)
 	"Prepare the e-mail following TEMPLATE. Send it to EMAIL.
 Use ATTRS to fill in the template."
-	(if (and (derived-mode-p 'message-mode) (string-match "unsent mail" (buffer-name)))
-			;; add to headers
-			(progn
-				(when (plist-get template :subject)
-					(message-replace-header "Subject" (format "%s (was %s)"
-																										(emacsconf-replace-plist-in-string attrs (or (plist-get template :subject) ""))
-																										(message-field-value "Subject"))))
-				(when (plist-get template :reply-to)
-					(message-replace-header "Reply-To"
-																	(concat (emacsconf-replace-plist-in-string attrs (plist-get template :reply-to))
-																					(if (message-field-value "Reply-To") (concat ", " (message-field-value "Reply-To")) ""))))
-				(when (plist-get template :mail-followup-to)
-					(message-replace-header "Mail-Followup-To"
-																	(concat (emacsconf-replace-plist-in-string attrs (plist-get template :mail-followup-to))
-																					(if (message-field-value "Mail-Followup-To") (concat ", " (message-field-value "Mail-Followup-To")) ""))))
-				(when (plist-get template :cc)
-					(message-replace-header "Cc"
-																	(concat (emacsconf-replace-plist-in-string attrs (plist-get template :cc))
-																					(if (message-field-value "Cc") (concat ", " (message-field-value "Cc")) "")))))
-		;; compose a new message
-		(compose-mail
-		 email
-		 (emacsconf-replace-plist-in-string attrs (or (plist-get template :subject) ""))
-		 (delq nil
-					 (list
-						(if (plist-get template :reply-to) (cons "Reply-To" (emacsconf-replace-plist-in-string attrs (plist-get template :reply-to))))
-						(if (plist-get template :mail-followup-to)
-								(cons "Mail-Followup-To" (emacsconf-replace-plist-in-string attrs (plist-get template :mail-followup-to))))
-						(if (plist-get template :cc)
-								(cons "Cc" (emacsconf-replace-plist-in-string attrs (plist-get template :cc))))))))
+	(let ((fields '((:reply-to "Reply-To")
+									(:mail-followup-to "Mail-Followup-To")
+									(:cc "Cc"))))
+		(if (and (derived-mode-p 'message-mode) (string-match "unsent mail" (buffer-name)))
+				;; add to headers
+				(progn
+					(when (plist-get template :subject)
+						(message-replace-header
+						 "Subject"
+						 (format "%s (was %s)"
+										 (emacsconf-replace-plist-in-string attrs (or (plist-get template :subject) ""))
+										 (message-field-value "Subject"))))
+					(mapc (lambda (field)
+									(when (plist-get template (car field))
+										(message-replace-header
+										 (cadr field)
+										 (concat (emacsconf-replace-plist-in-string attrs (plist-get template (car field)))
+														 (if (message-field-value (cadr field))
+																 (format
+																	(if (string= (cadr field) "Subject")
+																			" (was %s)"
+																		", %s")
+																	(message-field-value (cadr field)))
+															 "")))))
+								fields))
+			;; compose a new message
+			(compose-mail
+			 email
+			 (emacsconf-replace-plist-in-string attrs (or (plist-get template :subject) ""))
+			 (seq-keep (lambda (field)
+									 (when (plist-get template (car field))
+										 (cons
+											(cadr field)
+											(emacsconf-replace-plist-in-string
+											 attrs
+											 (plist-get template (car field))))))
+								 fields))))
   (message-sort-headers)
   (message-goto-body)
   (save-excursion
@@ -79,14 +86,19 @@ Use ATTRS to fill in the template."
     (emacsconf-mail-merge-wrap)))
 
 (defun emacsconf-mail-template-to-me ()
-  "Might be useful for testing."
+  "Set up the current template for a talk, but e-mail it only to me."
   (interactive)
-  (let* ((template (if (org-entry-get (point) "EMAIL_ID")
-                       (emacsconf-mail-merge-get-template-from-subtree)
-                     (emacsconf-mail-merge-get-template
-                      (completing-read "Template: " (org-property-values "EMAIL_ID")))))
-         (mail-func (plist-get template :function)))
-    (funcall mail-func user-mail-address template)))
+	(call-interactively
+	 (cond
+		((and (derived-mode-p 'org-mode) (org-entry-get (point) "FUNCTION"))
+		 (intern (org-entry-get (point) "FUNCTION")))
+		((and (derived-mode-p 'org-mode) (org-entry-get (point) "EMAIL_ID"))
+		 (plist-get (emacsconf-mail-merge-get-template-from-subtree) :function))
+		(t
+		 (intern (completing-read "Function: "
+															(when (derived-mode-p 'org-mode)
+																(org-property-values "FUNCTION")))))))
+	(message-replace-header "To" user-mail-address))
 
 (defun emacsconf-mail-template-to-volunteer (volunteer)
   "Prompt for a volunteer and e-mail current template to them."
@@ -326,26 +338,6 @@ Group by e-mail."
 			data)
 ))
 
-;;;###autoload
-(defun emacsconf-mail-review ()
-	"Let the speaker know we've received their proposal."
-	(interactive)
-	(let ((notification-date (format-time-string
-														"%Y-%m-%d"
-														(time-add
-														 (days-to-time emacsconf-review-days)
-														 (date-to-time (plist-get (plist-get (notmuch-show-get-message-properties) :headers) :Date))))))
-		(notmuch-show-reply)
-		(message-goto-body)
-		(save-excursion
-			(insert (format
-							 "Thanks for submitting your proposal! (ZZZ TODO: feedback)
-
-We'll wait a week (~ %s) in case the other volunteers want to chime in regarding your talk. =)
-
-"
-							 notification-date)))))
-
 ;; Documented in https://sachachua.com/blog/2023/09/emacsconf-capturing-submissions-from-e-mails/
 ;;;###autoload
 (defun emacsconf-mail-add-submission (slug)
@@ -556,6 +548,85 @@ This includes NAME_SHORT and EMAIL_NOTES."
 											(emacsconf-surround "--- ZZZ ---\n" (plist-get talk :email-notes) "\n------\n\n" ""))))
 		(unless (string= info "")
 			(save-excursion (insert info)))))
+
+;;; Templates
+
+;;;###autoload
+(defun emacsconf-mail-review (talk)
+	"Let the speaker know we've received their proposal."
+	(interactive (list (emacsconf-complete-talk-info)))
+	(emacsconf-mail-prepare '(:subject "${conf-name} ${year} review: ${title}"
+											 :cc "emacsconf-submit@gnu.org"
+											 :reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+											 :mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+											 :body "
+Hi, ${speakers-short}!
+
+Thanks for submitting your proposal! (ZZZ TODO: feedback)
+
+We'll wait a week (~ ${notification-date}) in case the other volunteers want to chime in regarding your talk. =)
+
+${signature}
+")
+						(plist-get talk :email)
+						(list
+						 :user-email user-mail-address
+						 :signature user-full-name
+						 :title (plist-get talk :title)
+						 :email (plist-get talk :email)
+						 :conf-name emacsconf-name
+						 :speakers-short (plist-get talk :speakers-short)
+						 :year emacsconf-year
+						 :notification-date (plist-get talk :date-to-notify))))
+
+(defun emacsconf-mail-accept-talk (talk)
+	"Send acceptance letter."
+  (interactive (list (emacsconf-complete-talk-info)))
+  (emacsconf-mail-prepare '(:subject "${conf-name} ${year} acceptance: ${title}"
+											 :cc "emacsconf-submit@gnu.org"
+											 :slugs nil
+											 :reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+											 :mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+											 :body
+											 "
+Hi, ${speakers-short}!
+
+Looks like all systems are a go for your talk. Thanks for
+proposing it! Your talk page is now at ${url} . Please feel free
+to update it or e-mail us if you'd like help with any changes.${fill}
+
+If you want to get started on your talk early, we have some
+instructions at ${base}${year}/prepare/ that might help.
+We strongly encourage speakers to prepare a talk video by
+${video-target-date} in order to reduce technical risks and make
+things flow more smoothly. Plus, we might be able to get it captioned
+by volunteers, just like the talks last year. We'll save ${time} minutes
+for your talk, not including time for Q&A. Don't sweat it if
+you're a few minutes over or under. If it looks like a much shorter or
+longer talk once you start getting into it, let us know and we might
+be able to adjust.${fill}
+
+I'll follow up with the specific schedule for your talk once things
+settle down. In the meantime, please let us know if you have any
+questions or if there's anything we can do to help out!
+
+${signature}"
+											 :function emacsconf-mail-accept-talk
+											 :log-note "accepted talk")
+   (plist-get talk :email)
+   (list
+		:base emacsconf-base-url
+		:user-email user-mail-address
+		:title (plist-get talk :title)
+		:email (plist-get talk :email)
+		:time (plist-get talk :time)
+		:signature user-full-name
+		:conf-name emacsconf-name
+		:speakers-short (plist-get talk :speakers-short)
+		:url (concat emacsconf-base-url (plist-get talk :url))
+		:video-target-date emacsconf-video-target-date
+		:year emacsconf-year)))
+
 
 (provide 'emacsconf-mail)
 ;;; emacsconf-mail.el ends here
