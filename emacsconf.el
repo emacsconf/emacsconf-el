@@ -47,6 +47,9 @@
 (defcustom emacsconf-video-target-date "2023-11-04" "Target date for receiving talk videos from the speakers."
 	:group 'emacsconf
 	:type 'string)
+(defcustom emacsconf-schedule-announcement-date "2023-10-25" "Date for publishing the schedule."
+	:group 'emacsconf
+	:type 'string)
 (defcustom emacsconf-directory "~/vendor/emacsconf-wiki"
   "Directory where the wiki files are."
   :group 'emacsconf
@@ -958,6 +961,7 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
     "u" #'emacsconf-update-talk
     "t" #'emacsconf-insert-talk-title
     "m" #'emacsconf-mail-speaker-from-slug
+		"l" #'emacsconf-add-to-talk-logbook
     "M" #'emacsconf-mail-insert-info
     "n" #'emacsconf-mail-notmuch-search-for-talk
     "f" #'org-forward-heading-same-level
@@ -1560,8 +1564,8 @@ tracks with the ID in the cdr of that list."
 
 	(defun emacsconf-el-export (link description format _)
 		"Export link to emacsconf-el file."
-		(format "<a href=\"https://git.emacsconf.org/emacsconf-el/tree/%s\">%s</a>"
-						link (or description link)))
+		(format "<a href=\"https://git.emacsconf.org/emacsconf-el/tree/%s.el\">%s</a>"
+						(file-name-nondirectory link) (or description link)))
 	
 	(org-link-set-parameters
 	 "emacsconf-el"
@@ -1618,10 +1622,11 @@ tracks with the ID in the cdr of that list."
 										 (and (emacsconf-publish-talk-p o)
 													(plist-get o :date-submitted)
 													(cons (floor (/ (days-between (plist-get o :date-submitted) cfp-deadline)
-																					-7.0))
+																					7.0))
 																(string-to-number
 																 (or (plist-get o :video-duration)
-																		 (plist-get o :time))))))
+																		 (plist-get o :time)
+																		 "0")))))
 									 info)
 									(lambda (a b) (< (car a) (car b))))))))
 (provide 'emacsconf)

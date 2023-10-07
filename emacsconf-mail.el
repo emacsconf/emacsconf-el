@@ -25,7 +25,9 @@
 ;;; Code:
 
 (defun emacsconf-mail-groups (&optional info)
-	(setq info (emacsconf-filter-talks (or info (emacsconf-get-talk-info))))
+	"Group all the talks by e-mail address."
+	(setq info (seq-filter (lambda (o) (plist-get o :email))
+												 (emacsconf-filter-talks (or info (emacsconf-get-talk-info)))))
 	(seq-group-by (lambda (o) (plist-get o :email)) info))
 
 (defun emacsconf-mail-complete-email-group (&optional info)
@@ -33,71 +35,139 @@
   (setq info (emacsconf-filter-talks (or info (emacsconf-get-talk-info))))
 	(save-window-excursion
     (let* ((grouped (emacsconf-mail-groups info))
-           (slug (emacsconf-get-slug-from-string (emacsconf-complete-talk info)))
-           (email (plist-get (seq-find (lambda (o) (string= (plist-get o :slug) slug)) info) :email)))
+           (talk (emacsconf-resolve-talk (emacsconf-complete-talk-info info)))
+           (email (plist-get talk :email)))
       (assoc email grouped))))
+
+(defvar emacsconf-mail-prepare-behavior nil "*Modify behavior for preparing messages.
+String: insert into buffer with that name
+t: insert into current buffer
+'new-message: always create new message.")
+
+(defun emacsconf-mail-update-reply-headers (template _ attrs fields)
+	"Update the current reply with TEMPLATE, ATTRS, and FIELDS."
+	(when (plist-get template :subject)
+		(message-replace-header
+		 "Subject"
+		 (format "%s (was %s)"
+						 (emacsconf-replace-plist-in-string attrs (or (plist-get template :subject) ""))
+						 (message-field-value "Subject"))))
+	(mapc (lambda (field)
+					(when (plist-get template (car field))
+						(message-replace-header
+						 (cadr field)
+						 (concat (emacsconf-replace-plist-in-string attrs (plist-get template (car field)))
+										 (if (message-field-value (cadr field))
+												 (format
+													(if (string= (cadr field) "Subject")
+															" (was %s)"
+														", %s")
+													(message-field-value (cadr field)))
+											 "")))))
+				fields))
+
+(defun emacsconf-mail-prepare-for-batch-test (template email attrs fields)
+	"Put the e-mail in the `emacsconf-mail-batch-test' buffer .
+Compose it using TEMPLATE, EMAIL, and ATTRS."
+	(with-current-buffer (cond ((eq emacsconf-mail-prepare-behavior t) (current-buffer))
+														 ((stringp emacsconf-mail-prepare-behavior) (get-buffer-create emacsconf-mail-prepare-behavior)))
+		(save-excursion
+			(goto-char (point-max))
+			(insert
+			 "* " email "\n"
+			 (string-join
+				(seq-keep (lambda (field)
+										(and (plist-get template (car field))
+												 (concat (cadr field) ": "
+																 (emacsconf-replace-plist-in-string attrs (plist-get template (car field)))
+																 "\n")))
+									(append '((:subject "Subject")) fields))
+				"")
+			 (string-trim (emacsconf-replace-plist-in-string attrs (plist-get template :body)))
+			 "\n\n"
+			 (make-string 50 ?-)
+			 "\n"))
+		(emacsconf-mail-merge-wrap (point) (point-max))
+		(goto-char (point-max))
+		(display-buffer (current-buffer))))
+
+(defun emacsconf-mail-uniquify-headers ()
+	"Make sure the mail headers contain unique values."
+	(mapc (lambda (header)
+					(when (message-field-value header)
+						(message-replace-header
+						 header
+						 (string-join (seq-uniq (seq-map #'mail-strip-quoted-names
+																							 (message-tokenize-header (message-field-value header)))
+																		'string=) ", "))))
+				'("To" "Cc" "Bcc" "Mail-Followup-To" "Mail-Reply-To" "Reply-To"))
+	;; Set Cc to only e-mail addresses not in To:
+	(when (and (message-field-value "To") (message-field-value "Cc"))
+		(message-replace-header
+		 "Cc"
+		 (string-join (seq-difference (message-tokenize-header (message-field-value "Cc"))
+																	(message-tokenize-header (message-field-value "To"))
+																	'string=)
+									", "))))
 
 (defun emacsconf-mail-prepare (template email attrs)
 	"Prepare the e-mail following TEMPLATE. Send it to EMAIL.
-Use ATTRS to fill in the template."
+Use ATTRS to fill in the template.
+Behavior is modified by `emacsconf-mail-prepare-behavior'."
 	(let ((fields '((:reply-to "Reply-To")
 									(:mail-followup-to "Mail-Followup-To")
-									(:cc "Cc"))))
-		(if (and (derived-mode-p 'message-mode) (string-match "unsent mail" (buffer-name)))
-				;; add to headers
-				(progn
-					(when (plist-get template :subject)
-						(message-replace-header
-						 "Subject"
-						 (format "%s (was %s)"
-										 (emacsconf-replace-plist-in-string attrs (or (plist-get template :subject) ""))
-										 (message-field-value "Subject"))))
-					(mapc (lambda (field)
-									(when (plist-get template (car field))
-										(message-replace-header
-										 (cadr field)
-										 (concat (emacsconf-replace-plist-in-string attrs (plist-get template (car field)))
-														 (if (message-field-value (cadr field))
-																 (format
-																	(if (string= (cadr field) "Subject")
-																			" (was %s)"
-																		", %s")
-																	(message-field-value (cadr field)))
-															 "")))))
-								fields))
-			;; compose a new message
-			(compose-mail
-			 email
-			 (emacsconf-replace-plist-in-string attrs (or (plist-get template :subject) ""))
-			 (seq-keep (lambda (field)
-									 (when (plist-get template (car field))
-										 (cons
-											(cadr field)
-											(emacsconf-replace-plist-in-string
-											 attrs
-											 (plist-get template (car field))))))
-								 fields))))
-  (message-sort-headers)
-  (message-goto-body)
-  (save-excursion
-		(insert (string-trim (emacsconf-replace-plist-in-string attrs (plist-get template :body)))
-						"\n\n")
-    (goto-char (point-min))
-    (emacsconf-mail-merge-wrap)))
+									(:cc "Cc")
+									(:bcc "Bcc"))))
+		(unless (plist-get template :bcc) (setq template (append template (list :bcc emacsconf-mail-bcc-email))))
+		(if (or (eq emacsconf-mail-prepare-behavior t) (stringp emacsconf-mail-prepare-behavior))
+				(emacsconf-mail-prepare-for-batch-test template email attrs fields)
+			;; prepare to send the mail
+			(if (and (derived-mode-p 'message-mode)
+							 (string-match "unsent mail" (buffer-name))
+							 (not (eq emacsconf-mail-prepare-behavior 'new-message)))
+					;; add to headers
+					(emacsconf-mail-update-reply-headers template email attrs fields) 
+				;; compose a new message
+				(compose-mail
+				 email
+				 (emacsconf-replace-plist-in-string attrs (or (plist-get template :subject) ""))
+				 (seq-keep (lambda (field)
+										 (when (plist-get template (car field))
+											 (cons
+												(cadr field)
+												(emacsconf-replace-plist-in-string
+												 attrs
+												 (plist-get template (car field))))))
+									 fields)))
+			(message-sort-headers)
+			(emacsconf-mail-uniquify-headers)
+			(message-goto-body)
+			(save-excursion
+				(insert (string-trim (emacsconf-replace-plist-in-string attrs (plist-get template :body)))
+								"\n\n")
+				(goto-char (point-min))
+				(emacsconf-mail-merge-wrap))
+			(when (plist-get template :log-note)
+				(mapc (lambda (talk)
+								(emacsconf-mail-log-message-when-sent talk (plist-get template :log-note)))
+							(cdr group))))))
 
-(defun emacsconf-mail-template-to-me ()
+(defun emacsconf-mail-complete-template-function ()
+	"Get a mail template function."
+	(intern (completing-read "Function: "
+													 (or (when (derived-mode-p 'org-mode)
+																 (seq-map #'intern (org-property-values "FUNCTION")))
+															 #'help--symbol-completion-table)
+													 (lambda (f)
+														 (and (commandp f)
+																	(string-match "emacsconf-mail" (symbol-name f))))
+													 nil nil nil
+													 (and (derived-mode-p 'org-mode) (org-entry-get (point) "FUNCTION")))))
+
+(defun emacsconf-mail-template-to-me (template-function)
   "Set up the current template for a talk, but e-mail it only to me."
-  (interactive)
-	(call-interactively
-	 (cond
-		((and (derived-mode-p 'org-mode) (org-entry-get (point) "FUNCTION"))
-		 (intern (org-entry-get (point) "FUNCTION")))
-		((and (derived-mode-p 'org-mode) (org-entry-get (point) "EMAIL_ID"))
-		 (plist-get (emacsconf-mail-merge-get-template-from-subtree) :function))
-		(t
-		 (intern (completing-read "Function: "
-															(when (derived-mode-p 'org-mode)
-																(org-property-values "FUNCTION")))))))
+  (interactive (list (emacsconf-mail-complete-template-function)))
+	(call-interactively template-function)
 	(message-replace-header "To" user-mail-address))
 
 (defun emacsconf-mail-template-to-volunteer (volunteer)
@@ -111,44 +181,41 @@ Use ATTRS to fill in the template."
         (mail-func (plist-get template :function)))
     (funcall mail-func (emacsconf-complete-volunteer) template)))
 
-(defun emacsconf-mail-template-to-first-group ()
-  "Draft the current template for the first group on the list."
-  (interactive)
-  (let* ((template (if (org-entry-get (point) "EMAIL_ID")
-                       (emacsconf-mail-merge-get-template-from-subtree)
-                     (emacsconf-mail-merge-get-template
-                      (completing-read "Template: " (org-property-values "EMAIL_ID")))))
-         (mail-func (plist-get template :function))
-				 (filtered-talks (emacsconf-mail-filter-talks-by-template template))
-				 (group (car (emacsconf-mail-groups (emacsconf-mail-filter-talks-by-template template)))))
-		(if filtered-talks
-				(progn
-					(funcall mail-func group template)
-					(when (plist-get template :log-note)
-						(mapc (lambda (talk)
-										(emacsconf-mail-log-message-when-sent talk (plist-get template :log-note)))
-									(cdr group))))
-			(message "All done!"))))
+;; TODO: Figure out how to rewrite this for templates that specify slugs
+;; (defun emacsconf-mail-template-to-first-group ()
+;;   "Draft the current template for the first group on the list."
+;;   (interactive)
+;;   (let* ((mail-func (emacsconf-mail-complete-template-function))
+;; 				 (filtered-talks (emacsconf-mail-filter-talks-by-template template))
+;; 				 (group (car (emacsconf-mail-groups (emacsconf-mail-filter-talks-by-template template)))))
+;; 		(if filtered-talks
+;; 				(progn
+;; 					(funcall mail-func group template)
+;; 					(when (plist-get template :log-note)
+;; 						(mapc (lambda (talk)
+;; 										(emacsconf-mail-log-message-when-sent talk (plist-get template :log-note)))
+;; 									(cdr group))))
+;; 			(message "All done!"))))
 
-(defun emacsconf-mail-template-to-group ()
-  "Prompt for a speaker and e-mail current template to them."
-  (interactive)
-  (let* ((template (if (org-entry-get (point) "EMAIL_ID")
-                       (emacsconf-mail-merge-get-template-from-subtree)
-                     (emacsconf-mail-merge-get-template
-                      (completing-read "Template: " (org-property-values "EMAIL_ID")))))
-         (mail-func (plist-get template :function))
-				 (filtered-talks (emacsconf-mail-filter-talks-by-template template))
-				 (group (emacsconf-mail-complete-email-group
-								 filtered-talks)))
-		(if filtered-talks
-				(progn
-					(funcall mail-func group template)
-					(when (plist-get template :log-note)
-						(mapc (lambda (talk)
-										(emacsconf-mail-log-message-when-sent talk (plist-get template :log-note)))
-									(cdr group))))
-			(message "All done!"))))
+;; (defun emacsconf-mail-template-to-group ()
+;;   "Prompt for a speaker and e-mail current template to them."
+;;   (interactive)
+;;   (let* ((template (if (org-entry-get (point) "EMAIL_ID")
+;;                        (emacsconf-mail-merge-get-template-from-subtree)
+;;                      (emacsconf-mail-merge-get-template
+;;                       (completing-read "Template: " (org-property-values "EMAIL_ID")))))
+;;          (mail-func (plist-get template :function))
+;; 				 (filtered-talks (emacsconf-mail-filter-talks-by-template template))
+;; 				 (group (emacsconf-mail-complete-email-group
+;; 								 filtered-talks)))
+;; 		(if filtered-talks
+;; 				(progn
+;; 					(funcall mail-func group template)
+;; 					(when (plist-get template :log-note)
+;; 						(mapc (lambda (talk)
+;; 										(emacsconf-mail-log-message-when-sent talk (plist-get template :log-note)))
+;; 									(cdr group))))
+;; 			(message "All done!"))))
 
 (defun emacsconf-mail-filter-talks-by-template (template)
 	(let ((list (emacsconf-prepare-for-display (emacsconf-filter-talks (emacsconf-get-talk-info)))))
@@ -163,23 +230,16 @@ Use ATTRS to fill in the template."
 						 list)))
 		list))
 
-(defun emacsconf-mail-template-to-all-groups ()
+(defun emacsconf-mail-template-to-all-groups (&optional arg)
   "Uses the current template to draft messages to all the speakers.
-Group by e-mail."
-  (interactive)
-  (let* ((template (if (org-entry-get (point) "EMAIL_ID")
-                       (emacsconf-mail-merge-get-template-from-subtree)
-                     (emacsconf-mail-merge-get-template
-                      (completing-read "Template: " (org-property-values "EMAIL_ID")))))
-         (info (emacsconf-mail-filter-talks-by-template template))
-         (grouped (emacsconf-mail-group-by-email info))
-         (mail-func (plist-get template :function)))
+Group by e-mail.  With prefix argument (e.g. \\[universal-argument]),
+insert into the current buffer instead of drafting e-mails."
+  (interactive "P")
+  (let* ((mail-func (emacsconf-mail-complete-template-function))
+         (grouped (emacsconf-mail-group-by-email))
+				 (emacsconf-mail-prepare-behavior (if arg t 'new-message)))
     (mapc (lambda (group)
-            (funcall mail-func group template)
-						(when (plist-get template :log-note)
-							(mapc (lambda (talk)
-											(emacsconf-mail-log-message-when-sent talk (plist-get template :log-note)))
-										(cdr group))))
+            (funcall mail-func group))
           grouped)))
 
 (defun emacsconf-mail-log-message-when-sent (o message)
@@ -189,8 +249,11 @@ Group by e-mail."
                  (emacsconf-add-to-talk-logbook ,(plist-get o :slug) ,message)))
             nil t))
 
-(defun emacsconf-mail-group-by-email (info)
-  (seq-group-by (lambda (o) (plist-get o :email)) info))
+(defun emacsconf-mail-group-by-email (&optional info)
+  (seq-group-by (lambda (o) (plist-get o :email))
+								(or info (seq-filter (lambda (o) (and (plist-get o :email)
+																											(not (string= (plist-get o :status) "CANCELLED"))))
+																		 (emacsconf-get-talk-info)))))
 
 ;;;###autoload
 (defun emacsconf-mail-speaker-from-slug (talk)
@@ -239,11 +302,14 @@ Group by e-mail."
 
 
 
-(defun emacsconf-mail-merge-wrap ()
-  (interactive)
+(defun emacsconf-mail-merge-wrap (&optional beg end)
+  (interactive "r")
+	(unless beg (setq beg (point-min)))
+	(unless end (setq end (point-max)))
   (with-undo-amalgamate 
     (save-excursion
-      (while (re-search-forward " *${wrap}" nil t)
+			(goto-char beg)
+      (while (re-search-forward " *${\\(wrap\\|fill\\)}" end t)
         (replace-match "")
         (fill-paragraph)))))
 
@@ -433,7 +499,8 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
                   subject
                   `(("Reply-To" . ,(plist-get template :reply-to))
                     ("Mail-Followup-To" . ,(plist-get template :mail-followup-to))
-                    ("Cc" . ,(plist-get template :cc))))
+                    ("Cc" . ,(plist-get template :cc))
+										("Bcc" . ,(plist-get template :bcc))))
     (message-goto-body)
     (save-excursion 
       (when note (insert "#+NOTE: " note "\n======== Delete above before sending =============\n\n"))
@@ -604,7 +671,7 @@ by volunteers, just like the talks last year. We'll save ${time} minutes
 for your talk, not including time for Q&A. Don't sweat it if
 you're a few minutes over or under. If it looks like a much shorter or
 longer talk once you start getting into it, let us know and we might
-be able to adjust.${fill}
+be able to adjust.${wrap}
 
 I'll follow up with the specific schedule for your talk once things
 settle down. In the meantime, please let us know if you have any
@@ -617,16 +684,305 @@ ${signature}"
    (list
 		:base emacsconf-base-url
 		:user-email user-mail-address
+		:year emacsconf-year
+		:signature user-full-name
+		:conf-name emacsconf-name
 		:title (plist-get talk :title)
 		:email (plist-get talk :email)
 		:time (plist-get talk :time)
-		:signature user-full-name
-		:conf-name emacsconf-name
 		:speakers-short (plist-get talk :speakers-short)
 		:url (concat emacsconf-base-url (plist-get talk :url))
-		:video-target-date emacsconf-video-target-date
-		:year emacsconf-year)))
+		:video-target-date emacsconf-video-target-date)))
 
+(defvar emacsconf-mail-bcc-email "*Extra e-mail address to Bcc for delivery confirmation.")
+
+(defun emacsconf-mail-format-talk-schedule (o)
+	"Format the schedule for O for inclusion in mail messages etc."
+	(interactive (list (emacsconf-complete-talk)))
+	(when (stringp o)
+		(setq o
+					(emacsconf-resolve-talk
+					 (emacsconf-get-slug-from-string o)
+					 (or emacsconf-schedule-draft (emacsconf-get-talk-info)))))
+	(let ((result
+				 (concat
+					(plist-get o :title) "\n"
+					(format-time-string "%b %-e %a %-I:%M %#p %Z" (plist-get o :start-time) emacsconf-timezone) "\n"
+					(if (and (plist-get o :timezone) (not (string= (plist-get o :timezone) emacsconf-timezone)))
+							(if (string= (format-time-string "%z" (plist-get o :start-time) (plist-get o :timezone))
+													 (format-time-string "%z" (plist-get o :start-time) emacsconf-timezone))
+									(format "which is the same time in your local timezone %s\n"
+													(emacsconf-schedule-rename-etc-timezone (plist-get o :timezone)))
+								(format "translated to your local timezone %s: %s\n"
+												(emacsconf-schedule-rename-etc-timezone (plist-get o :timezone))
+												(format-time-string "%b %-e %a %-I:%M %#p %Z" (plist-get o :start-time) (plist-get o :timezone))))
+						""))))
+		(when (called-interactively-p 'any)
+			(insert result))
+		result))
+
+(defun emacsconf-mail-draft-schedule (group &optional arg)
+	"Send draft schedule to speakers.
+GROUP is (email . (talk talk talk)).
+If called with ARG, insert into current buffer instead of composing or updating a message."
+  (interactive (list (emacsconf-mail-complete-email-group) current-prefix-arg))
+	(let ((emacsconf-mail-prepare-behavior (if arg t emacsconf-mail-prepare-behavior)))
+		(emacsconf-mail-prepare
+		 (list
+			:subject
+			"${conf-name} ${year} draft schedule FYI: ${slugs}"
+			:reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+			:mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+			:filter (lambda (talk)
+								(and (plist-get talk :email)
+										 (not (string= (plist-get talk :status) "CANCELLED"))))
+			:body
+			(if (emacsconf-schedule-q-and-a-p (cadr group))
+					;; live
+					"${email-notes}Hi, ${speakers-short}!
+
+There are so many wonderful talks at ${conf-name} this year! I
+think we're going to have a two-track conference again, so I
+wanted to run the draft schedule by you in case you had any
+comments or requests.
+
+You can see the draft schedule at
+${base}${year}/organizers-notebook/?highlight=${slugs}#draft-schedule
+.  If you use a Javascript-enabled browser, your talk${plural}
+will be highlighted with a black border in the schedule, and your
+talk ID${plural} (${slugs}) will be highlighted with a yellow
+background in the notes that follow.${wrap}
+
+As of the time I write this e-mail, your tentative schedule is:
+
+${schedule}
+${availability-note}${timezone-note}I might also be able to move things around if you want to
+attend any conflicting Q&A sessions or if your availability
+changes.${wrap}
+
+Things may have changed a little depending on what other speakers
+have asked for, and we'll also update the schedule as we get
+closer to the conference. I'll let you know if the schedule for
+your talk${plural} changes by more than 2 hours, and we'll send
+the updated schedule along with check-in instructions before the
+conference.${wrap}
+
+We plan to announce the schedule to the general public on
+${schedule-announcement-date}, so we'd love to incorporate any
+schedule feedback before then.${wrap}
+
+In the meantime, good luck working on your presentation. ${todos}
+Looking forward to ${conf-name} with you!
+
+${signature}
+"
+				;; after the event
+				"${email-notes}Hi, ${speakers-short}!
+
+There are so many wonderful talks at ${conf-name} this year! I
+think we're going to have a two-track conference again. You've
+indicated that you'd like to take questions after the conference,
+so that's totally all right. You don't have to make it to the
+time your talk is scheduled; this e-mail is just to keep you up
+to date. =)
+
+You can see the draft schedule at
+${base}${year}/organizers-notebook/?highlight=${slugs}#draft-schedule
+.  If you use a Javascript-enabled browser, your talk${plural}
+will have a black border in the schedule and a yellow background
+in the notes that follow.
+
+We'll also update the schedule as we get closer to the
+conference, but I'll let you know if things change a lot. Anyway,
+that's how things are shaping up.
+
+In the meantime, good luck working on your presentation. ${todos}
+Looking forward to ${conf-name} with you!
+
+${signature}
+"))
+		 (plist-get (cadr group) :email)
+		 (list
+			:schedule-announcement-date emacsconf-schedule-announcement-date
+			:slugs (mapconcat (lambda (o) (plist-get o :slug)) (cdr group) ",")
+			:email (plist-get (cadr group) :email)
+			:base emacsconf-base-url
+			:user-email user-mail-address
+			:year emacsconf-year
+			:signature user-full-name
+			:conf-name emacsconf-name
+			:speakers-short (plist-get (cadr group) :speakers-short)
+			:plural (if (= 1 (length (cdr group))) "" "s")
+			:todos
+			(concat
+			 (if (= 1 (length (cdr group))) "Here's a handy TODO you can use if you want:" "Here are handy TODOs you can use if you want:")
+			 "\n\n"
+			 (mapconcat
+				(lambda (o)
+					(emacsconf-replace-plist-in-string
+					 (list :title (plist-get o :title)
+								 :conf-name emacsconf-name
+								 :year emacsconf-year
+								 :video-target-date (format-time-string "%Y-%m-%d %a" (date-to-time emacsconf-video-target-date))
+								 :submit-email emacsconf-submit-email
+								 :base emacsconf-base-url
+								 :q-and-a (if (emacsconf-schedule-q-and-a-p o) " (+ time afterwards for Q&A)" "")
+								 :time (plist-get o :time)
+								 :url (plist-get o :url))
+					 "** TODO Prepare \"${title}\" for ${conf-name} ${year}
+   DEADLINE: <${video-target-date}>
+   (feel free to send it in earlier; let us know at ${submit-email} you're running late)
+   Reserved time: ${time} minutes${q-and-a}
+   Instructions: ${base}${year}/prepare/
+   Talk page: ${base}${url}
+"))
+				(cdr group) "\n\n"))
+			:email-notes (emacsconf-surround "ZZZ: " (plist-get (cadr group) :email-notes) "\n\n" "")
+			:schedule
+			(emacsconf-indent-string (mapconcat #'emacsconf-mail-format-talk-schedule (cdr group) "\n") 2)
+			:availability-note
+			(if (delq nil (emacsconf-schedule-get-time-constraint (cadr group)))
+					(emacsconf-replace-plist-in-string
+					 (list :constraint (emacsconf-schedule-format-time-constraint (cadr group) t (plist-get (cadr group) :timezone)))
+					 "I'm using \"${constraint}\" as the availability constraint for you when planning the talks, but since I sometimes mess up encoding these things, could you please doublecheck that this works for you? ")
+				"I think you've indicated being available during the conference hours. Thanks for your flexibility. ")
+			:timezone-note
+			(if (plist-get (cadr group) :timezone)
+					(emacsconf-replace-plist-in-string
+					 (append
+						(list :renamed-timezone (emacsconf-schedule-rename-etc-timezone (plist-get (cadr group) :timezone)))
+						(cadr group))
+					 "Just let me know if you want us to use a different timezone for translating times in future e-mails. ")
+				"I don't think I have a timezone noted for you yet. If you want, I can translate times into your local timezone for you in future e-mails. Just let me know what you would like. ")))))
+
+(defun emacsconf-mail-verify-delivery (groups subject)
+	"Verify that the email addresses in GROUPS have all received an email with SUBJECT."
+	(interactive (list (emacsconf-mail-groups (seq-filter (lambda (o) (not (string= (plist-get o :status) "CANCELLED")))
+																					(emacsconf-get-talk-info)))
+										 (read-string "Subject: ")))
+	(let ((missing
+				 (seq-keep (lambda (group)
+										 (and (string= "0"
+																	 (string-trim
+																		(shell-command-to-string
+																		 (format "notmuch count to:%s and to:%s and subject:%s"
+																						 (shell-quote-argument (car group))
+																						 (shell-quote-argument emacsconf-mail-bcc-email)
+																						 subject))))
+													(car group)))
+									 groups)))
+		(if missing
+				(prin1 missing)
+			(message "All good."))))
+
+(defun emacsconf-mail-get-all-email-addresses (talk)
+	"Return all the possible e-mail addresses for TALK."
+	(split-string
+	 (downcase
+		(string-join
+		 (seq-uniq
+			(seq-keep
+			 (lambda (field) (plist-get talk field))
+			 '(:email :public-email :email-alias)))
+		 ","))
+	 " *, *"))
+
+(defvar emacsconf-mail-notmuch-tag "emacsconf" "Tag to use when searching the Notmuch database for mail.")
+(defun emacsconf-mail-notmuch-last-message-for-talk (talk &optional subject)
+	"Return the most recent message from the speakers for TALK.
+Limit to SUBJECT if specified."
+	(let ((message (json-parse-string
+									(shell-command-to-string
+									 (format "notmuch search --limit=1 --format=json \"(%s)%s%s\""
+													 (mapconcat
+														(lambda (email) (concat "from:" (shell-quote-argument email)))
+														(emacsconf-mail-get-all-email-addresses talk)
+														" or ")
+													 (emacsconf-surround
+														" and "
+														(and emacsconf-mail-notmuch-tag (shell-quote-argument emacsconf-mail-notmuch-tag))
+														"" "")
+													 (emacsconf-surround
+														" and subject:"
+														(and subject (shell-quote-argument subject)) "" "")))
+									:object-type 'alist)))
+		(cons `(email . ,(plist-get talk :email))
+					(when (> (length message) 0)
+						(elt message 0)))))
+
+(defun emacsconf-mail-notmuch-visit-thread-from-summary ()
+	"Display the thread from the summary."
+	(interactive)
+	(let (message-buffer)
+		(save-window-excursion
+			(setq message-buffer (notmuch-show (tabulated-list-get-id))))
+		(display-buffer message-buffer t)))
+
+(defun emacsconf-mail-notmuch-show-latest-messages-from-speakers (groups &optional subject)
+	"Verify that the email addresses in GROUPS have e-mailed recently.
+When called interactively, pop up a report buffer showing the e-mails
+and messages by date, with oldest messages on top.
+This minimizes the risk of mail delivery issues and radio silence."
+	(interactive (list (emacsconf-mail-groups (seq-filter
+															 (lambda (o) (not (string= (plist-get o :status) "CANCELLED")))
+															 (emacsconf-get-talk-info)))))
+	(let ((results
+				 (sort (mapcar
+								(lambda (group)
+									(emacsconf-mail-notmuch-last-message-for-talk (cadr group) subject))
+								groups)
+							 (lambda (a b)
+								 (< (or (alist-get 'timestamp a) -1)
+										(or (alist-get 'timestamp b) -1))))))
+		(when (called-interactively-p 'any)
+			(with-current-buffer (get-buffer-create "*Mail report*")
+				(let ((inhibit-read-only t))
+					(erase-buffer))
+				(tabulated-list-mode)
+				(setq
+				 tabulated-list-entries
+				 (mapcar
+					(lambda (row)
+						(list
+						 (alist-get 'thread row)
+						 (vector
+							(alist-get 'email row)
+							(or (alist-get 'date_relative row) "")
+							(or (alist-get 'subject row) ""))))
+					results))
+				(setq tabulated-list-format [("Email" 30 t)
+																		 ("Date" 10 nil)
+																		 ("Subject" 30 t)])
+				(local-set-key (kbd "RET") #'emacsconf-mail-notmuch-visit-thread-from-summary)
+				(tabulated-list-print)
+				(tabulated-list-init-header)
+				(pop-to-buffer (current-buffer))))
+		results))
+
+(defun emacsconf-mail-talks (email)
+	"Return a list of talks matching EMAIL."
+	(setq email (downcase (mail-strip-quoted-names email)))
+	(seq-filter
+	 (lambda (o) (member email (emacsconf-mail-get-all-email-addresses o)))
+	 (emacsconf-get-talk-info)))
+
+(defun emacsconf-mail-add-to-logbook (email note)
+	"Add to logbook for all matching talks from this speaker."
+	(interactive
+	 (let* ((email (mail-strip-quoted-names
+									(plist-get (plist-get (notmuch-show-get-message-properties) :headers)
+														 :From)))
+					(talks (emacsconf-mail-talks email)))
+		 (list
+			email
+			(read-string (format "Note for %s: "
+													 (mapconcat (lambda (o) (plist-get o :slug))
+																			talks", "))))))
+	(save-window-excursion
+		(mapc
+		 (lambda (talk)
+			 (emacsconf-add-to-talk-logbook talk note))
+		 (emacsconf-mail-talks email))))
 
 (provide 'emacsconf-mail)
 ;;; emacsconf-mail.el ends here
