@@ -244,6 +244,7 @@ Pairs with `emacsconf-schedule-dump-sexp'."
    (mapcar #'emacsconf-schedule-format-summary-row (or info (emacsconf-get-talk-info)))))
 
 (defun emacsconf-schedule-update-from-info (info)
+	(interactive (list (or emacsconf-schedule-draft (emacsconf-get-talk-info))))
   (save-window-excursion
     (save-excursion
       (mapc (lambda (talk)
@@ -627,8 +628,9 @@ Talks with a FIXED_TIME property are not moved."
         (message "%s" (string-join results "\n"))
       results)))
 
-(defun emacsconf-schedule-check-time (label o &optional from-time to-time)
-  "FROM-TIME and TO-TIME should be strings like HH:MM in EST.
+(defun emacsconf-schedule-check-time (label o &optional from-time to-time day)
+  "FROM-TIME and TO-TIME should be nil strings like HH:MM in EST.
+DAY should be YYYY-MM-DD if specified.
 Both start and end time are tested."
   (let* ((start-time (format-time-string "%H:%M" (plist-get o :start-time)))
          (end-time (format-time-string "%H:%M" (plist-get o :end-time)))
@@ -639,41 +641,107 @@ Both start and end time are tested."
            (and from-time (string< start-time from-time)
                 (format "%s: Starts at %s before %s" label start-time from-time))
            (and to-time (string< to-time end-time)
-                (format "%s: Ends at %s after %s" label end-time to-time))))
+                (format "%s: Ends at %s after %s" label end-time to-time))
+					 (and day
+								(not (string= (format-time-string "%Y-%m-%d" (plist-get o :start-time))
+															day))
+								(format "%s: On %s instead of %s"
+												label
+												(format-time-string "%Y-%m-%d" (plist-get o :start-time))
+												day))))
     (when result (plist-put o :invalid result))
     result))
 
+(defun emacsconf-schedule-q-and-a-p (talk)
+	"Return non-nil if TALK has a Q&A scheduled for the event."
+	(not (string-match "after the event" (or (plist-get talk :q-and-a) ""))))
+	
 (defun emacsconf-schedule-get-time-constraint (o)
-  (unless (string-match "after the event" (or (plist-get o :q-and-a) ""))
-    (let ((avail (or (plist-get o :availability) ""))
-          hours
+	(when (emacsconf-schedule-q-and-a-p o)
+		(let ((avail (or (plist-get o :availability) ""))
+					hours
 					start
 					(pos 0)
-					(result (list nil nil)))
-      (while (string-match "\\([<>]\\)=? *\\([0-9]+:[0-9]+\\) *EST" avail pos)
-        (setf (elt result (if (string= (match-string 1 avail) ">")
+					(result (list nil nil nil)))
+			(while (string-match "\\([<>]\\)=? *\\([0-9]+:[0-9]+\\) *EST" avail pos)
+				(setf (elt result (if (string= (match-string 1 avail) ">")
 															0
 														1))
 							(match-string 2 avail))
-				(setq pos (match-end 0)))
+					(setq pos (match-end 0)))
+			(when (string-match "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]" avail)
+				(setf (elt result 2) (match-string 0 avail)))
 			result)))
 
+(defun emacsconf-schedule-rename-etc-timezone (s)
+	"Change Etc/GMT-3 etc. to UTC+3 etc., since Etc uses negative signs and this is confusing."
+	(cond ((string-match "Etc/GMT-\\(.*\\)" s) (concat "UTC+" (match-string 1 s)))
+				((string-match "Etc/GMT\\+\\(.*\\)" s) (concat "UTC-" (match-string 1 s)))
+				(t s)))
+
+(defun emacsconf-schedule-format-time-constraint (constraints &optional include-offset local-timezone)
+	"Format CONSTRAINTS for display."
+	;; actually a talk object, extract constraints from it instead
+	(when (not (= (length constraints) 3))
+		(setq constraints (emacsconf-schedule-get-time-constraint constraints)))
+	(string-join
+	 (delq nil
+				 (list
+					(let ((start-time (car constraints))
+								(end-time (cadr constraints))
+								(start-local (and (car constraints)
+																	local-timezone
+																	(format-time-string
+																	 "%H:%M"
+																	 (date-to-time (concat emacsconf-date " " (car constraints) ":00 " emacsconf-timezone-offset))
+																	 local-timezone)))
+								(end-local (and (cadr constraints)
+																local-timezone
+																(format-time-string
+																 "%H:%M"
+																 (date-to-time (concat emacsconf-date " " (cadr constraints) ":00 " emacsconf-timezone-offset))
+																 local-timezone))))
+						(cond
+						 ((and start-time end-time)
+							(concat
+							 (format "between %s-%s" start-time end-time)
+							 (emacsconf-surround " " (and include-offset emacsconf-timezone-offset) "" "")
+							 (if local-timezone
+									 (format " (%s-%s %s)" start-local end-local (emacsconf-schedule-rename-etc-timezone local-timezone))
+								 "")))
+						 (start-time
+							(concat
+							 (format ">= %s" start-time)
+							 (emacsconf-surround " " (and include-offset emacsconf-timezone-offset) "" "")
+							 (if local-timezone
+									 (format " (%s %s)" start-local (emacsconf-schedule-rename-etc-timezone local-timezone))
+								 "")))
+						 (end-time
+							(concat
+							 (format "<= %s" end-time)
+							 (emacsconf-surround " " (and include-offset emacsconf-timezone-offset) "" "")
+							 (if local-timezone
+									 (format " (%s %s)" end-local (emacsconf-schedule-rename-etc-timezone local-timezone))
+								 ""))))) 
+					(if (elt constraints 2) (format "on %s" (elt constraints 2)))))
+	 " and "))
+
 (defun emacsconf-schedule-validate-all-talks-present (sched &optional list)
-  (let* ((sched-slugs (mapcar (lambda (o) (plist-get o :slug))
-                              (emacsconf-filter-talks sched)))
-         (diff (delq
-                nil
-                (seq-difference
-                 (mapcar
-                  (lambda (o) (plist-get o :slug))
-                  (seq-remove
-                   (lambda (o)
-                     (string= (plist-get o :status) "CANCELLED"))
-                   (let ((emacsconf-talk-info-functions '(emacsconf-get-talk-info-from-properties)))
-                     (or list (emacsconf-get-talk-info)))))
-                 sched-slugs))))
-    (when diff
-      (list (concat "Missing talks: " (string-join diff ", "))))))
+	(let* ((sched-slugs (mapcar (lambda (o) (plist-get o :slug))
+															(emacsconf-filter-talks sched)))
+				 (diff (delq
+								nil
+								(seq-difference
+								 (mapcar
+									(lambda (o) (plist-get o :slug))
+									(seq-remove
+									 (lambda (o)
+										 (string= (plist-get o :status) "CANCELLED"))
+									 (let ((emacsconf-talk-info-functions '(emacsconf-get-talk-info-from-properties)))
+										 (or list (emacsconf-get-talk-info)))))
+								 sched-slugs))))
+		(when diff
+			(list (concat "Missing talks: " (string-join diff ", "))))))
 
 (defun emacsconf-schedule-validate-no-duplicates (sched &optional info)
   (let* ((sched-slugs (mapcar (lambda (o) (plist-get o :slug))
@@ -809,5 +877,8 @@ Return nil if there are no errors."
                        (time-less-p (plist-get a :end-time) (plist-get b :end-time)))
                      ))))))
 (defvar emacsconf-schedule-plan nil "Sequence of talks.")
+
+
+
 (provide 'emacsconf-schedule)
 ;;; emacsconf-schedule.el ends here
