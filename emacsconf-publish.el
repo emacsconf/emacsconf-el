@@ -135,9 +135,9 @@
 
 (defun emacsconf-index-card (talk &optional extensions)
   "Format an HTML card for TALK, linking the files in EXTENSIONS."
-  (let* ((video-slug (plist-get talk :video-slug))
+  (let* ((file-prefix (plist-get talk :file-prefix))
          (video-file (plist-get talk :video-file))
-         (video (and video-slug
+         (video (and file-prefix
                      (emacsconf-index-card-video
                       (or (plist-get talk :video-id)
                           (concat (plist-get talk :slug) "-mainVideo"))
@@ -564,9 +564,9 @@ ${pad-info}${irc-info}${status-info}${schedule-info}\n"
 	(let ((default-directory emacsconf-directory))
 		(mapc
 		 (lambda (ext)
-			 (let ((filename (expand-file-name (concat (plist-get talk :video-slug) ext)
+			 (let ((filename (expand-file-name (concat (plist-get talk :file-prefix) ext)
 																				 (expand-file-name "captions" (expand-file-name emacsconf-year emacsconf-directory))))
-						 (cached-file (expand-file-name (concat (plist-get talk :video-slug) ext) emacsconf-cache-dir)))
+						 (cached-file (expand-file-name (concat (plist-get talk :file-prefix) ext) emacsconf-cache-dir)))
 				 (when (and (file-exists-p cached-file)
 										(or
 										 (not (file-exists-p filename))
@@ -1086,7 +1086,7 @@ Entries are sorted chronologically, with different tracks interleaved."
 
 (defun emacsconf-publish-talk-files (talk files)
   (seq-filter (lambda (o)
-                (and (string-match (concat "^" (regexp-quote (plist-get talk :video-slug))) o)
+                (and (string-match (concat "^" (regexp-quote (plist-get talk :file-prefix))) o)
                      (not (string= (plist-get talk :video-file) o))))
               files))
 
@@ -1134,7 +1134,7 @@ Entries are sorted chronologically, with different tracks interleaved."
 
 (defun emacsconf-publish-backstage-to-assign (by-status files)
 	(let ((list (assoc-default "TO_ASSIGN" by-status)))
-    (format "<h1>%s talk(s) to be captioned (%d minutes)</h1><p>You can e-mail <a href=\"mailto:sacha@sachachua.com\">sacha@sachachua.com</a> to call dibs on editing the captions for one of these talks. This year, we're experimenting with using OpenAI Whisper to provide auto-generated VTT that you can use as a starting point. If you're writing them from scratch, you can choose to include timing information, or we can probably figure them out afterwards with a forced alignment tool. More info: <a href=\"https://media.emacsconf.org/2022/backstage/editing-captions.html\">Editing captions</a>, <a href=\"https://emacsconf.org/captioning/\">captioning tips</a></p><ul class=\"videos\">%s</ul>"
+    (format "<h1>%s talk(s) to be captioned (%d minutes)</h1><p>You can e-mail <a href=\"mailto:sacha@sachachua.com\">sacha@sachachua.com</a> to call dibs on editing the captions for one of these talks. We use OpenAI Whisper to provide auto-generated VTT that you can use as a starting point, but you can also write the captions from scratch if you like. If you're writing them from scratch, you can choose to include timing information, or we can probably figure them out afterwards with a forced alignment tool. More info: <a href=\"https://emacsconf.org/captioning/\">captioning tips</a></p><ul class=\"videos\">%s</ul>"
             (length list)
             (emacsconf-sum :video-time list)
             (mapconcat
@@ -1285,14 +1285,14 @@ answers without needing to listen to everything again. You can see <a href=\"htt
 																(emacsconf-index-card
 																 (append (list
 																					:video-note
-																					(unless (file-exists-p (expand-file-name (concat (plist-get f :video-slug) "--bbb-webcams.webm") emacsconf-cache-dir))
+																					(unless (file-exists-p (expand-file-name (concat (plist-get f :file-prefix) "--bbb-webcams.webm") emacsconf-cache-dir))
 																						"<div>No Q&A video for this talk</div>")
 																					:video-file
 																					(cond
-																					 ((file-exists-p (expand-file-name (concat (plist-get f :video-slug) "--answers.webm") emacsconf-cache-dir))
-																						(concat (plist-get f :video-slug) "--answers.webm"))
-																					 ((file-exists-p (expand-file-name (concat (plist-get f :video-slug) "--bbb-webcams.webm") emacsconf-cache-dir))
-																						(concat (plist-get f :video-slug) "--bbb-webcams.webm"))
+																					 ((file-exists-p (expand-file-name (concat (plist-get f :file-prefix) "--answers.webm") emacsconf-cache-dir))
+																						(concat (plist-get f :file-prefix) "--answers.webm"))
+																					 ((file-exists-p (expand-file-name (concat (plist-get f :file-prefix) "--bbb-webcams.webm") emacsconf-cache-dir))
+																						(concat (plist-get f :file-prefix) "--bbb-webcams.webm"))
 																					 (t t)) ;; omit video
 																					:video-id "-qanda"
 																					:extra
@@ -1304,20 +1304,20 @@ answers without needing to listen to everything again. You can see <a href=\"htt
 																									 (format-time-string "%Y-%m-%d" (plist-get f :start-time))
 																									 (plist-get (emacsconf-get-track f) :channel)) 
 																					 (emacsconf-surround ", <a href=\""
-																															 (if (file-exists-p (expand-file-name (concat (plist-get f :video-slug) "--pad.txt")
+																															 (if (file-exists-p (expand-file-name (concat (plist-get f :file-prefix) "--pad.txt")
 																																																		emacsconf-cache-dir))
-																																	 (concat (plist-get f :video-slug) "--pad.txt"))
+																																	 (concat (plist-get f :file-prefix) "--pad.txt"))
 																															 "\">Etherpad (Markdown)</a>" "")
 																					 (emacsconf-surround ", <a href=\"" (plist-get f :bbb-playback) "\">BBB playback</a>" "")
 																					 (emacsconf-surround ", <a href=\""
-																															 (if (file-exists-p (expand-file-name (concat (plist-get f :video-slug) "--bbb.txt")
+																															 (if (file-exists-p (expand-file-name (concat (plist-get f :file-prefix) "--bbb.txt")
 																																																		emacsconf-cache-dir))
-																																	 (concat (plist-get f :video-slug) "--bbb.txt"))
+																																	 (concat (plist-get f :file-prefix) "--bbb.txt"))
 																															 "\">BBB text chat</a>" "")
 																					 (emacsconf-surround ", <a href=\""
-																															 (if (file-exists-p (expand-file-name (concat (plist-get f :video-slug) "--bbb-webcams.opus")
+																															 (if (file-exists-p (expand-file-name (concat (plist-get f :file-prefix) "--bbb-webcams.opus")
 																																																		emacsconf-cache-dir))
-																																	 (concat (plist-get f :video-slug) "--bbb-webcams.opus"))
+																																	 (concat (plist-get f :file-prefix) "--bbb-webcams.opus"))
 																															 "\">BBB audio only</a>" ""))
 																					:files (emacsconf-publish-talk-files f files))
 																				 f)
@@ -1331,10 +1331,10 @@ answers without needing to listen to everything again. You can see <a href=\"htt
          "</body></html>")))))
 
 (defun emacsconf-publish-filter-files (talk files extensions &optional selector)
-  (when (plist-get talk :video-slug)
+  (when (plist-get talk :file-prefix)
       (seq-filter
        (lambda (f)
-         (string-match (concat (regexp-quote (plist-get talk :video-slug))
+         (string-match (concat (regexp-quote (plist-get talk :file-prefix))
                                (if selector (concat "--" selector))
                                ".*"
                                (regexp-opt extensions)
@@ -1499,8 +1499,8 @@ answers without needing to listen to everything again. You can see <a href=\"htt
 		emacsconf-publish-subtitle-languages
     "")))
 
-(defun emacsconf-link-file-formats (video-slug extensions)
-  (string-join (emacsconf-link-file-formats-as-list video-slug extensions) " "))
+(defun emacsconf-link-file-formats (file-prefix extensions)
+  (string-join (emacsconf-link-file-formats-as-list file-prefix extensions) " "))
 
 (defun emacsconf-link-file-formats-as-list (talk extensions)
   (if (plist-get talk :files)
@@ -1509,12 +1509,12 @@ answers without needing to listen to everything again. You can see <a href=\"htt
          (format "<a href=\"%s%s\">Download %s</a>"
                  (or (plist-get talk :base-url) "")
                  file
-                 (replace-regexp-in-string (concat "^" (regexp-quote (plist-get talk :video-slug))) "" file)))
+                 (replace-regexp-in-string (concat "^" (regexp-quote (plist-get talk :file-prefix))) "" file)))
        (plist-get talk :files))
-    (let ((video-slug (plist-get talk :video-slug)))
+    (let ((file-prefix (plist-get talk :file-prefix)))
       (delq nil (seq-map (lambda (ext)
                            (let ((file (expand-file-name
-                                        (concat video-slug ext)
+                                        (concat file-prefix ext)
                                         emacsconf-cache-dir))
                                  size)
                              (when (file-exists-p file)
@@ -1524,7 +1524,7 @@ answers without needing to listen to everything again. You can see <a href=\"htt
                                        ""))
                                (format "<a href=\"%s%s\">Download %s%s</a>"
                                        (or (plist-get talk :base-url) "")
-                                       (concat video-slug ext)
+                                       (concat file-prefix ext)
                                        ext
                                        size))))
                          extensions)))))
@@ -1543,10 +1543,10 @@ answers without needing to listen to everything again. You can see <a href=\"htt
                                                             (plist-get o :start-time)
                                                             emacsconf-timezone))
                                   (main-video (expand-file-name
-                                               (concat (plist-get o :video-slug) "--main.webm")
+                                               (concat (plist-get o :file-prefix) "--main.webm")
                                                emacsconf-cache-dir))
                                   (qa-video (expand-file-name
-                                             (concat (plist-get o :video-slug) "--answers.webm")
+                                             (concat (plist-get o :file-prefix) "--answers.webm")
                                              emacsconf-cache-dir))
                                   (talk-page-url (plist-get o :url))
                                   (speakers (or (plist-get o :speakers) "")))
@@ -1562,7 +1562,7 @@ answers without needing to listen to everything again. You can see <a href=\"htt
                                  (format "%s%s/%s--main.webm"
                                          emacsconf-media-base-url
                                          (plist-get o :conf-year)
-                                         (plist-get o :video-slug))
+                                         (plist-get o :file-prefix))
                                  date
                                  (format-seconds "%02h:%z%02m:%02s" (/ (compile-media-get-file-duration-ms main-video) 1000))
                                  (if (file-exists-p main-video)
@@ -1580,7 +1580,7 @@ answers without needing to listen to everything again. You can see <a href=\"htt
                                      (format "%s%s/%s--answers.webm"
                                              emacsconf-media-base-url
                                              (plist-get o :conf-year)
-                                             (plist-get o :video-slug))
+                                             (plist-get o :file-prefix))
                                      date
                                      (format-seconds "%02h:%z%02m:%02s" (/ (compile-media-get-file-duration-ms qa-video) 1000))
                                      (if (file-exists-p qa-video)
@@ -1693,26 +1693,26 @@ answers without needing to listen to everything again. You can see <a href=\"htt
                      talks
                      "")))))
 
-(defun emacsconf-get-preferred-video (video-slug &optional files)
+(defun emacsconf-get-preferred-video (file-prefix &optional files)
   (or
    (car
     (mapcar
      (lambda (suffix)
        (seq-find (lambda (s) (string-match
                               (concat (regexp-quote
-                                       (if suffix (concat video-slug "--" suffix)
-                                         video-slug))
+                                       (if suffix (concat file-prefix "--" suffix)
+                                         file-prefix))
                                       "\\." (regexp-opt emacsconf-media-extensions)) s)) files))
      '("main" "captioned" "normalized" "reencoded" "compressed" "original" nil)))
    (seq-find
     'file-exists-p
     (seq-map (lambda (suffix)
-               (expand-file-name (concat video-slug "--" suffix ".webm")
+               (expand-file-name (concat file-prefix "--" suffix ".webm")
                                  emacsconf-cache-dir))
              '("main" "captioned" "normalized" "reencoded" "compressed" "original")))
    (car (directory-files emacsconf-cache-dir
                          nil
-                         (concat (regexp-quote video-slug)
+                         (concat (regexp-quote file-prefix)
                                  ".*\\."
                                  (regexp-opt emacsconf-media-extensions))))))
 
@@ -1731,7 +1731,7 @@ answers without needing to listen to everything again. You can see <a href=\"htt
                                                 (shell-quote-argument filename)))
                "\n"))
      (delq nil
-           (mapcar (lambda (talk) (emacsconf-get-preferred-video (plist-get talk :video-slug)))
+           (mapcar (lambda (talk) (emacsconf-get-preferred-video (plist-get talk :file-prefix)))
                    emacsconf-info)))
     (switch-to-buffer (current-buffer))))
 
@@ -1743,7 +1743,7 @@ answers without needing to listen to everything again. You can see <a href=\"htt
   (let ((chapters (subed-parse-file
                    (expand-file-name
                     (concat
-                     (file-name-base (plist-get talk :video-slug)) "--main--chapters.vtt")
+                     (file-name-base (plist-get talk :file-prefix)) "--main--chapters.vtt")
                     emacsconf-cache-dir)))
         result)
     (setq result
@@ -1780,7 +1780,7 @@ This video is available under the terms of the Creative Commons Attribution-Shar
   (interactive (list current-prefix-arg))
   (mapc
    (lambda (talk)
-     (when (and (plist-get talk :video-slug)
+     (when (and (plist-get talk :file-prefix)
                 (or force (null (plist-get talk :video-file-size))))
        (emacsconf-publish-cache-video-data talk)))
    (emacsconf-get-talk-info)))
@@ -1789,10 +1789,10 @@ This video is available under the terms of the Creative Commons Attribution-Shar
 
 (defun emacsconf-publish-cache-video-data (talk)
   (interactive (list (emacsconf-complete-talk-info)))
-  (let ((main (expand-file-name (concat (plist-get talk :video-slug) "--main.webm")
+  (let ((main (expand-file-name (concat (plist-get talk :file-prefix) "--main.webm")
                                 emacsconf-cache-dir)))
     (emacsconf-with-talk-heading talk
-      (let* ((video-file-name (emacsconf-get-preferred-video (plist-get talk :video-slug)))
+      (let* ((video-file-name (emacsconf-get-preferred-video (plist-get talk :file-prefix)))
              (video-file (and video-file-name (expand-file-name video-file-name emacsconf-cache-dir)))
 						 (qa-file (emacsconf-talk-file talk "--answers.webm"))
 						 (intro-file (expand-file-name (concat (plist-get talk :slug) ".webm")
@@ -1805,7 +1805,7 @@ This video is available under the terms of the Creative Commons Attribution-Shar
           (org-entry-put (point) "VIDEO_FILE_SIZE" (file-size-human-readable (file-attribute-size (file-attributes video-file))))
           (unless (plist-get talk :captions-edited)
             (let ((caption-file (expand-file-name
-                                 (concat (plist-get talk :video-slug)
+                                 (concat (plist-get talk :file-prefix)
                                          "--main.vtt")
                                  emacsconf-cache-dir)))
               (when (emacsconf-captions-edited-p caption-file)
@@ -1846,14 +1846,14 @@ This video is available under the terms of the Creative Commons Attribution-Shar
     (if url
         (when (string-match "/w/\\([A-Za-z0-9]+\\)" url)
           (browse-url (format "https://toobnix.org/videos/update/%s" (match-string 1 url))))
-      (when (> (length (org-entry-get (point) "VIDEO_SLUG")) 80)
-        (copy-file (expand-file-name (concat (org-entry-get (point) "VIDEO_SLUG") "--main.webm") emacsconf-cache-dir)
+      (when (> (length (org-entry-get (point) "FILE_PREFIX")) 80)
+        (copy-file (expand-file-name (concat (org-entry-get (point) "FILE_PREFIX") "--main.webm") emacsconf-cache-dir)
                    (expand-file-name (concat "emacsconf-" emacsconf-year "-" (org-entry-get (point) "SLUG") ".webm") emacsconf-cache-dir) t))
       (browse-url "https://toobnix.org/videos/upload#upload"))))
 
 (defun emacsconf-publish-files ()
   (interactive)
-  (let* ((slug (org-entry-get (point) "VIDEO_SLUG"))
+  (let* ((slug (org-entry-get (point) "FILE_PREFIX"))
          (video-file (emacsconf-get-preferred-video slug))
          (wiki-captions-directory (expand-file-name "captions" (expand-file-name emacsconf-year emacsconf-directory))))
     (org-entry-put (point) "PUBLIC" "1")
@@ -2224,7 +2224,7 @@ There is no live Q&A room for ${title}. You can find more information about the 
           ;; Copy main extension files from backstage to public
           (let ((files (directory-files emacsconf-backstage-dir nil
                                         (concat "^"
-                                                (regexp-quote (plist-get talk :video-slug))
+                                                (regexp-quote (plist-get talk :file-prefix))
                                                 (regexp-opt emacsconf-main-extensions)))))
             (mapc (lambda (file)
                     (when (or (not (string-match "--main.vtt$" file))
@@ -2235,7 +2235,7 @@ There is no live Q&A room for ${title}. You can find more information about the 
         ;; Remove files from public
         (let ((files (directory-files emacsconf-public-media-directory nil
                                       (concat "^"
-                                              (regexp-quote (plist-get talk :video-slug)
+                                              (regexp-quote (plist-get talk :file-prefix)
                                                             )))))
           (mapc (lambda (file)
                   (delete-file (expand-file-name file emacsconf-public-media-directory)))
@@ -2265,7 +2265,7 @@ There is no live Q&A room for ${title}. You can find more information about the 
 				 (emacsconf-replace-plist-in-string
 					(append (list :conf-name emacsconf-name :year emacsconf-year
 												:chapters
-												(let ((chapters (subed-parse-file (expand-file-name (concat (plist-get talk :video-slug) "--main--chapters.vtt") emacsconf-cache-dir))))
+												(let ((chapters (subed-parse-file (expand-file-name (concat (plist-get talk :file-prefix) "--main--chapters.vtt") emacsconf-cache-dir))))
 													(if chapters
 															(concat
 															 (mapconcat (lambda (chapter)

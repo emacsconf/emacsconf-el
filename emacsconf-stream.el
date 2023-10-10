@@ -26,7 +26,7 @@
 
 (defvar emacsconf-stream-dir "/data/emacsconf/stream/"
   "Directory where the stream versions are.
-Files should be in YEAR/video-slug--main.webm and video-slug--main.vtt.")
+Files should be in YEAR/file-prefix--main.webm and file-prefix--main.vtt.")
 (defvar emacsconf-stream-host "res.emacsconf.org")
 
 (defun emacsconf-stream-track-login (track)
@@ -253,9 +253,9 @@ especially when two things need to happen close together."
 
 (defun emacsconf-stream-get-filename (talk)
   "Return the local filename for the video file for TALK.
-Final files should be stored in /data/emacsconf/stream/YEAR/video-slug--main.webm."
+Final files should be stored in /data/emacsconf/stream/YEAR/file-prefix--main.webm."
   (expand-file-name
-   (concat (plist-get talk :video-slug) "--main.webm")
+   (concat (plist-get talk :file-prefix) "--main.webm")
    (expand-file-name emacsconf-year
                      emacsconf-stream-dir)))
 
@@ -550,7 +550,7 @@ With a prefix argument (\\[universal-argument]), clear the overlay."
         (subtitle-len 1))
     (unless (file-directory-p dir) (make-directory dir t))
     (mapc (lambda (talk)
-            (with-temp-file (expand-file-name (concat (plist-get talk :video-slug) "--main.vtt")
+            (with-temp-file (expand-file-name (concat (plist-get talk :file-prefix) "--main.vtt")
                                               dir)
               (insert "WEBVTT\n\n"
                       (cl-loop
@@ -575,7 +575,7 @@ With a prefix argument (\\[universal-argument]), clear the overlay."
     (unless (file-directory-p dir) (make-directory dir t))
     (mapc (lambda (talk)
             (add-name-to-file (expand-file-name "template.webm" dir)
-                              (expand-file-name (concat (plist-get talk :video-slug) "--main.webm") dir)
+                              (expand-file-name (concat (plist-get talk :file-prefix) "--main.webm") dir)
                               t))
           info)))
 

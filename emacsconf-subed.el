@@ -217,7 +217,7 @@ TYPE can be 'end if you want the match end instead of the beginning."
   (interactive)
   (let* ((info (emacsconf-get-talk-info-for-subtree))
          (wiki-file (plist-get info :wiki-file-path))
-         (caption-file (expand-file-name (concat (plist-get info :video-slug) "--main.vtt")
+         (caption-file (expand-file-name (concat (plist-get info :file-prefix) "--main.vtt")
                                          emacsconf-captions-directory))
          (chapters (with-current-buffer (find-file-noselect caption-file)
                      (subed-subtitle-list))))
@@ -227,20 +227,20 @@ TYPE can be 'end if you want the match end instead of the beginning."
          (emacsconf-subed-convert-transcript-to-directives "mainVideo" chapters))))
     (find-file wiki-file)))
 
-(defun emacsconf-subed-download-captions (&optional youtube-url video-slug)
-  (interactive (list (org-entry-get (point) "YOUTUBE_URL") (org-entry-get (point) "VIDEO_SLUG")))
+(defun emacsconf-subed-download-captions (&optional youtube-url file-prefix)
+  (interactive (list (org-entry-get (point) "YOUTUBE_URL") (org-entry-get (point) "FILE_PREFIX")))
   (shell-command
    (mapconcat
     (lambda (f)
       (format "youtube-dl --write-sub --write-auto-sub --no-warnings --sub-lang en --skip-download --sub-format %s %s -o %s"
               f
               youtube-url
-              (expand-file-name video-slug emacsconf-captions-directory)))
+              (expand-file-name file-prefix emacsconf-captions-directory)))
     '("vtt" "srv2")
     ";")))
 
-(defun emacsconf-subed--copy-downloaded-captions-base (video-slug url type)
-  (let ((new-file (expand-file-name (concat video-slug "--" type ".ass") emacsconf-captions-directory)))
+(defun emacsconf-subed--copy-downloaded-captions-base (file-prefix url type)
+  (let ((new-file (expand-file-name (concat file-prefix "--" type ".ass") emacsconf-captions-directory)))
     (call-process "ffmpeg" nil nil nil "-y" "-i" (emacsconf-latest-file emacsconf-download-directory "srt$")
                   new-file)
     (emacsconf-subed-download-captions url new-file)
@@ -253,7 +253,7 @@ TYPE can be 'end if you want the match end instead of the beginning."
   "Copy the most recently downloaded captions for this entry's main talk."
   (interactive)
   (emacsconf-subed--copy-downloaded-captions-base
-   (org-entry-get (point) "VIDEO_SLUG")
+   (org-entry-get (point) "FILE_PREFIX")
    (org-entry-get (point) "YOUTUBE_URL")
    "main"))
 
@@ -261,7 +261,7 @@ TYPE can be 'end if you want the match end instead of the beginning."
   "Copy the most recently downloaded captions for this entry's Q&A"
   (interactive)
   (emacsconf-subed--copy-downloaded-captions-base
-   (org-entry-get (point) "VIDEO_SLUG")
+   (org-entry-get (point) "FILE_PREFIX")
    (org-entry-get (point) "QA_YOUTUBE")
    "answers"))
 
@@ -269,13 +269,13 @@ TYPE can be 'end if you want the match end instead of the beginning."
   "Open the caption file for this talk.
 Create it if necessary."
   (interactive)
-  (let ((video-slug (org-entry-get (point) "VIDEO_SLUG")))
+  (let ((file-prefix (org-entry-get (point) "FILE_PREFIX")))
     (find-file
      (or (car (directory-files emacsconf-cache-dir
                                t
-                               (concat (regexp-quote video-slug)
+                               (concat (regexp-quote file-prefix)
                                        "--main\\.\\(srt\\|vtt\\)")))
-         (expand-file-name (concat video-slug "--main.vtt") "captions")))
+         (expand-file-name (concat file-prefix "--main.vtt") "captions")))
     (when (eobp)
       (require 'compile-media)
       (insert "WEBVTT\n\n0:00:00.000 --> "

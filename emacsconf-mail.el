@@ -520,7 +520,7 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
 
 (defun emacsconf-mail-captions-for-approval (talk)
   (interactive (list (emacsconf-complete-talk-info)))
-  (let ((captions (expand-file-name (concat (plist-get talk :video-slug) "--main.vtt")
+  (let ((captions (expand-file-name (concat (plist-get talk :file-prefix) "--main.vtt")
                                     emacsconf-cache-dir))
         (captioner-info
          (with-current-buffer (find-file-noselect emacsconf-org-file)
@@ -548,7 +548,7 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
         (format "%s volunteered to edit the captions for your video. " (assoc-default "NAME_SHORT" captioner-info)))
       :chapters-note
       (if (file-exists-p
-           (expand-file-name (concat (plist-get talk :video-slug) "--main--chapters.vtt")
+           (expand-file-name (concat (plist-get talk :file-prefix) "--main--chapters.vtt")
                              emacsconf-cache-dir))
           "I've come up with some potential chapter headings which you can see as NOTE in the transcript or in the backstage entry for your video. Let me know if you want to tweak those.\n\n"
         "")
@@ -893,7 +893,7 @@ ${signature}
 Limit to SUBJECT if specified."
 	(let ((message (json-parse-string
 									(shell-command-to-string
-									 (format "notmuch search --limit=1 --format=json \"(%s)%s%s\""
+									 (format "notmuch search --limit=1 --format=json %s%s\""
 													 (mapconcat
 														(lambda (email) (concat "from:" (shell-quote-argument email)))
 														(emacsconf-mail-get-all-email-addresses talk)

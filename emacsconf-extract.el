@@ -62,7 +62,7 @@
 							(let ((recording-start (/ (string-to-number (dom-text
 																													 (dom-by-tag metadata 'start_time)))
 																				1000)))
-								(with-temp-file (expand-file-name (concat (plist-get o :video-slug) "--extract.txt")
+								(with-temp-file (expand-file-name (concat (plist-get o :file-prefix) "--extract.txt")
 																									emacsconf-cache-dir)
 									(insert
 									 (mapconcat
@@ -89,9 +89,9 @@
 																					 (expand-file-name "bbb-playbacks" emacsconf-cache-dir))))
 			 (mapc (lambda (file)
 							 (when (and (file-exists-p (expand-file-name file playback-dir))
-													(not (file-exists-p (expand-file-name (concat (plist-get o :video-slug) "--bbb-" file) emacsconf-cache-dir))))
+													(not (file-exists-p (expand-file-name (concat (plist-get o :file-prefix) "--bbb-" file) emacsconf-cache-dir))))
 								 (copy-file (expand-file-name file playback-dir)
-														(expand-file-name (concat (plist-get o :video-slug) "--bbb-" file) emacsconf-cache-dir)
+														(expand-file-name (concat (plist-get o :file-prefix) "--bbb-" file) emacsconf-cache-dir)
 														t)))
 						 '("webcams.webm" "metadata.xml" "deskshare.webm" "deskshare.xml" "slides_new.xml" "webcams.opus"))))
 	 (or info (emacsconf-prepare-for-display (emacsconf-get-talk-info)))))
@@ -330,7 +330,7 @@
 													(match-string 1 (plist-get o :bbb-playback)))))
 				(format "scp ~/current/bbb-raw/%s/events.xml orga@media.emacsconf.org:~/backstage/%s--bbb-events.xml\n"
 								meeting-id
-								(plist-get o :video-slug)))
+								(plist-get o :file-prefix)))
 		""))
 
 (defun emacsconf-extract-bbb-voice-events (file)
@@ -548,7 +548,7 @@
 							 "-i"
 							 (expand-file-name
 								(concat
-								 (plist-get talk :video-slug)
+								 (plist-get talk :file-prefix)
 								 "--bbb-deskshare.webm")
 								emacsconf-cache-dir))
 							(when time (list "-to" time))
@@ -556,7 +556,7 @@
 							 "-i"
 							 (expand-file-name
 								(concat
-								 (plist-get talk :video-slug)
+								 (plist-get talk :file-prefix)
 								 "--bbb-webcams.opus")
 								emacsconf-cache-dir))
 							(when time (list "-to" time))
@@ -565,7 +565,7 @@
 							 "copy"
 							 (expand-file-name
 								(concat
-								 (plist-get talk :video-slug)
+								 (plist-get talk :file-prefix)
 								 "--answers.webm")
 								emacsconf-cache-dir)))))
 		 (time
@@ -576,7 +576,7 @@
 							 "-i"
 							 (expand-file-name
 								(concat
-								 (plist-get talk :video-slug)
+								 (plist-get talk :file-prefix)
 								 "--bbb-webcams.webm")
 								emacsconf-cache-dir))
 							(when time (list "-to" time))
@@ -585,19 +585,19 @@
 							 "copy"
 							 (expand-file-name
 								(concat
-								 (plist-get talk :video-slug)
+								 (plist-get talk :file-prefix)
 								 "--answers.webm")
 								emacsconf-cache-dir)))))
 		 (t
 			(copy-file
 			 (expand-file-name
 				(concat
-				 (plist-get talk :video-slug)
+				 (plist-get talk :file-prefix)
 				 "--bbb-webcams.webm")
 				emacsconf-cache-dir)
 			 (expand-file-name
 				(concat
-				 (plist-get talk :video-slug)
+				 (plist-get talk :file-prefix)
 				 "--answers.webm")
 				emacsconf-cache-dir)
 			 t)))
@@ -609,24 +609,24 @@
 			(copy-file
 			 (expand-file-name
 				(concat
-				 (plist-get talk :video-slug)
+				 (plist-get talk :file-prefix)
 				 "--answers." suffix)
 				emacsconf-cache-dir)
 			 (expand-file-name
 				(concat
-				 (plist-get talk :video-slug)
+				 (plist-get talk :file-prefix)
 				 "--answers." suffix)
 				emacsconf-backstage-dir)
 			 t)
 			(copy-file
 			 (expand-file-name
 				(concat
-				 (plist-get talk :video-slug)
+				 (plist-get talk :file-prefix)
 				 "--answers." suffix)
 				emacsconf-backstage-dir)
 			 (expand-file-name
 				(concat
-				 (plist-get talk :video-slug)
+				 (plist-get talk :file-prefix)
 				 "--answers." suffix)
 				emacsconf-public-media-directory)
 			 t))

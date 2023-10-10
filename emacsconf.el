@@ -153,7 +153,7 @@
 (defun emacsconf-slugify (s)
   (replace-regexp-in-string " +" "-" (replace-regexp-in-string "[^a-z0-9 ]" "" (downcase s))))
 
-(defun emacsconf-video-slug (talk)
+(defun emacsconf-file-prefix (talk)
   (concat "emacsconf-" emacsconf-year "-" (plist-get talk :slug) "--"
           (emacsconf-slugify (plist-get talk :title))
           (if (plist-get talk :speakers)
@@ -163,23 +163,23 @@
 
 
 
-(defun emacsconf-set-video-slug-if-needed (o)
+(defun emacsconf-set-file-prefix-if-needed (o)
   (interactive (list (emacsconf-complete-talk-info)))
-  (unless (plist-get o :video-slug)
-    (let ((video-slug
-           (read-string "Set video slug: " (emacsconf-video-slug o))))
+  (unless (plist-get o :file-prefix)
+    (let ((file-prefix
+           (read-string "Set video slug: " (emacsconf-file-prefix o))))
       (save-window-excursion
         (emacsconf-with-talk-heading (plist-get o :slug)
-          (org-entry-put (point) "VIDEO_SLUG" video-slug)))
-      (plist-put o :video-slug video-slug)))
-  (plist-get o :video-slug))
+          (org-entry-put (point) "FILE_PREFIX" file-prefix)))
+      (plist-put o :file-prefix file-prefix)))
+  (plist-get o :file-prefix))
 
-(defun emacsconf-set-video-slugs ()
+(defun emacsconf-set-file-prefixes ()
   (interactive)
   (org-map-entries
    (lambda ()
-     (org-entry-put (point) "VIDEO_SLUG" (emacsconf-video-slug (emacsconf-get-talk-info-for-subtree))))
-   "SLUG={.}-VIDEO_SLUG={.}"))
+     (org-entry-put (point) "FILE_PREFIX" (emacsconf-file-prefix (emacsconf-get-talk-info-for-subtree))))
+   "SLUG={.}-FILE_PREFIX={.}"))
 
 (defun emacsconf-upload-to-backstage ()
   (interactive)
@@ -211,7 +211,7 @@
   (mapc (lambda (file)
           (let ((new-file (or filename (read-string (format "Filename (%s): " (file-name-base file))))))
             (copy-file file
-                       (expand-file-name (concat (plist-get talk :video-slug)
+                       (expand-file-name (concat (plist-get talk :file-prefix)
                                                  (if (string= new-file "")
                                                      ""
                                                    (concat "--" new-file))
@@ -226,7 +226,7 @@
                  (list (emacsconf-complete-talk-info)
                        .metadata.key
                        (read-string (format "Filename: ")))))
-  (let ((new-filename (concat (plist-get talk :video-slug)
+  (let ((new-filename (concat (plist-get talk :file-prefix)
                               (if (string= filename "")
                                   filename
                                 (concat "--" filename))
@@ -436,7 +436,7 @@ If INFO is specified, limit it to that list."
                        ;; Prep
                        (:bbb-room "ROOM")                       
                        ;; Processing
-                       (:video-slug "VIDEO_SLUG")
+                       (:file-prefix "FILE_PREFIX")
                        (:video-file "VIDEO_FILE")                       
                        (:video-time "VIDEO_TIME")                       
                        (:video-file-size "VIDEO_FILE_SIZE")                       
@@ -1142,7 +1142,7 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
                                                   (cons :end-time (format-time-string "%FT%T%z" (plist-get o :end-time) t))
                                                   (mapcar (lambda (field)
                                                             (cons field (plist-get o field)))
-                                                          '(:slug :title :speakers :pronouns :pronunciation :url :track :video-slug)))
+                                                          '(:slug :title :speakers :pronouns :pronunciation :url :track :file-prefix)))
                                            )
                                          (emacsconf-filter-talks (emacsconf-get-talk-info)))))))))
 
@@ -1505,7 +1505,7 @@ tracks with the ID in the cdr of that list."
   (interactive (let ((talk (emacsconf-complete-talk-info)))
                  (list
                   talk
-                  (completing-read "File: " (directory-files emacsconf-cache-dir t (plist-get talk :video-slug))))))
+                  (completing-read "File: " (directory-files emacsconf-cache-dir t (plist-get talk :file-prefix))))))
   (find-file filename))
 
 (defun emacsconf-cache-find-file (filename)
@@ -1535,12 +1535,12 @@ tracks with the ID in the cdr of that list."
 
 (defun emacsconf-talk-file (talk suffix &optional always source)
 	(let ((wiki-filename
-				 (expand-file-name (concat (plist-get talk :video-slug) suffix)
+				 (expand-file-name (concat (plist-get talk :file-prefix) suffix)
 													 (expand-file-name "captions"
 																						 (expand-file-name (plist-get talk :year)
 																															 emacsconf-directory))))
 				(cache-filename
-				 (expand-file-name (concat (plist-get talk :video-slug) suffix)
+				 (expand-file-name (concat (plist-get talk :file-prefix) suffix)
 													 emacsconf-cache-dir)))
 		(cond
 		 ((and (file-exists-p wiki-filename) (not (eq source 'cache))) wiki-filename)

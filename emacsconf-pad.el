@@ -794,14 +794,14 @@ This page is for easy reference and recording. Please make sure any changes here
 
 (defun emacsconf-pad-backup-talk (talk)
 	(interactive (list (emacsconf-complete-talk-info)))
-	(with-temp-file (expand-file-name (concat (plist-get talk :video-slug) "--pad.html")
+	(with-temp-file (expand-file-name (concat (plist-get talk :file-prefix) "--pad.html")
 																		emacsconf-cache-dir)
 		(insert
 		 (emacsconf-pad-get-html (emacsconf-pad-id talk))))
 	(call-process "pandoc" nil nil nil "-o"
-								(expand-file-name (concat (plist-get talk :video-slug) "--pad.md")
+								(expand-file-name (concat (plist-get talk :file-prefix) "--pad.md")
 																	emacsconf-cache-dir)
-								(expand-file-name (concat (plist-get talk :video-slug) "--pad.html")
+								(expand-file-name (concat (plist-get talk :file-prefix) "--pad.html")
 																	emacsconf-cache-dir)))
 
 (defun emacsconf-pad-backup-talks ()
