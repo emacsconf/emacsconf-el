@@ -250,7 +250,20 @@ Pairs with `emacsconf-schedule-dump-sexp'."
       (mapc (lambda (talk)
               (emacsconf-go-to-talk (plist-get talk :slug))
               (org-entry-put (point) "SCHEDULED" (plist-get talk :scheduled))
+              (org-entry-put (point) "TRACK" (plist-get talk :track))
               (org-entry-put (point) "TIME" (plist-get talk :time)))
+            (emacsconf-filter-talks info)))))
+
+(defun emacsconf-schedule-save-emailed-times (info &optional force)
+	(interactive (list (or emacsconf-schedule-draft (emacsconf-get-talk-info)) current-prefix-arg))
+	(save-window-excursion
+    (save-excursion
+      (mapc (lambda (talk)
+              (emacsconf-go-to-talk (plist-get talk :slug))
+							(when (and (plist-get talk :scheduled)
+												 (or force (null (org-entry-get (point) "ORIGINAL_SCHEDULE"))))
+								(org-entry-put (point) "ORIGINAL_SCHEDULE"
+															 (replace-regexp-in-string "[<>]" "" (plist-get talk :scheduled)))))
             (emacsconf-filter-talks info)))))
 
 (defvar emacsconf-schedule-svg-modify-functions '(emacsconf-schedule-svg-color-by-track) "Functions to run to modify the display of each item.")
