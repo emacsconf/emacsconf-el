@@ -984,5 +984,63 @@ This minimizes the risk of mail delivery issues and radio silence."
 			 (emacsconf-add-to-talk-logbook talk note))
 		 (emacsconf-mail-talks email))))
 
+(defun emacsconf-mail-acknowledge-upload (talk)
+	"Acknowledge uploaded files for TALK."
+  (interactive (list (emacsconf-complete-talk-info)))
+	(emacsconf-mail-prepare
+	 '(:subject "${conf-name} ${year}: received uploaded files for ${title}"
+							:cc "emacsconf-submit@gnu.org"
+							:reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+							:mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+							:body
+							"Hi, ${speakers-short}!
+
+Just a quick note to let you know that I've downloaded your file${plural} for \"${title}\".
+Now we have the following file${plural} starting with ${file-prefix}:
+
+${file-list}
+We'll be working on captioning your talk over the next few weeks. We'll e-mail again a little closer to the conference with schedule updates and other useful information. If you want to upload a new version, you can upload it the same way you did the previous one.
+
+Please feel free to e-mail us at ${submit-email} if you need help updating the talk wiki page at ${base}${url} or if you have other questions.
+
+Thank you so much for all the work you put into preparing a talk for ${conf-name} ${year}, and thank you for submitting the prerecorded video before the conference!
+
+${signature}")
+	 (plist-get talk :email)
+	 (let ((files (directory-files emacsconf-cache-dir
+																 t (regexp-quote (plist-get talk :file-prefix)))))
+		 (list
+			:title (plist-get talk :title)
+			:conf-name emacsconf-name
+			:year emacsconf-year
+			:base emacsconf-base-url
+			:url (plist-get talk :url)
+			:email (plist-get talk :email)
+			:submit-email emacsconf-submit-email
+			:plural (if (= 1 (length files)) "" "s")
+			:file-prefix (plist-get talk :file-prefix)
+			:signature user-full-name
+			:user-email user-mail-address
+			:speakers-short (plist-get talk :speakers-short)
+			:file-list
+			(mapconcat
+			 (lambda (file)
+				 (concat
+					(format "- %s\n  File size: %s, MD5 sum: %s\n"
+									(replace-regexp-in-string (plist-get talk :file-prefix)
+																						"" (file-name-nondirectory file))
+									(file-size-human-readable (file-attribute-size (file-attributes file)))
+									(string-trim
+									 (shell-command-to-string
+										(concat "md5sum " (shell-quote-argument file) " | cut -f 1 -d ' '"))))
+					(if (member (file-name-extension file) subed-video-extensions)
+							(format "  (around %d minutes long)\n"
+											(ceiling
+											 (/ (compile-media-get-file-duration-ms file)
+													60000.0)))
+						"")))
+			 files
+			 "\n")))))
+
 (provide 'emacsconf-mail)
 ;;; emacsconf-mail.el ends here
