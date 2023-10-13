@@ -109,6 +109,15 @@ Each function should take the info and manipulate it as needed, returning the ne
                         emacsconf-schedule-tweak-allocations)))
     (emacsconf-schedule-prepare info)))
 
+(defun emacsconf-schedule-copy-previous-track (info)
+	"Use :set-track to update INFO."
+	(cl-loop with track = (plist-get (car info) :set-track)
+					 for talk in info
+					 collect
+					 (progn (when (plist-get talk :set-track)
+										(setq track (plist-get talk :set-track)))
+									(plist-put talk :track track))))
+
 (defun emacsconf-schedule-allocate-buffer-time-at-most-max-time (info)
   (mapcar (lambda (o)
             (when (plist-get o :slug)
@@ -163,7 +172,8 @@ Pairs with `emacsconf-schedule-dump-sexp'."
 															(number-to-string (plist-get (cdr seq) :buffer))))
                (time-prop (or (plist-get (cdr seq) :time) ; this is duration in minutes
                               (and (numberp (cdr seq)) (cdr seq))))
-               (track-prop (plist-get (cdr seq) :track)))
+               (track-prop (plist-get (cdr seq) :track))
+							 (set-track-prop (plist-get (cdr seq) :set-track)))
            (append
             ;; overriding 
             (when start-prop
@@ -179,6 +189,8 @@ Pairs with `emacsconf-schedule-dump-sexp'."
 							(list :buffer buffer-prop))
             (when track-prop
               (list :track track-prop))
+						(when set-track-prop
+              (list :set-track set-track-prop))
             (when time-prop
               (list :time (if (numberp time-prop) (number-to-string time-prop) time-prop)))
             ;; base entity
