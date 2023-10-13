@@ -353,7 +353,7 @@ insert into the current buffer instead of drafting e-mails."
                 (error "Could not find template %s" id)))))))))
 
 (defun emacsconf-mail-parse-submission (body)
-	"Extract data from EmacsConf 2023 submissions in BODY."
+	"Extract data from EmacsConf submissions in BODY."
 	(when (listp body) (setq body (plist-get (car body) :content)))
 	(let* ((data (list :body body))
 				 (fields '((:title "^[* ]*Talk title")
@@ -401,8 +401,7 @@ insert into the current buffer instead of drafting e-mails."
 												(point-max))))))))
 			(if (string-match "[0-9]+" (or (plist-get data :format) ""))
 					(plist-put data :time (match-string 0 (or (plist-get data :format) ""))))
-			data)
-))
+			data)))
 
 ;; Documented in https://sachachua.com/blog/2023/09/emacsconf-capturing-submissions-from-e-mails/
 ;;;###autoload
@@ -1041,6 +1040,25 @@ ${signature}")
 						"")))
 			 files
 			 "\n")))))
+
+(defun emacsconf-mail-notmuch-save-attachments-to-backstage (talk)
+	"Save the attached files to the cache and backstage dir for TALK."
+	(interactive (list (emacsconf-complete-talk-info)))
+	(with-current-notmuch-show-message
+	 (notmuch-foreach-mime-part
+		(lambda (part)
+			(when (string= (car (mm-handle-disposition part)) "attachment")
+				(prin1 part)
+				(let* ((filename (or (mail-content-type-get
+															(mm-handle-disposition part) 'filename)
+														 (mail-content-type-get
+															(mm-handle-type part) 'name)))
+							 (extra (read-string (concat filename ": ")))
+							 (new-filename (concat (plist-get talk :file-prefix)
+																		 extra "." (file-name-extension filename))))
+					(mm-save-part-to-file part (expand-file-name new-filename emacsconf-cache-dir))
+					(mm-save-part-to-file part (expand-file-name new-filename emacsconf-backstage-dir)))))
+		(mm-dissect-buffer))))
 
 (provide 'emacsconf-mail)
 ;;; emacsconf-mail.el ends here
