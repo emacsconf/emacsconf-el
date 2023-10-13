@@ -67,7 +67,7 @@
   (emacsconf-publish-info-pages)
   (magit-status-setup-buffer emacsconf-directory))
 
-(defun emacsconf-update-conf-html ()
+(defun emacsconf-publish-update-conf-html ()
   "Update the schedules and export the page so I can easily review it."
   (interactive)
   (cl-letf* ((new-org (>= (string-to-number (org-version)) 9.5))
@@ -85,8 +85,7 @@
       (org-babel-execute-buffer)
       (org-html-export-to-html))))
 
-  
-(defun emacsconf-regenerate-wiki (&optional force)
+(defun emacsconf-publish-regenerate-wiki (&optional force)
   (interactive)
   (when
     (let ((info (emacsconf-get-talk-info))
@@ -114,7 +113,7 @@
     (emacsconf-update-schedules)
     (emacsconf-upcoming-update-file)
     (emacsconf-update-schedules-in-wiki)
-    (emacsconf-update-conf-html)
+    (emacsconf-publish-update-conf-html)
     (setq emacsconf-info (emacsconf-get-talk-info))))
 
 (defun emacsconf-update-media ()
@@ -133,12 +132,12 @@
                                (emacsconf-filter-talks emacsconf-info)
                                (format "https://media.emacsconf.org/%s/backstage/" emacsconf-year)))
 
-(defun emacsconf-index-card (talk &optional extensions)
+(defun emacsconf-publish-index-card (talk &optional extensions)
   "Format an HTML card for TALK, linking the files in EXTENSIONS."
   (let* ((file-prefix (plist-get talk :file-prefix))
          (video-file (plist-get talk :video-file))
          (video (and file-prefix
-                     (emacsconf-index-card-video
+                     (emacsconf-publish-index-card-video
                       (or (plist-get talk :video-id)
                           (concat (plist-get talk :slug) "-mainVideo"))
                       video-file talk extensions))))
@@ -283,7 +282,7 @@
            (insert result))))
      emacsconf-tracks)))
 
-(defun emacsconf-index-card-video (video-id video-file talk extensions)
+(defun emacsconf-publish-index-card-video (video-id video-file talk extensions)
   (let* ((video-base (and (stringp video-file) (replace-regexp-in-string "reencoded\\|original" "main" (file-name-base video-file))))
          (chapter-info (and (stringp video-file)
                             (emacsconf-make-chapter-strings
@@ -331,7 +330,7 @@
             (mapconcat
              (lambda (s)
                (concat "<li>" s "</li>"))
-             (emacsconf-link-file-formats-as-list talk (or extensions emacsconf-main-extensions))
+             (emacsconf-publish-link-file-formats-as-list talk (or extensions emacsconf-main-extensions))
              "")
             :toobnix-info (if (plist-get talk :toobnix-url)
                               (format
@@ -459,13 +458,13 @@ resources."
                   o))
   (concat
    (if (plist-get o :qa-public) "# Talk\n\n" "")
-   (emacsconf-index-card o
+   (emacsconf-publish-index-card o
                          (if (plist-get o :captions-edited)
                              emacsconf-main-extensions
                            (remove "--main.vtt" emacsconf-main-extensions)))
    (if (plist-get o :qa-public)
        (concat "\n\n# Q&A\n\n"
-               (emacsconf-index-card (append
+               (emacsconf-publish-index-card (append
                                       (list
                                        :public 1
                                        :video-id (concat (plist-get o :slug) "-qanda")
@@ -1048,7 +1047,7 @@ Entries are sorted chronologically, with different tracks interleaved."
 														:pad nil
 														:channel nil
 														:resources (mapconcat (lambda (s) (concat "<li>" s "</li>"))
-																									(emacsconf-link-file-formats-as-list
+																									(emacsconf-publish-link-file-formats-as-list
 																									 (append o
 																													 (list :base-url (format "%s%s/" emacsconf-media-base-url emacsconf-year)))
 																									 (append emacsconf-main-extensions (list "--answers.webm" "--answers.opus" "--answers.vtt")))
@@ -1128,7 +1127,7 @@ Entries are sorted chronologically, with different tracks interleaved."
 											 (plist-get f :title)
 											 (plist-get f :speakers)
 											 (plist-get f :slug)
-											 (emacsconf-index-card f)))
+											 (emacsconf-publish-index-card f)))
 						 list
 						 "\n"))))
 
@@ -1151,7 +1150,7 @@ Entries are sorted chronologically, with different tracks interleaved."
                         (plist-get f :title)
                         (plist-get f :speakers)
                         (plist-get f :slug)
-                        (emacsconf-index-card f)))
+                        (emacsconf-publish-index-card f)))
              list
              "\n"))))
 
@@ -1179,7 +1178,7 @@ Entries are sorted chronologically, with different tracks interleaved."
                (plist-get f :title)
                (plist-get f :speakers-with-pronouns)
                (plist-get f :slug)
-               (emacsconf-index-card f)))
+               (emacsconf-publish-index-card f)))
     (assoc-default "TO_CAPTION" by-status)
     "\n")))
 
@@ -1196,7 +1195,7 @@ Entries are sorted chronologically, with different tracks interleaved."
                                 (plist-get f :title)
                                 (plist-get f :speakers-with-pronouns)
                                 (plist-get f :slug)
-                                (emacsconf-index-card (append f (list :extra (concat "Captioned by " (plist-get f :captioner))
+                                (emacsconf-publish-index-card (append f (list :extra (concat "Captioned by " (plist-get f :captioner))
                                                                       :files (emacsconf-publish-talk-files f files)))
                                                       emacsconf-main-extensions)))
                      (assoc-default "TO_STREAM" by-status) "\n")))
@@ -1289,7 +1288,7 @@ answers without needing to listen to everything again. You can see <a href=\"htt
 																(plist-get f :title)
 																(plist-get f :speakers-with-pronouns)
 																(plist-get f :slug)
-																(emacsconf-index-card
+																(emacsconf-publish-index-card
 																 (append (list
 																					:video-note
 																					(unless (file-exists-p (expand-file-name (concat (plist-get f :file-prefix) "--bbb-webcams.webm") emacsconf-cache-dir))
@@ -1355,7 +1354,7 @@ answers without needing to listen to everything again. You can see <a href=\"htt
           (plist-get o :absolute-url)
           (plist-get o :title)
           (plist-get o :speakers)
-          (emacsconf-index-card
+          (emacsconf-publish-index-card
            (append (list :files
                          (emacsconf-publish-filter-files o files emacsconf-main-extensions)
 												 :audio-file
@@ -1367,7 +1366,7 @@ answers without needing to listen to everything again. You can see <a href=\"htt
               (format "<li><div class=\"title\"><a href=\"%s\">Q&amp;A for %s</a></div>%s</li>"
 											(plist-get o :absolute-url)
                       (plist-get o :title)
-                      (emacsconf-index-card
+                      (emacsconf-publish-index-card
                        (append
                         (list
                          :public 1
@@ -1428,7 +1427,7 @@ answers without needing to listen to everything again. You can see <a href=\"htt
                   (plist-get f :title)
                   (or (plist-get f :speakers) "")
                   (if (plist-get f :public)
-                      (emacsconf-index-card
+                      (emacsconf-publish-index-card
                        (append (list :base-url
                                      (concat emacsconf-media-base-url (plist-get f :conf-year) "/")
                                      :track-base-url
@@ -1439,7 +1438,7 @@ answers without needing to listen to everything again. You can see <a href=\"htt
                        emacsconf-main-extensions)
                     "")
                   (if (plist-get f :qa-public)
-                      (emacsconf-index-card
+                      (emacsconf-publish-index-card
                        (append
                         (list
                          :public 1
@@ -1506,35 +1505,29 @@ answers without needing to listen to everything again. You can see <a href=\"htt
 		emacsconf-publish-subtitle-languages
     "")))
 
-(defun emacsconf-link-file-formats (file-prefix extensions)
-  (string-join (emacsconf-link-file-formats-as-list file-prefix extensions) " "))
+(defun emacsconf-publish-link-file-formats (file-prefix extensions)
+  (string-join (emacsconf-publish-link-file-formats-as-list file-prefix extensions) " "))
 
-(defun emacsconf-link-file-formats-as-list (talk extensions)
-  (if (plist-get talk :files)
-      (seq-map
-			 (lambda (file)
-         (format "<a href=\"%s%s\">Download %s</a>"
-                 (or (plist-get talk :base-url) "")
-                 file
-                 (replace-regexp-in-string (concat "^" (regexp-quote (plist-get talk :file-prefix))) "" file)))
-       (plist-get talk :files))
-    (let ((file-prefix (plist-get talk :file-prefix)))
-      (delq nil (seq-map (lambda (ext)
-                           (let ((file (expand-file-name
-                                        (concat file-prefix ext)
-                                        emacsconf-cache-dir))
-                                 size)
-                             (when (file-exists-p file)
-                               (setq size
-                                     (if (> (file-attribute-size (file-attributes file)) 1000000)
-                                         (format " (%sB)" (file-size-human-readable (file-attribute-size (file-attributes file))))
-                                       ""))
-                               (format "<a href=\"%s%s\">Download %s%s</a>"
-                                       (or (plist-get talk :base-url) "")
-                                       (concat file-prefix ext)
-                                       ext
-                                       size))))
-                         extensions)))))
+(defun emacsconf-publish-link-file-formats-as-list (talk extensions)
+	(seq-map
+	 (lambda (file)
+		 (let ((cache-file (expand-file-name (file-name-nondirectory file) emacsconf-cache-dir)))
+			 (format "<a href=\"%s%s\">Download %s%s</a>"
+							 (or (plist-get talk :base-url) "")
+							 (file-name-nondirectory file)
+							 (replace-regexp-in-string (concat "^" (regexp-quote (plist-get talk :file-prefix))) "" (file-name-nondirectory file))
+							 (if (and (file-exists-p cache-file)
+												(> (file-attribute-size (file-attributes cache-file)) 1000000))
+									 (format " (%sB)" (file-size-human-readable (file-attribute-size (file-attributes cache-file))))
+								 ""))))
+	 (or (plist-get talk :files)
+			 (let ((file-prefix (plist-get talk :file-prefix)))
+				 (seq-keep (lambda (ext)
+										 (let ((file (expand-file-name
+																	(concat file-prefix ext)
+																	emacsconf-cache-dir)))
+											 (and (file-exists-p file) file)))
+									 extensions)))))
 
 (defun emacsconf-talks-csv ()
   "Make a CSV of the talks.
