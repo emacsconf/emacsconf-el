@@ -1168,21 +1168,31 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
           (message "Missing %s"  (mapconcat #'symbol-name missing ", "))
         (format "Missing %s"  (mapconcat #'symbol-name missing ", "))))))
 
-;;; Ansible support
-(defun emacsconf-ansible-export-talks ()
-  (interactive)
-  (when emacsconf-ansible-directory
-    (with-temp-file (expand-file-name "talks.json" emacsconf-ansible-directory)
-      (insert (json-encode (list :talks
-                                 (mapcar (lambda (o)
-                                           (apply 'list
-                                                  (cons :start-time (format-time-string "%FT%T%z" (plist-get o :start-time) t))
-                                                  (cons :end-time (format-time-string "%FT%T%z" (plist-get o :end-time) t))
-                                                  (mapcar (lambda (field)
-                                                            (cons field (plist-get o field)))
-                                                          '(:slug :title :speakers :pronouns :pronunciation :url :track :file-prefix)))
-                                           )
-                                         (emacsconf-filter-talks (emacsconf-get-talk-info)))))))))
+(defun emacsconf-talks-json ()
+	"Return JSON format with a subset of talk information."
+	(json-encode
+	 (list
+		:talks
+    (mapcar
+		 (lambda (o)
+       (apply
+				'list
+        (cons :start-time (format-time-string "%FT%T%z" (plist-get o :start-time) t))
+        (cons :end-time (format-time-string "%FT%T%z" (plist-get o :end-time) t))
+        (mapcar
+				 (lambda (field)
+           (cons field (plist-get o field)))
+         '(:slug :title :speakers :pronouns :pronunciation :url :track :file-prefix))))
+     (emacsconf-filter-talks (emacsconf-get-talk-info))))))
+
+(defun emacsconf-export-talks-json ()
+	(interactive)
+	"Export talk information as JSON so that we can use it in shell scripts."
+	(mapc (lambda (dir)
+					(when (and dir (file-directory-p dir))
+						(with-temp-file (expand-file-name "talks.json" dir)
+							(insert (emacsconf-talks-json)))))
+				(list emacsconf-res-dir emacsconf-ansible-directory)))
 
 (defun emacsconf-ansible-load-vars (file)
   (interactive (list (read-file-name "File: " emacsconf-ansible-directory)))
