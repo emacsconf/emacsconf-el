@@ -151,17 +151,25 @@
   (interactive)
   (dired emacsconf-cache-dir "-tl"))
 (defun emacsconf-slugify (s)
-  (replace-regexp-in-string " +" "-" (replace-regexp-in-string "[^a-z0-9 ]" "" (downcase s))))
+	"Turn S into an ID.
+Replace spaces with dashes, remove non-alphanumeric characters,
+and downcase the string."
+  (replace-regexp-in-string
+	 " +" "-"
+	 (replace-regexp-in-string
+		"[^a-z0-9 ]" ""
+		(downcase s))))
 
 (defun emacsconf-file-prefix (talk)
-  (concat "emacsconf-" emacsconf-year "-" (plist-get talk :slug) "--"
+	"Create the file prefix for TALK."
+  (concat emacsconf-id "-"
+					emacsconf-year "-"
+					(plist-get talk :slug) "--"
           (emacsconf-slugify (plist-get talk :title))
           (if (plist-get talk :speakers)
-              (concat"--"
+              (concat "--"
                      (emacsconf-slugify (plist-get talk :speakers)))
             "")))
-
-
 
 (defun emacsconf-set-file-prefix-if-needed (o)
   (interactive (list (emacsconf-complete-talk-info)))
@@ -175,10 +183,13 @@
   (plist-get o :file-prefix))
 
 (defun emacsconf-set-file-prefixes ()
+	"Set the FILE_PREFIX property for each talk entry that needs it."
   (interactive)
   (org-map-entries
    (lambda ()
-     (org-entry-put (point) "FILE_PREFIX" (emacsconf-file-prefix (emacsconf-get-talk-info-for-subtree))))
+     (org-entry-put
+			(point) "FILE_PREFIX"
+			(emacsconf-file-prefix (emacsconf-get-talk-info-for-subtree))))
    "SLUG={.}-FILE_PREFIX={.}"))
 
 (defun emacsconf-upload-to-backstage ()
@@ -206,22 +217,50 @@
       (with-current-buffer (find-file-noselect (concat filename ".en.srv2"))
         (emacsconf-upload-to-backstage-and-rename talk "main--srt")))))
 
-(defun emacsconf-upload-to-backstage-and-rename (talk &optional filename)
+(defun emacsconf-rename-files (talk &optional filename)
+	"Rename the marked files or the current file to match TALK.
+If FILENAME is specified, use that as the extra part of the filename after the prefix.
+This is useful for distinguishing files with the same extension.
+Return the list of new filenames."
+	(interactive (list (emacsconf-complete-talk-info)))
+	(prog1
+			(mapcar
+			 (lambda (file)
+				 (let* ((extra
+								 (or filename
+										 (read-string (format "Filename (%s): " (file-name-base file)))))
+								(new-filename
+								 (expand-file-name
+									(concat (plist-get talk :file-prefix)
+													(if (string= extra "")
+															""
+														(concat "--" extra))
+													"."
+													(file-name-extension file))
+									(file-name-directory file))))
+					 (rename-file file new-filename t)
+					 new-filename))
+			 (or (dired-get-marked-files) (list (buffer-file-name))))
+		(when (derived-mode-p 'dired-mode)
+			(revert-buffer))))
+
+(defun emacsconf-rename-and-upload-to-backstage (talk &optional filename)
+	"Rename marked files or the current file, then upload to backstage."
   (interactive (list (emacsconf-complete-talk-info)))
-  (mapc (lambda (file)
-          (let ((new-file (or filename (read-string (format "Filename (%s): " (file-name-base file))))))
-            (copy-file file
-                       (expand-file-name (concat (plist-get talk :file-prefix)
-                                                 (if (string= new-file "")
-                                                     ""
-                                                   (concat "--" new-file))
-                                                 "."
-                                                 (file-name-extension file))
-                                         emacsconf-backstage-dir)
-                       t)))
-        (or (dired-get-marked-files) (list (buffer-file-name)))))
+	(mapc
+   (lambda (file)
+		 (copy-file
+			file
+			(expand-file-name
+			 (file-name-nondirectory file)
+			 emacsconf-backstage-dir)
+			t))
+	 (emacsconf-rename-files talk)))
 
 (defun emacsconf-upload-copy-from-json (talk key filename)
+	"Parse PsiTransfer JSON files and copy the uploaded file to the backstage directory.
+The file is associated with TALK. KEY identifies the file in a multi-file upload.
+FILENAME specifies an extra string to add to the file prefix if needed."
   (interactive (let-alist (json-parse-string (buffer-string) :object-type 'alist)
                  (list (emacsconf-complete-talk-info)
                        .metadata.key
@@ -233,15 +272,10 @@
                               "."
                               (let-alist (json-parse-string (buffer-string) :object-type 'alist)
                                 (file-name-extension .metadata.name)))))
-    (copy-file key
-               (expand-file-name new-filename
-                                 emacsconf-backstage-dir) t)
-    ;; (copy-file key (expand-file-name new-filename emacsconf-cache-dir))
-    ;; (unless (file-directory-p (expand-file-name (plist-get talk :slug) emacsconf-res-dir))
-    ;;   (make-directory (expand-file-name (plist-get talk :slug) emacsconf-res-dir)))
-    ;; (copy-file (expand-file-name new-filename emacsconf-cache-dir)
-    ;;            (expand-file-name new-filename (expand-file-name (plist-get talk :slug) emacsconf-res-dir)))
-    ))
+    (copy-file
+		 key
+     (expand-file-name new-filename emacsconf-backstage-dir)
+		 t)))
 
 (defcustom emacsconf-download-directory "~/Downloads"
   "Directory to check for downloaded files."
