@@ -515,53 +515,6 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
               (kill-buffer buffer))))
         (buffer-list)))
 
-;;; Specific mail merges
-
-(defun emacsconf-mail-captions-for-approval (talk)
-  (interactive (list (emacsconf-complete-talk-info)))
-  (let ((captions (expand-file-name (concat (plist-get talk :file-prefix) "--main.vtt")
-                                    emacsconf-cache-dir))
-        (captioner-info
-         (with-current-buffer (find-file-noselect emacsconf-org-file)
-           (org-entry-properties (org-find-property "CUSTOM_ID" (plist-get talk :captioner))))))
-    (emacsconf-mail-prepare
-     (emacsconf-mail-merge-get-template "captions")
-     (plist-get talk :email)
-     (list
-      :speakers-short (plist-get talk :speakers-short)
-      :year emacsconf-year
-      :email (plist-get talk :email)
-      :title (plist-get talk :title)
-      :captioner (assoc-default "NAME_SHORT" captioner-info)
-      :url
-      (format "https://%s:%s@media.emacsconf.org/%s/backstage/#%s"
-              emacsconf-backstage-user
-              emacsconf-backstage-password
-              emacsconf-year
-              (plist-get talk :slug))
-      :password emacsconf-backstage-password
-      :captioner-email (assoc-default "EMAIL" captioner-info)
-      :captioner-volunteered
-      (if (string= (plist-get talk :captioner) "sachac")
-          ""
-        (format "%s volunteered to edit the captions for your video. " (assoc-default "NAME_SHORT" captioner-info)))
-      :chapters-note
-      (if (file-exists-p
-           (expand-file-name (concat (plist-get talk :file-prefix) "--main--chapters.vtt")
-                             emacsconf-cache-dir))
-          "I've come up with some potential chapter headings which you can see as NOTE in the transcript or in the backstage entry for your video. Let me know if you want to tweak those.\n\n"
-        "")
-      :intro-note
-      (emacsconf-surround
-       "${wrap}Also, I drafted a quick intro for the host to read. Let me know if you want to tweak this: " (plist-get talk :intro-note) "\n\n"
-       "")
-      :captioner-thanks
-      (if (string= (plist-get talk :captioner) "sachac")
-          ""
-        (format "%s: Thank you for editing the captions!\n\n" (assoc-default "NAME_SHORT" captioner-info)))
-      :captions (mapconcat (lambda (sub) (concat (emacsconf-surround "\n" (elt sub 4) "" "") (elt sub 3))) (subed-parse-file captions) "\n")))
-    (mml-attach-file captions "text/vtt" "Subtitles" "attachment")))
-
 ;;; Notmuch
 
 ;;;###autoload
@@ -854,6 +807,207 @@ ${signature}
 					 "Just let me know if you want us to use a different timezone for translating times in future e-mails. ")
 				"I don't think I have a timezone noted for you yet. If you want, I can translate times into your local timezone for you in future e-mails. Just let me know what you would like. ")))))
 
+(defun emacsconf-mail-acknowledge-upload (talk)
+	"Acknowledge uploaded files for TALK."
+  (interactive (list (emacsconf-complete-talk-info)))
+	(emacsconf-mail-prepare
+	 '(:subject "${conf-name} ${year}: received uploaded files for ${title}"
+							:cc "emacsconf-submit@gnu.org"
+							:reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+							:mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+							:body
+							"Hi, ${speakers-short}!
+
+Just a quick note to let you know that I've downloaded your file${plural} for \"${title}\".
+Now we have the following file${plural} starting with ${file-prefix}:
+
+${file-list}
+We'll be working on captioning your talk over the next few weeks. We'll e-mail again a little closer to the conference with schedule updates and other useful information. If you want to upload a new version, you can upload it the same way you did the previous one.
+
+Please feel free to e-mail us at ${submit-email} if you need help updating the talk wiki page at ${base}${url} or if you have other questions.
+
+Thank you so much for all the work you put into preparing a talk for ${conf-name} ${year}, and thank you for submitting the prerecorded video before the conference!
+
+${signature}")
+	 (plist-get talk :email)
+	 (let ((files (directory-files emacsconf-cache-dir
+																 t (regexp-quote (plist-get talk :file-prefix)))))
+		 (list
+			:title (plist-get talk :title)
+			:conf-name emacsconf-name
+			:year emacsconf-year
+			:base emacsconf-base-url
+			:url (plist-get talk :url)
+			:email (plist-get talk :email)
+			:submit-email emacsconf-submit-email
+			:plural (if (= 1 (length files)) "" "s")
+			:file-prefix (plist-get talk :file-prefix)
+			:signature user-full-name
+			:user-email user-mail-address
+			:speakers-short (plist-get talk :speakers-short)
+			:file-list
+			(mapconcat
+			 (lambda (file)
+				 (concat
+					(format "- %s\n  File size: %s, MD5 sum: %s\n"
+									(replace-regexp-in-string (plist-get talk :file-prefix)
+																						"" (file-name-nondirectory file))
+									(file-size-human-readable (file-attribute-size (file-attributes file)))
+									(string-trim
+									 (shell-command-to-string
+										(concat "md5sum " (shell-quote-argument file) " | cut -f 1 -d ' '"))))
+					(if (member (file-name-extension file) subed-video-extensions)
+							(format "  (around %d minutes long)\n"
+											(ceiling
+											 (/ (compile-media-get-file-duration-ms file)
+													60000.0)))
+						"")))
+			 files
+			 "\n")))))
+
+(defun emacsconf-mail-captions-for-approval (talk)
+  (interactive (list (emacsconf-complete-talk-info)))
+  (let ((captions (expand-file-name (concat (plist-get talk :file-prefix) "--main.vtt")
+                                    emacsconf-cache-dir))
+        (captioner-info
+         (with-current-buffer (find-file-noselect emacsconf-org-file)
+           (org-entry-properties (org-find-property "CUSTOM_ID" (plist-get talk :captioner))))))
+    (emacsconf-mail-prepare
+     (emacsconf-mail-merge-get-template "captions")
+     (plist-get talk :email)
+     (list
+      :speakers-short (plist-get talk :speakers-short)
+      :year emacsconf-year
+      :email (plist-get talk :email)
+      :title (plist-get talk :title)
+      :captioner (assoc-default "NAME_SHORT" captioner-info)
+      :url
+      (format "https://%s:%s@media.emacsconf.org/%s/backstage/#%s"
+              emacsconf-backstage-user
+              emacsconf-backstage-password
+              emacsconf-year
+              (plist-get talk :slug))
+      :password emacsconf-backstage-password
+      :captioner-email (assoc-default "EMAIL" captioner-info)
+      :captioner-volunteered
+      (if (string= (plist-get talk :captioner) "sachac")
+          ""
+        (format "%s volunteered to edit the captions for your video. " (assoc-default "NAME_SHORT" captioner-info)))
+      :chapters-note
+      (if (file-exists-p
+           (expand-file-name (concat (plist-get talk :file-prefix) "--main--chapters.vtt")
+                             emacsconf-cache-dir))
+          "I've come up with some potential chapter headings which you can see as NOTE in the transcript or in the backstage entry for your video. Let me know if you want to tweak those.\n\n"
+        "")
+      :intro-note
+      (emacsconf-surround
+       "${wrap}Also, I drafted a quick intro for the host to read. Let me know if you want to tweak this: " (plist-get talk :intro-note) "\n\n"
+       "")
+      :captioner-thanks
+      (if (string= (plist-get talk :captioner) "sachac")
+          ""
+        (format "%s: Thank you for editing the captions!\n\n" (assoc-default "NAME_SHORT" captioner-info)))
+      :captions (mapconcat (lambda (sub) (concat (emacsconf-surround "\n" (elt sub 4) "" "") (elt sub 3))) (subed-parse-file captions) "\n")))
+    (mml-attach-file captions "text/vtt" "Subtitles" "attachment")))
+
+(defun emacsconf-mail-backstage-info (group)
+	"E-mail backstage access information to GROUP."
+  (interactive (list (emacsconf-mail-complete-email-group)))
+  (emacsconf-mail-prepare
+	 (list
+		:subject "EmacsConf backstage area with videos and other resources"
+		:reply-to "emacsconf-submit@gnu.org, ${email}"
+		:mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+		:log-note "sent backstage information"
+		:body
+		"Hi ${name}!
+
+You're getting this e-mail because you are a ${role} for ${conf-name} ${year}. (Thanks!)
+As a perk, you get early access as the talks come in.${fill}
+
+We've set up ${backstage} as the backstage area where you can view the
+videos and resources uploaded so far. You can access it with the
+username \"${backstage-user}\" and the password \"${backstage-password}\".
+Please keep the backstage password and other speakers' talk resources
+secret. ${backstage-use}${fill}
+
+Thank you!
+
+${signature}")
+   (car group)
+   (list
+    :backstage (emacsconf-replace-plist-in-string
+								(list :year emacsconf-year)
+								"https://media.emacsconf.org/${year}/backstage/")
+		:role (or (plist-get (cadr group) :role) "speaker")
+		:plural (if (= 1 (length (cdr group))) "" "s")
+		:backstage-use
+		(cond
+		 ((string= (plist-get (cadr group) :role) "volunteer")
+			"If you see a talk that you'd like to caption, please let us know and we can reserve it for you.")
+		 ((string= (plist-get (cadr group) :status) "WAITING_FOR_PREREC")
+			"As we add more talks, you can skim through any relevant ones to
+see if there are any points you'd like to build on in your talk.
+Also, you can get a sense of what we do behind the scenes to try
+to get as many talks captioned for broadcast, and what you can do
+to make it easier. (A script or a text file with names and
+technical terms can be helpful. No need to type out a manual
+transcript if you don't start from a script.) After you upload
+your talk and we process the files, you can use the backstage
+area to check the quality of the reencoded video.")
+		 (t
+			"You can confirm the quality of your talk's reencoding to make sure everything plays as well as you'd like (and
+check the captions after they're edited), and you can watch other
+people's talks too."))
+    :backstage-user emacsconf-backstage-user
+    :backstage-password emacsconf-backstage-password
+		:name (plist-get (cadr group) :speakers-short)
+		:email (car group)
+    :signature user-full-name
+		:conf-name emacsconf-name
+    :year emacsconf-year)))
+
+(defun emacsconf-mail-backstage-info-to-speakers-and-captioners ()
+  (interactive)
+  (let ((template (emacsconf-mail-merge-get-template "backstage"))
+        (speaker-groups
+         (seq-uniq
+          (mapcar
+           (lambda (talk)
+             (list
+              :name (plist-get talk :speakers-short)
+              :email (plist-get talk :email)
+              :role "speaker"
+              :backstage-use
+              "As we add more talks, you can skim through any relevant ones to
+see if there are any points you'd like to build on in your talk.
+Also, you can get a sense of what we do behind the scenes to try
+to get as many talks captioned for broadcast, and what you can do
+to make it easier. (A text file with names and technical terms
+can be helpful. No need to type out a manual transcript if you
+don't start from a script.) After you upload your talk and we
+process the files, you can use the backstage area to check the
+quality of the reencoded video."))
+           (seq-filter (lambda (o) (string= (plist-get o :status) "WAITING_FOR_PREREC"))
+                       (emacsconf-filter-talks (emacsconf-get-talk-info))))))
+        (volunteer-groups
+         (with-current-buffer (find-file-noselect emacsconf-org-file)
+           (org-map-entries (lambda ()
+                              (list :name (org-entry-get (point) "NAME_SHORT")
+                                    :email (org-entry-get (point) "EMAIL")
+                                    :role "captioning volunteer"
+                                    :backstage-use "If you see a talk that you'd like to caption, you can e-mail me at sacha@sachachua.com and I can reserve it for you."))
+                            "captions"))))
+    (mapcar (lambda (g) (emacsconf-mail-backstage-info g template))
+            (append
+             speaker-groups
+             (seq-remove (lambda (v) (seq-find (lambda (s) (string= (plist-get s :email)
+                                                                    (plist-get v :email)))
+                                               speaker-groups))
+                         volunteer-groups)))))
+
+;;; Other mail functions
+
 (defun emacsconf-mail-verify-delivery (groups subject)
 	"Verify that the email addresses in GROUPS have all received an email with SUBJECT."
 	(interactive (list (emacsconf-mail-groups (seq-filter (lambda (o) (not (string= (plist-get o :status) "CANCELLED")))
@@ -982,64 +1136,6 @@ This minimizes the risk of mail delivery issues and radio silence."
 		 (lambda (talk)
 			 (emacsconf-add-to-talk-logbook talk note))
 		 (emacsconf-mail-talks email))))
-
-(defun emacsconf-mail-acknowledge-upload (talk)
-	"Acknowledge uploaded files for TALK."
-  (interactive (list (emacsconf-complete-talk-info)))
-	(emacsconf-mail-prepare
-	 '(:subject "${conf-name} ${year}: received uploaded files for ${title}"
-							:cc "emacsconf-submit@gnu.org"
-							:reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
-							:mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
-							:body
-							"Hi, ${speakers-short}!
-
-Just a quick note to let you know that I've downloaded your file${plural} for \"${title}\".
-Now we have the following file${plural} starting with ${file-prefix}:
-
-${file-list}
-We'll be working on captioning your talk over the next few weeks. We'll e-mail again a little closer to the conference with schedule updates and other useful information. If you want to upload a new version, you can upload it the same way you did the previous one.
-
-Please feel free to e-mail us at ${submit-email} if you need help updating the talk wiki page at ${base}${url} or if you have other questions.
-
-Thank you so much for all the work you put into preparing a talk for ${conf-name} ${year}, and thank you for submitting the prerecorded video before the conference!
-
-${signature}")
-	 (plist-get talk :email)
-	 (let ((files (directory-files emacsconf-cache-dir
-																 t (regexp-quote (plist-get talk :file-prefix)))))
-		 (list
-			:title (plist-get talk :title)
-			:conf-name emacsconf-name
-			:year emacsconf-year
-			:base emacsconf-base-url
-			:url (plist-get talk :url)
-			:email (plist-get talk :email)
-			:submit-email emacsconf-submit-email
-			:plural (if (= 1 (length files)) "" "s")
-			:file-prefix (plist-get talk :file-prefix)
-			:signature user-full-name
-			:user-email user-mail-address
-			:speakers-short (plist-get talk :speakers-short)
-			:file-list
-			(mapconcat
-			 (lambda (file)
-				 (concat
-					(format "- %s\n  File size: %s, MD5 sum: %s\n"
-									(replace-regexp-in-string (plist-get talk :file-prefix)
-																						"" (file-name-nondirectory file))
-									(file-size-human-readable (file-attribute-size (file-attributes file)))
-									(string-trim
-									 (shell-command-to-string
-										(concat "md5sum " (shell-quote-argument file) " | cut -f 1 -d ' '"))))
-					(if (member (file-name-extension file) subed-video-extensions)
-							(format "  (around %d minutes long)\n"
-											(ceiling
-											 (/ (compile-media-get-file-duration-ms file)
-													60000.0)))
-						"")))
-			 files
-			 "\n")))))
 
 (defun emacsconf-mail-notmuch-save-attachments-to-backstage (talk)
 	"Save the attached files to the cache and backstage dir for TALK."
