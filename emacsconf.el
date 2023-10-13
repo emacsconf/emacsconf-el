@@ -1068,7 +1068,11 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
 
 (defun emacsconf-timezone-set (timezone)
 	"Set the timezone for the current Org entry."
-	(interactive (list (progn (require 'tzc) (completing-read "Timezone: " tzc-time-zones))))
+	(interactive
+	 (list
+		(progn
+			(require 'tzc)
+			(completing-read "Timezone: " tzc-time-zones))))
 	(org-entry-put (point) "TIMEZONE" timezone))
 
 ;;; Etherpad
