@@ -1207,10 +1207,7 @@ Entries are sorted chronologically, with different tracks interleaved."
 (defun emacsconf-publish-backstage-index (&optional filename)
   (interactive)
   (setq filename (or filename (expand-file-name "index.html" emacsconf-backstage-dir)))
-  (let ((info (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
-    (let ((emacsconf-schedule-svg-modify-functions '(emacsconf-schedule-svg-color-by-status)))
-      (with-temp-file (expand-file-name "schedule.svg" emacsconf-backstage-dir)
-        (svg-print (emacsconf-schedule-svg 800 200 info))))
+  (let ((info (or emacsconf-schedule-draft (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))
     (with-temp-file filename
       (let* ((talks
               (mapcar
@@ -1226,7 +1223,17 @@ Entries are sorted chronologically, with different tracks interleaved."
              (with-temp-buffer (insert-file-contents (expand-file-name "include-in-index.html" emacsconf-cache-dir)) (buffer-string))
            "")
 				 "<p>Schedule by status: (gray: waiting, light yellow: processing, yellow: to assign, light green: captioning, green: captioned and ready)<br />Updated by conf.org and the wiki repository</br />"
-         "<img src=\"schedule.svg\" /></p>"
+				 (let* ((emacsconf-schedule-svg-modify-functions '(emacsconf-schedule-svg-color-by-status))
+								(img (emacsconf-schedule-svg 800 200 info)))
+					 (with-temp-buffer
+						 (mapc (lambda (node)
+										 (dom-set-attribute
+											node 'href
+											(concat "#" (dom-attr node 'data-slug))))
+									 (dom-by-tag img 'a))
+						 (svg-print img)
+						 (buffer-string)))
+				 "</p>"
 				 (if (eq emacsconf-backstage-phase 'prerec)
 						 (format "<p>Waiting for %d talks (~%d minutes) out of %d total</p>"
 										 (length (assoc-default "WAITING_FOR_PREREC" by-status))
