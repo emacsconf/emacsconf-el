@@ -42,7 +42,7 @@ Each function should take the info and manipulate it as needed, returning the ne
             o)
           info))
 
-
+(defvar emacsconf-schedule-draft nil "Draft schedule if specified.")
 (defvar emacsconf-schedule-break-time 10 "Number of minutes for break.")
 (defvar emacsconf-schedule-lunch-time 45 "Number of minutes for lunch.")
 (defvar emacsconf-schedule-start-time "09:00:00")
