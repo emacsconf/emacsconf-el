@@ -421,7 +421,7 @@ If INFO is specified, limit it to that list."
     ("PROCESSING" . "Processing uploaded video")
     ("TO_AUTOCAP" . "Processing uploaded video")
     ("TO_ASSIGN" . "Waiting for a caption volunteer")
-    ("TO_CAPTION" . "Processing uploaded video")
+    ("TO_CAPTION" . "Being captioned")
     ("TO_STREAM" . "Ready to stream")
     ("PLAYING" . "Now playing on the conference livestream")
     ("CLOSED_Q" . "Q&A starting (not yet open for joining)")
