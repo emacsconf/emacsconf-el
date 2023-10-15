@@ -35,7 +35,7 @@
   :type '(repeat string)
   :group 'emacsconf)
 
-(defcustom emacsconf-backstage-extensions '(".en.srv2" ".srt")
+(defcustom emacsconf-publish-backstage-extensions '(".en.srv2" ".srt" "--original.mp4")
   "Extensions to list in the staging area."
   :group 'emacsconf)
 (defcustom emacsconf-public-media-directory (concat "/ssh:orga@media.emacsconf.org:/var/www/media.emacsconf.org/" emacsconf-year "/")
@@ -1120,7 +1120,9 @@ Entries are sorted chronologically, with different tracks interleaved."
 												(list :extra
 															(if (plist-get f :caption-note) (concat "<div class=\"caption-note\">" (plist-get f :caption-note) "</div>") "")
 															:files
-															(emacsconf-publish-talk-files f files))))
+															(cons
+															 (plist-get f :video-file)
+															 (emacsconf-publish-talk-files f files)))))
 							 (format "<li><a name=\"%s\"></a><strong><a href=\"%s\">%s</a></strong><br />%s (id:%s)<br />%s</li>"
 											 (plist-get f :slug)
 											 (plist-get f :absolute-url)
@@ -1206,7 +1208,9 @@ Entries are sorted chronologically, with different tracks interleaved."
 (defun emacsconf-publish-backstage-index (&optional filename)
   (interactive)
   (setq filename (or filename (expand-file-name "index.html" emacsconf-backstage-dir)))
-  (let ((info (or emacsconf-schedule-draft (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))
+  (let ((info (or emacsconf-schedule-draft (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
+				(default-directory emacsconf-cache-dir)
+				(emacsconf-main-extensions (append emacsconf-main-extensions emacsconf-publish-backstage-extensions)))
     (with-temp-file filename
       (let* ((talks
               (mapcar
