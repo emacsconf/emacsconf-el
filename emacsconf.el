@@ -1599,7 +1599,7 @@ tracks with the ID in the cdr of that list."
 	(defun emacsconf-el-complete ()
 		"Complete a file from the Emacsconf Elisp library."
 		(concat "emacsconf-el:"
-						(file-name-base
+						(file-name-nondirectory
 						 (read-file-name
 							"File: "
 							(file-name-directory (locate-library "emacsconf.el"))))))
