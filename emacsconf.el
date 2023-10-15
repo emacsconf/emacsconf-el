@@ -1677,5 +1677,14 @@ tracks with the ID in the cdr of that list."
 																		 "0")))))
 									 info)
 									(lambda (a b) (< (car a) (car b))))))))
+
+(defun emacsconf-get-file-duration-ms (filename)
+  "Return the duration of FILENAME in milliseconds."
+  (* 1000
+     (string-to-number
+      (shell-command-to-string
+       (concat "ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "
+               (shell-quote-argument (expand-file-name filename)))))))
+
 (provide 'emacsconf)
 ;;; emacsconf.el ends here

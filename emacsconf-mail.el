@@ -830,7 +830,8 @@ Thank you so much for all the work you put into preparing a talk for ${conf-name
 
 ${signature}")
 	 (plist-get talk :email)
-	 (let ((files (directory-files emacsconf-cache-dir
+	 (let ((default-directory emacsconf-cache-dir)
+				 (files (directory-files emacsconf-cache-dir
 																 t (regexp-quote (plist-get talk :file-prefix)))))
 		 (list
 			:title (plist-get talk :title)
@@ -856,10 +857,10 @@ ${signature}")
 									(string-trim
 									 (shell-command-to-string
 										(concat "md5sum " (shell-quote-argument file) " | cut -f 1 -d ' '"))))
-					(if (member (file-name-extension file) subed-video-extensions)
+					(if (member (file-name-extension file) emacsconf-media-extensions)
 							(format "  (around %d minutes long)\n"
 											(ceiling
-											 (/ (compile-media-get-file-duration-ms file)
+											 (/ (emacsconf-get-file-duration-ms file)
 													60000.0)))
 						"")))
 			 files
