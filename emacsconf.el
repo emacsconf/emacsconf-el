@@ -296,9 +296,10 @@ FILENAME specifies an extra string to add to the file prefix if needed."
   (interactive (list (emacsconf-complete-talk)))
   (setq search (if (stringp search) (emacsconf-get-slug-from-string search)
 								 (plist-get search :slug)))
-  (find-file (expand-file-name
-							(concat search ".md")
-              (expand-file-name "talks" (expand-file-name emacsconf-year emacsconf-directory)))))
+  (find-file-other-window
+	 (expand-file-name
+		(concat search ".md")
+    (expand-file-name "talks" (expand-file-name emacsconf-year emacsconf-directory)))))
 
 (defun emacsconf-find-caption-directives-from-slug (search)
   (interactive (list (emacsconf-complete-talk)))
