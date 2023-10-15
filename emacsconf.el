@@ -1067,6 +1067,31 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
               time
               emacsconf-timezone))))
 
+(defun emacsconf-convert-to-timezone (timezone time)
+  (interactive (list (progn
+											 (require 'tzc)
+											 (if (and (derived-mode-p 'org-mode)
+																(org-entry-get (point) "TIMEZONE"))
+													 (completing-read (format "To zone (%s): "
+																										(org-entry-get (point) "TIMEZONE"))
+																						tzc-time-zones nil nil nil nil
+																						(org-entry-get (point) "TIMEZONE"))
+												 (completing-read "To zone: " tzc-time-zones nil t)))
+                     (read-string "Time: ")))
+  (let* ((time
+          (date-to-time
+           (concat emacsconf-date "T" (string-pad time 5 ?0 t)  ":00.000"
+                   emacsconf-timezone-offset))))
+    (message "%s = %s"
+             (format-time-string
+              "%b %d %H:%M %z"
+              time
+              emacsconf-timezone)
+             (format-time-string
+              "%b %d %H:%M %z"
+              time
+              timezone))))
+
 (defun emacsconf-timezone-set (timezone)
 	"Set the timezone for the current Org entry."
 	(interactive
