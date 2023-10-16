@@ -1209,7 +1209,6 @@ Entries are sorted chronologically, with different tracks interleaved."
   (interactive)
   (setq filename (or filename (expand-file-name "index.html" emacsconf-backstage-dir)))
   (let ((info (or emacsconf-schedule-draft (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
-				(default-directory emacsconf-cache-dir)
 				(emacsconf-main-extensions (append emacsconf-main-extensions emacsconf-publish-backstage-extensions)))
     (with-temp-file filename
       (let* ((talks
@@ -1533,6 +1532,32 @@ answers without needing to listen to everything again. You can see <a href=\"htt
 											 (and (file-exists-p file) file)))
 									 extensions)))))
 
+(defun emacsconf-publish-talks-json ()
+	"Return JSON format with a subset of talk information."
+	(json-encode
+	 (list
+		:talks
+    (mapcar
+		 (lambda (o)
+       (apply
+				'list
+        (cons :start-time (format-time-string "%FT%T%z" (plist-get o :start-time) t))
+        (cons :end-time (format-time-string "%FT%T%z" (plist-get o :end-time) t))
+        (mapcar
+				 (lambda (field)
+           (cons field (plist-get o field)))
+         '(:slug :title :speakers :pronouns :pronunciation :url :track :file-prefix))))
+     (emacsconf-filter-talks (emacsconf-get-talk-info))))))
+
+(defun emacsconf-publish-talks-json-to-files ()
+	"Export talk information as JSON so that we can use it in shell scripts."
+	(interactive)
+	(mapc (lambda (dir)
+					(when (and dir (file-directory-p dir))
+						(with-temp-file (expand-file-name "talks.json" dir)
+							(insert (emacsconf-talks-json)))))
+				(list emacsconf-res-dir emacsconf-ansible-directory)))
+
 (defun emacsconf-talks-csv ()
   "Make a CSV of the talks.
             Columns are: slug,title,speakers,talk page url,video url,duration,sha."
@@ -1595,7 +1620,7 @@ answers without needing to listen to everything again. You can see <a href=\"htt
                           (emacsconf-public-talks (emacsconf-get-talk-info))))))
       (insert (orgtbl-to-csv
                (cons '("Conference" "Slug" "Title" "Speakers" "Talk page URL" "Video URL" "Date" "Duration" "SHA" "Youtube URL" "Toobnix URL")
-                      results)
+                     results)
                nil)))))
 
 (defun emacsconf-generate-pad-template (emacsconf-info)

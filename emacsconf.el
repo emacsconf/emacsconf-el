@@ -257,6 +257,31 @@ Return the list of new filenames."
 			t))
 	 (emacsconf-rename-files talk)))
 
+(defun emacsconf-rename-and-upload-to-res-cache (talk &optional filename)
+	"Rename marked files or the current file, then upload to res cache."
+  (interactive (list (emacsconf-complete-talk-info)))
+	(mapc
+   (lambda (file)
+		 (copy-file
+			file
+			(expand-file-name
+			 (file-name-nondirectory file)
+			 (expand-file-name "cache"
+				emacsconf-res-dir))
+			t))
+	 (emacsconf-rename-files talk)))
+
+(defun emacsconf-copy-to-cache-and-backstage ()
+	"Copy current file to cache and backstage."
+	(interactive)
+	(let ((file (buffer-file-name)))
+		(dolist (dir (list emacsconf-cache-dir emacsconf-backstage-dir))
+			(copy-file
+			 file
+			 (expand-file-name (file-name-nondirectory file)
+												 dir)
+			 t))))
+
 (defun emacsconf-upload-copy-from-json (talk key filename)
 	"Parse PsiTransfer JSON files and copy the uploaded file to the backstage directory.
 The file is associated with TALK. KEY identifies the file in a multi-file upload.
@@ -1193,32 +1218,6 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
       (if (called-interactively-p 'any)
           (message "Missing %s"  (mapconcat #'symbol-name missing ", "))
         (format "Missing %s"  (mapconcat #'symbol-name missing ", "))))))
-
-(defun emacsconf-talks-json ()
-	"Return JSON format with a subset of talk information."
-	(json-encode
-	 (list
-		:talks
-    (mapcar
-		 (lambda (o)
-       (apply
-				'list
-        (cons :start-time (format-time-string "%FT%T%z" (plist-get o :start-time) t))
-        (cons :end-time (format-time-string "%FT%T%z" (plist-get o :end-time) t))
-        (mapcar
-				 (lambda (field)
-           (cons field (plist-get o field)))
-         '(:slug :title :speakers :pronouns :pronunciation :url :track :file-prefix))))
-     (emacsconf-filter-talks (emacsconf-get-talk-info))))))
-
-(defun emacsconf-export-talks-json ()
-	(interactive)
-	"Export talk information as JSON so that we can use it in shell scripts."
-	(mapc (lambda (dir)
-					(when (and dir (file-directory-p dir))
-						(with-temp-file (expand-file-name "talks.json" dir)
-							(insert (emacsconf-talks-json)))))
-				(list emacsconf-res-dir emacsconf-ansible-directory)))
 
 (defun emacsconf-ansible-load-vars (file)
   (interactive (list (read-file-name "File: " emacsconf-ansible-directory)))
