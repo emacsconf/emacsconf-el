@@ -293,5 +293,34 @@ Create it if necessary."
         (error "Duration %d is less than minimum" (- (subed-subtitle-msecs-stop) (subed-subtitle-msecs-start))))
     (or (subed-forward-subtitle-text) (goto-char (point-max)))))
 
+(defun emacsconf-subed-split-at-mouse (event)
+	"Split at the word clicked on."
+	(interactive "e")
+	(goto-char (posn-point (event-start event)))
+	(skip-syntax-backward "w")
+	(subed-split-subtitle))
+
+(defun emacsconf-subed-merge-and-fill ()
+	"Merge this subtitle with the next one."
+	(interactive)
+	(subed-merge-with-next)
+	(fill-paragraph))
+
+(defun emacsconf-subed-split ()
+	"Transient map for splitting subtitles."
+	(interactive)
+	(set-transient-map
+	 (let ((map (make-sparse-keymap)))
+		 (define-key map [down-mouse-1] #'emacsconf-subed-split-at-mouse)
+		 (define-key map [mouse-1] #'ignore)
+		 (define-key map [up-1] #'ignore)
+		 (define-key map [drag-mouse-1] #'ignore)
+		 (define-key map [mouse-movement] #'ignore)
+		 (define-key map "q" #'fill-paragraph)
+		 (define-key map "." #'emacsconf-subed-merge-and-fill)
+		 (define-key map (kbd "SPC") #'scroll-up)
+		 map)
+	 t))
+
 (provide 'emacsconf-subed)
 ;;; emacsconf-subed.el ends here
