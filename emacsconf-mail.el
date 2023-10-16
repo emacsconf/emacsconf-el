@@ -150,7 +150,7 @@ Behavior is modified by `emacsconf-mail-prepare-behavior'."
 			(when (plist-get template :log-note)
 				(mapc (lambda (talk)
 								(emacsconf-mail-log-message-when-sent talk (plist-get template :log-note)))
-							(cdr group))))))
+							(emacsconf-mail-talks email))))))
 
 (defun emacsconf-mail-complete-template-function ()
 	"Get a mail template function."
@@ -917,7 +917,7 @@ ${signature}")
   (emacsconf-mail-prepare
 	 (list
 		:subject "EmacsConf backstage area with videos and other resources"
-		:reply-to "emacsconf-submit@gnu.org, ${email}"
+		:reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
 		:mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
 		:log-note "sent backstage information"
 		:body
@@ -964,6 +964,7 @@ people's talks too."))
     :backstage-password emacsconf-backstage-password
 		:name (plist-get (cadr group) :speakers-short)
 		:email (car group)
+		:user-email user-mail-address
     :signature user-full-name
 		:conf-name emacsconf-name
     :year emacsconf-year)))
@@ -1138,7 +1139,7 @@ This minimizes the risk of mail delivery issues and radio silence."
 			 (emacsconf-add-to-talk-logbook talk note))
 		 (emacsconf-mail-talks email))))
 
-(defun emacsconf-mail-notmuch-save-attachments-to-backstage (talk)
+(defun emacsconf-mail-notmuch-save-attachments-to-cache (talk)
 	"Save the attached files to the cache and backstage dir for TALK."
 	(interactive (list (emacsconf-complete-talk-info)))
 	(with-current-notmuch-show-message
@@ -1153,8 +1154,12 @@ This minimizes the risk of mail delivery issues and radio silence."
 							 (extra (read-string (concat filename ": ")))
 							 (new-filename (concat (plist-get talk :file-prefix)
 																		 extra "." (file-name-extension filename))))
-					(mm-save-part-to-file part (expand-file-name new-filename emacsconf-cache-dir))
-					(mm-save-part-to-file part (expand-file-name new-filename emacsconf-backstage-dir)))))
+					(mm-save-part-to-file
+					 part (expand-file-name new-filename emacsconf-cache-dir))
+					(mm-save-part-to-file
+					 part (expand-file-name new-filename (expand-file-name "cache" emacsconf-res-dir)))
+					(mm-save-part-to-file
+					 part (expand-file-name new-filename emacsconf-backstage-dir)))))
 		(mm-dissect-buffer))))
 
 (provide 'emacsconf-mail)
