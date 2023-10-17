@@ -124,7 +124,9 @@ Behavior is modified by `emacsconf-mail-prepare-behavior'."
 			;; prepare to send the mail
 			(if (and (derived-mode-p 'message-mode)
 							 (string-match "unsent mail" (buffer-name))
-							 (not (eq emacsconf-mail-prepare-behavior 'new-message)))
+							 (not (eq emacsconf-mail-prepare-behavior 'new-message))
+							 ;; is the current message a reply to this e-mail?
+							 (string-match (regexp-quote email) (message-field-value "To")))
 					;; add to headers
 					(emacsconf-mail-update-reply-headers template email attrs fields) 
 				;; compose a new message
@@ -911,6 +913,77 @@ ${signature}")
       :captions (mapconcat (lambda (sub) (concat (emacsconf-surround "\n" (elt sub 4) "" "") (elt sub 3))) (subed-parse-file captions) "\n")))
     (mml-attach-file captions "text/vtt" "Subtitles" "attachment")))
 
+(defun emacsconf-mail-upload-and-backstage-info (group)
+	"E-mail upload and backstage access information to GROUP."
+  (interactive (list (emacsconf-mail-complete-email-group)))
+  (emacsconf-mail-prepare
+	 (list
+		:subject "${conf-name} ${year}: Upload instructions, backstage info"
+		:reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+		:mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+		:log-note "sent backstage and upload information"
+		:body
+		"${email-notes}Hi ${name}!
+
+Hope things are going well for you! I got the upload service up
+and running so you can upload your video${plural} and other talk
+resources (ex: speaker notes, Org files, slides, etc.).  You can
+access it at ${upload-url} with the password
+\"${upload-password}\". Please let me know if you run into technical issues.${fill}
+
+If you can get your file(s) uploaded by ${video-target-date},
+that would give us plenty of time to reencode it, edit captions,
+and so on. If life has gotten a bit busier than expected, that's
+okay. You can upload it when you can or we can plan to do your
+presentation live.
+(Late submissions and live presentations are a bit more stressful, but
+it'll probably work out.)${fill}
+
+We've also set up ${backstage} as the backstage area where you
+can view the videos and resources uploaded so far. You can access
+it with the username \"${backstage-user}\" and the password
+\"${backstage-password}\".  Please keep the backstage password
+and other speakers' talk resources secret. This is a manual
+process, so your talk won't immediately show up there once you've
+upload it. Once we've processed your talk, you can use the
+backstage area to check if your talk has been correctly reencoded
+and see the progress on captions. You can also check out other
+people's talks. Enjoy!${fill}
+
+Thank you so much for contributing to ${conf-name} ${year}!
+
+${signature}")
+   (car group)
+   (list
+			:email-notes (emacsconf-surround "ZZZ: " (plist-get (cadr group) :email-notes) "\n\n" "")
+    :backstage (emacsconf-replace-plist-in-string
+								(list :year emacsconf-year)
+								"https://media.emacsconf.org/${year}/backstage/")
+		:plural (if (= 1 (length (cdr group))) "" "s")
+    :backstage-user emacsconf-backstage-user
+    :backstage-password emacsconf-backstage-password
+		:upload-url
+		(concat "https://ftp-upload.emacsconf.org/?sid="
+						emacsconf-upload-password
+						"-"
+						(mapconcat (lambda (o) (plist-get o :slug)) (cdr group) "-"))
+		:upload-password emacsconf-upload-password
+		:video-target-date emacsconf-video-target-date
+		:name (plist-get (cadr group) :speakers-short)
+		:email (car group)
+		:user-email user-mail-address
+    :signature user-full-name
+		:conf-name emacsconf-name
+    :year emacsconf-year)))
+
+(defun emacsconf-mail-upload-and-backstage-info-to-waiting-for-prerecs ()
+	"Mail upload and backstage information to all speakers who will submit files."
+	(interactive)
+	(let ((groups (emacsconf-mail-groups (seq-filter (lambda (o) (string= (plist-get o :status) "WAITING_FOR_PREREC"))
+																		 (emacsconf-get-talk-info)))))
+		(dolist (group groups)
+			(emacsconf-mail-upload-and-backstage-info group))))
+
 (defun emacsconf-mail-backstage-info (group)
 	"E-mail backstage access information to GROUP."
   (interactive (list (emacsconf-mail-complete-email-group)))
@@ -945,7 +1018,7 @@ ${signature}")
 		:backstage-use
 		(cond
 		 ((string= (plist-get (cadr group) :role) "volunteer")
-			"If you see a talk that you'd like to caption, please let us know and we can reserve it for you.")
+			"If you see a talk that you'd like to caption, please let us know and we can reserve it for you. I'll also let people periodically know when more talks come in.")
 		 ((string= (plist-get (cadr group) :status) "WAITING_FOR_PREREC")
 			"As we add more talks, you can skim through any relevant ones to
 see if there are any points you'd like to build on in your talk.
@@ -968,6 +1041,21 @@ people's talks too."))
     :signature user-full-name
 		:conf-name emacsconf-name
     :year emacsconf-year)))
+
+(defun emacsconf-mail-backstage-info-to-captioning-volunteers ()
+	"E-mail backstage info to captioning volunteers."
+	(interactive)
+	(dolist (volunteer (seq-filter
+											(lambda (o)
+												(string-match ":captions:" (assoc-default "ALLTAGS" o 'string= "")))
+											(emacsconf-get-volunteer-info)))
+		(emacsconf-mail-backstage-info
+		 (list
+			(assoc-default "EMAIL" volunteer)
+			(list :role "volunteer"
+						:speakers-short
+						(or (assoc-default "NAME" volunteer)
+								(assoc-default "NAME_SHORT" volunteer)))))))
 
 (defun emacsconf-mail-backstage-info-to-speakers-and-captioners ()
   (interactive)
