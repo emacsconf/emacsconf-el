@@ -296,14 +296,15 @@ ${next-talk-list}
       (let ((cached-last-modified (emacsconf-pad-with-heading pad-id (org-entry-get (point) "PAD_RESET")))
             (result (emacsconf-pad-get-last-edited pad-id)))
         (let-alist result
-          (not (string= cached-last-modified
-                        (number-to-string .data.lastEdited))))))))
+					(and cached-last-modified
+							 (not (string= cached-last-modified
+														 (number-to-string .data.lastEdited)))))))))
 
 ;;; Hyperlists
 
 (defun emacsconf-pad-export-initial-content-for-hyperlists (dir &optional info)
   (interactive (list (read-file-name "Output directory: " nil nil nil nil 'file-directory-p)))
-  (setq info (emacsconf-prepare-for-display (emacsconf-get-talk-info)))
+  (setq info (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))
   (unless (file-directory-p dir)
     (make-directory dir))
   (mapc
@@ -456,7 +457,7 @@ ${bbb-checklist}</li>")
 
 (defun emacsconf-pad-prepopulate-checkins (&optional info)
   (interactive)
-  (setq info (or info (emacsconf-prepare-for-display (emacsconf-get-talk-info))))
+  (setq info (or info (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
   (mapc
    (lambda (day)
      (let ((pad-id (concat "checkin-" (downcase (format-time-string "%a" (plist-get (cadr day) :checkin-time))))))
@@ -488,8 +489,8 @@ ${bbb-checklist}</li>")
                                       (mapcar (lambda (o) (plist-get o :id)) emacsconf-shifts))))
   (when (stringp shift)
     (setq shift (seq-find (lambda (o) (string= (plist-get o :id) shift)) emacsconf-shifts)))
-  (unless info (setq info (emacsconf-prepare-for-display (emacsconf-get-talk-info))))
-  (let ((info (emacsconf-prepare-for-display (emacsconf-get-talk-info))))
+  (unless info (setq info (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
+  (let ((info (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
     (let ((pad-id (format "private_%s_%s"
                           emacsconf-private-pad-prefix
                           (plist-get shift :id))))
@@ -507,8 +508,8 @@ ${bbb-checklist}</li>")
                                       (mapcar (lambda (o) (plist-get o :id)) emacsconf-shifts))))
   (when (stringp shift)
     (setq shift (seq-find (lambda (o) (string= (plist-get o :id) shift)) emacsconf-shifts)))
-  (unless info (setq info (emacsconf-prepare-for-display (emacsconf-get-talk-info))))
-  (let ((info (emacsconf-prepare-for-display (emacsconf-get-talk-info))))
+  (unless info (setq info (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
+  (let ((info (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
     (let* ((pad-id (format "host-%s"
                            (plist-get shift :id)))
 					 (shift-talks
@@ -596,7 +597,7 @@ ${bbb-checklist}</li>")
 
 (defun emacsconf-pad-prepopulate-shift-hyperlists ()
   (interactive)
-  (let ((info (emacsconf-prepare-for-display (emacsconf-get-talk-info))))
+  (let ((info (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
     (mapc (lambda (shift)
             (emacsconf-pad-prepopulate-shift-hyperlist shift info))
           emacsconf-shifts)))
@@ -789,7 +790,7 @@ This page is for easy reference and recording. Please make sure any changes here
               (emacsconf-replace-plist-in-string
                (append (list :intro-note (emacsconf-pad-expand-intro o)) o)
                "<li>${slug} - ${track}: ${title} (${speakers-with-pronouns}, Q&amp;A: ${q-and-a})<ul><li>${absolute-url}</li><li>Intro: ${intro-note}</li></ul></li>"))
-            (emacsconf-prepare-for-display (emacsconf-get-talk-info)))
+            (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))
            "</ul>")))
 
 (defun emacsconf-pad-backup-talk (talk)
@@ -808,6 +809,6 @@ This page is for easy reference and recording. Please make sure any changes here
 	(interactive)
 	(mapc
 	 #'emacsconf-pad-backup-talk
-	 (emacsconf-prepare-for-display (emacsconf-get-talk-info))))
+	 (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
 (provide 'emacsconf-pad)
 ;;; emacsconf-pad.el ends here

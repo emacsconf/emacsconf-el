@@ -109,7 +109,8 @@
 (defvar emacsconf-media-extensions '("webm" "mkv" "mp4" "webm" "avi" "ts" "ogv" "wav" "ogg" "mp3"))
 (defvar emacsconf-ftp-upload-dir "/ssh:orga@media.emacsconf.org:/srv/ftp/anon/upload-here")
 (defvar emacsconf-backstage-user "emacsconf")
-(defvar emacsconf-backstage-password nil "Password for backstage area")
+(defvar emacsconf-backstage-password nil "Password for backstage area.")
+(defvar emacsconf-upload-password nil "Password for file uploads.")
 (defvar emacsconf-notebook
   (expand-file-name
    "index.org"
@@ -877,7 +878,7 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
     (emacsconf-get-talk-info 'wiki)))
 
 (defun emacsconf-include-next-talks (info number)
-  (let* ((info (emacsconf-prepare-for-display info))
+  (let* ((info (emacsconf-publish-prepare-for-display info))
          (cur-list info))
     ;; add links to the next talks
     (while cur-list
@@ -885,7 +886,7 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
     info))
 
 (defun emacsconf-previous-talk (talk &optional info)
-	(setq info (emacsconf-prepare-for-display (or info (emacsconf-get-talk-info))))
+	(setq info (emacsconf-publish-prepare-for-display (or info (emacsconf-get-talk-info))))
 	(let* ((pos (seq-position info talk))
 				 (prev (and pos
 										(> pos 0)
