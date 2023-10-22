@@ -116,21 +116,22 @@
     (emacsconf-publish-update-conf-html)
     (setq emacsconf-info (emacsconf-get-talk-info))))
 
-(defun emacsconf-update-media ()
+(defun emacsconf-publish-update-media ()
+	"Update public media.emacsconf.org directory."
   (interactive)
   (emacsconf-publish-public-index-on-wiki)
   (when emacsconf-public-media-directory
     (emacsconf-publish-public-index (expand-file-name "index.html" emacsconf-public-media-directory))
 		(emacsconf-publish-playlist (expand-file-name "index.m3u" emacsconf-public-media-directory)
-                                 (concat emacsconf-name emacsconf-year)
-                                 (emacsconf-public-talks emacsconf-info)
-                                 (format "https://media.emacsconf.org/%s/" emacsconf-year)))
+               (concat emacsconf-name emacsconf-year)
+							 (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))
+               (format "https://media.emacsconf.org/%s/" emacsconf-year)))
   (when emacsconf-backstage-dir
     (emacsconf-publish-backstage-index (expand-file-name "index.html" emacsconf-backstage-dir)))
   (emacsconf-publish-playlist (expand-file-name "index.m3u" emacsconf-backstage-dir)
-                               (concat emacsconf-name emacsconf-year)
-                               (emacsconf-filter-talks emacsconf-info)
-                               (format "https://media.emacsconf.org/%s/backstage/" emacsconf-year)))
+             (concat emacsconf-name emacsconf-year)
+						 (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))
+             (format "https://media.emacsconf.org/%s/backstage/" emacsconf-year)))
 
 (defun emacsconf-publish-index-card (talk &optional extensions)
   "Format an HTML card for TALK, linking the files in EXTENSIONS."
@@ -207,6 +208,7 @@
         emacsconf-timezones))
 
 (defun emacsconf-publish-format-res-talks (info)
+	"Format lines for the backstage index."
   (mapconcat
    (lambda (o)
      (concat
@@ -224,27 +226,32 @@
       ""
       "</td>"
       "<td>" (format-time-string "%-l:%M" (plist-get o :start-time) emacsconf-timezone) "</td>"
-      "<td>" (or (plist-get o :slug) "") "</td>"
+      "<td>" (format "<a href=\"%s%s/talks/%s\" target=\"_blank\" rel=\"noreferrer\">%s</a>"
+										 emacsconf-base-url
+										 emacsconf-year
+										 (plist-get o :slug)
+										 (plist-get o :slug))
+			"</td>"
       "<td>" (or (plist-get o :title) "") "</td>"
       "</tr>"))
    info
    "\n"))
+
 (defun emacsconf-publish-res-index ()
   "Publish BBB room URLs and pad links for volunteer convenience."
   (interactive)
-  (let ((emacsconf-use-absolute-url t)
-        (emacsconf-base-url "")
-        (info (mapcar (lambda (o)
-                        (append (list
-                                 :url (concat "#" (plist-get o :slug)))
-                                (if (and (string-match "live" (or (plist-get o :q-and-a) ""))
-                                         (plist-get o :bbb-room))
-                                    (append (list
-                                             :qa-link
-                                             (format "<a href=\"%s\" target=\"_blank\" rel=\"noreferrer\">Join Q&A</a>" (plist-get o :bbb-room)))
-                                            o)
-                                  o)))
-                      (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))
+  (let* ((emacsconf-publishing-phase 'conference)
+         (info (mapcar (lambda (o)
+                         (append (list
+																	:url (concat "#" (plist-get o :slug)))
+                                 (if (and (string-match "live" (or (plist-get o :q-and-a) ""))
+																					(plist-get o :bbb-room))
+                                     (append (list
+																							:qa-link
+																							(format "<a href=\"%s\" target=\"_blank\" rel=\"noreferrer\">Join Q&A</a>" (plist-get o :bbb-room)))
+                                             o)
+                                   o)))
+                       (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))
     (mapc
      (lambda (track)
        (let*
@@ -255,26 +262,25 @@
              (concat
               "<html><head><meta charset=\"utf-8\" /><link rel=\"stylesheet\" href=\"style.css\"></head><body>
 <div>"
-              (with-temp-buffer
-                (svg-print (emacsconf-schedule-svg 800 300 info))
-                (buffer-string))
+							(let ((emacsconf-use-absolute-url t)
+										(emacsconf-base-url ""))
+								(with-temp-buffer
+									(svg-print (emacsconf-schedule-svg 800 300 info))
+									(buffer-string)))
               "</div><h1>"
               (plist-get track :name)
               "</h1><table>"
-              "<tr><th colspan=\"6\" style=\"text-align: left\">Saturday</th></tr>"
-              (emacsconf-publish-format-res-talks
-               (emacsconf-publish-prepare-for-display
-                (emacsconf-filter-talks-by-time
-                 (format "2022-12-03T08:00:00%s" emacsconf-timezone-offset)
-                 (format "2022-12-03T18:00:00%s" emacsconf-timezone-offset)
-                 track-talks)))
-              "<tr><th colspan=\"6\" style=\"text-align: left\">Sunday</th></tr>"
-              (emacsconf-publish-format-res-talks
-               (emacsconf-publish-prepare-for-display
-                (emacsconf-filter-talks-by-time
-                 (format "2022-12-04T08:00:00%s" emacsconf-timezone-offset)
-                 (format "2022-12-04T18:00:00%s" emacsconf-timezone-offset)
-                 track-talks)))
+							(mapconcat
+							 (lambda (day)
+								 (format
+									"<tr><th colspan=\"6\" style=\"text-align: left\">%s</th></tr>
+<tr><th>Q&A</th><th>Pad</th><th>Chat</th><th>Time</th><th>Slug</th><th>Title</th></tr>
+%s"
+									(car day) (emacsconf-publish-format-res-talks (cdr day))))
+							 (seq-group-by
+								(lambda (o) (format-time-string "%A, %b %-e" (plist-get o :start-time)))
+								track-talks)
+							 "\n")
               "</table></body></html>")))
          (with-temp-file (expand-file-name (format "index-%s.html" (plist-get track :id)) emacsconf-res-dir)
            (insert result))
@@ -1399,21 +1405,25 @@ answers without needing to listen to everything again. You can see <a href=\"htt
                                 (format "https://media.emacsconf.org/%s/" emacsconf-year))
     (with-temp-file filename
       (insert
-       "<html><head><meta charset=\"utf-8\" /></head><body>"
-       "<h1>" emacsconf-name " " emacsconf-year "</h1>"
-       "<div class=\"m3u\"><a href=\"index.m3u\">M3U playlist for playing in MPV and other players</a></div>"
-			 "<div>Quick links: " (mapconcat (lambda (o) (format "<a href=\"#%s\">%s</a>"
-																													 (plist-get o :slug)
-																													 (plist-get o :slug)))
-																			 info ", ")
-			 "</div>"
-       "<ol class=\"videos\">"
-       (mapconcat (lambda (o) (emacsconf-publish-public-index-for-talk o files)) info "\n")
-       "</ol>"
-       (if (file-exists-p (expand-file-name "include-in-public-index.html" emacsconf-cache-dir))
-           (with-temp-buffer (insert-file-contents (expand-file-name "include-in-public-index.html" emacsconf-cache-dir)) (buffer-string))
-         "")
-       "</body></html>"))))
+			 (emacsconf-replace-plist-in-string
+				(list
+				 :conf-name emacsconf-name
+				 :year emacsconf-year
+				 :quick-links (mapconcat (lambda (o) (format "<a href=\"#%s\">%s</a>"
+																										 (plist-get o :slug)
+																										 (plist-get o :slug)))
+																 info ", ")
+				 :videos (mapconcat (lambda (o) (emacsconf-publish-public-index-for-talk o files)) info "\n")
+				 :include (if (file-exists-p (expand-file-name "include-in-public-index.html" emacsconf-cache-dir))
+											(with-temp-buffer (insert-file-contents (expand-file-name "include-in-public-index.html" emacsconf-cache-dir)) (buffer-string))
+										""))
+				"<html><head><meta charset=\"utf-8\" /></head><link rel=\"stylesheet\" href=\"/style.css\" /><body>
+<h1>${conf-name} ${year}</h1>
+<div class=\"m3u\"><a href=\"index.m3u\">M3U playlist for playing in MPV and other players</a></div>
+<div>Quick links: ${quick-links}</div>
+<ol class=\"videos\">${videos}</ol>
+${include}
+</body></html>")))))
 
 (defun emacsconf-publish-public-index-on-wiki ()
   (interactive)
@@ -1546,7 +1556,7 @@ answers without needing to listen to everything again. You can see <a href=\"htt
         (mapcar
 				 (lambda (field)
            (cons field (plist-get o field)))
-         '(:slug :title :speakers :pronouns :pronunciation :url :track :file-prefix))))
+         '(:slug :title :speakers :pronouns :pronunciation :url :track :file-prefix :qa-url))))
      (emacsconf-filter-talks (emacsconf-get-talk-info))))))
 
 (defun emacsconf-publish-talks-json-to-files ()
@@ -1555,7 +1565,7 @@ answers without needing to listen to everything again. You can see <a href=\"htt
 	(mapc (lambda (dir)
 					(when (and dir (file-directory-p dir))
 						(with-temp-file (expand-file-name "talks.json" dir)
-							(insert (emacsconf-talks-json)))))
+							(insert (emacsconf-publish-talks-json)))))
 				(list emacsconf-res-dir emacsconf-ansible-directory)))
 
 (defun emacsconf-talks-csv ()
@@ -2213,13 +2223,27 @@ when the host has opened the Q&A.</p>
             tracks))))
 
 
-(defvar emacsconf-publish-current-dir "/ssh:orga@media.emacsconf.org:/var/www/media.emacsconf.org/2022/current"
+(defvar emacsconf-publish-current-dir
+	(expand-file-name
+	 "current"
+	 (expand-file-name
+		emacsconf-year
+		"/ssh:orga@media.emacsconf.org:/var/www/media.emacsconf.org"))
   "Directory to publish BBB redirects and current information to.")
-
 
 ;; (assert (eq (emacsconf-get-bbb-state '(:status "OPEN_Q")) 'open))
 ;; (assert (eq (emacsconf-get-bbb-state '(:status "TO_ARCHIVE")) 'after))
 
+(defun emacsconf-publish-make-directories ()
+	"Set up all the directories needed."
+	(interactive)
+	(dolist (dir
+					 (list
+						emacsconf-stream-asset-dir
+						emacsconf-stream-overlay-dir
+						emacsconf-cache-dir))
+		(unless (file-directory-p dir)
+			(make-directory dir t))))
 
 (defun emacsconf-publish-bbb-static-redirects ()
   "Create emergency redirects that can be copied over the right location."
@@ -2228,7 +2252,9 @@ when the host has opened the Q&A.</p>
           (let ((emacsconf-publish-current-dir
                  (expand-file-name
                   state
-                  (expand-file-name "redirects" emacsconf-stream-asset-dir))))
+                  (expand-file-name
+									 "redirects"
+									 (expand-file-name "assets" emacsconf-backstage-dir)))))
             (unless (file-directory-p emacsconf-publish-current-dir)
               (make-directory emacsconf-publish-current-dir t))
             (mapc
@@ -2236,6 +2262,7 @@ when the host has opened the Q&A.</p>
                (emacsconf-publish-bbb-redirect talk (intern state)))
              (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))
         '("before" "open" "after")))
+
 (defun emacsconf-publish-bbb-redirect (talk &optional status)
 	"Update the publicly-available redirect for TALK."
   (interactive (list (emacsconf-complete-talk-info)))
@@ -2289,7 +2316,7 @@ There is no live Q&A room for ${title}. You can find more information about the 
                   (delete-file (expand-file-name file emacsconf-public-media-directory)))
                 files)))
       (emacsconf-publish-public-index)
-			(emacsconf-generate-playlist
+			(emacsconf-publish-playlist
 			 (expand-file-name "index.m3u" emacsconf-public-media-directory)
        (concat emacsconf-name " " emacsconf-year)
        (emacsconf-public-talks (emacsconf-get-talk-info))))))
@@ -2298,7 +2325,7 @@ There is no live Q&A room for ${title}. You can find more information about the 
   (interactive)
   (unless (file-directory-p emacsconf-publish-current-dir)
     (make-directory emacsconf-publish-current-dir))
-  (mapc #'emacsconf-publish-bbb-redirect (emacsconf-filter-talks (emacsconf-get-talk-info))))
+  (mapc #'emacsconf-publish-bbb-redirect (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
 ;; (emacsconf-publish-bbb-redirect '(:slug "test" :status "TO_STREAM" :bbb-room "https://bbb.emacsverse.org/b/sac-fwh-pnz-ogz" :title "Test room" :q-and-a "live" :url "2022/talks/test"))
 ;; (emacsconf-publish-bbb-redirect '(:slug "test" :status "CLOSED_Q" :bbb-room "https://bbb.emacsverse.org/b/sac-fwh-pnz-ogz" :title "Test room" :q-and-a "live" :url "2022/talks/test"))
 ;; (emacsconf-publish-bbb-redirect '(:slug "test" :status "OPEN_Q" :bbb-room "https://bbb.emacsverse.org/b/sac-fwh-pnz-ogz" :title "Test room" :q-and-a "live" :url "2022/talks/test"))
@@ -2448,7 +2475,7 @@ This video is available under the terms of the Creative Commons Attribution-Shar
 						 (list
 							:file file
 							:tags "emacs,emacsconf,answers"
-							:playlist "EmacsConf 2022"
+							:playlist (concat emacsconf-name " " emacsconf-year)
 							:date (plist-get talk :start-time)
 							:title (if (< (length title) 100) title (concat (substring title 0 97) "..."))
 							:description (emacsconf-publish-answers-description talk platform))))
@@ -2469,7 +2496,7 @@ This video is available under the terms of the Creative Commons Attribution-Shar
 						 (list
 							:file file
 							:tags "emacs,emacsconf,answers"
-							:playlist "EmacsConf 2022"
+							:playlist (concat emacsconf-name " " emacsconf-year)
 							:date (plist-get talk :start-time)
 							:title (if (< (length title) 100) title (concat (substring title 0 97) "..."))
 							:description (emacsconf-publish-answers-description talk 'youtube)
