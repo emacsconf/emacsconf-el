@@ -1063,9 +1063,51 @@ ffplay URL
 	(plist-put (emacsconf-get-track track)
 						 :status (or status (completing-read "Status: " '("online" "offline"))))
 	(emacsconf-stream-update-status-page))
-																						 
+
 (defun emacsconf-stream-edit-status-page ()
 	(interactive)
 	(find-file "/ssh:orga@front0.emacsconf.org:/var/www/status.emacsconf.org/index.html"))
+
+;;; Autopilot with crontab
+
+(defun emacsconf-stream-format-crontab (track talks &optional test-mode)
+	"Return crontab entries for TALKS.
+Use the display specified in TRACK.
+If TEST-MODE is non-nil, load the videos from the test directory."
+	(concat
+	 "PATH=/usr/local/bin:/usr/bin\n"
+	 "MAILTO=\"\"\n"
+	 (mapconcat
+		(lambda (talk)
+			(format "%s /usr/bin/screen -dmS play-%s bash -c \"DISPLAY=%s TEST_MODE=%s /usr/local/bin/handle-session %s\"\n"
+							;; cron times are UTC
+							(format-time-string "%-M %-H %-d %m *" (plist-get talk :start-time))
+							(plist-get talk :slug)
+							(plist-get track :vnc-display)
+							(if test-mode "1" "")
+							(plist-get talk :slug)))
+		(emacsconf-filter-talks talks))))
+
+(defun emacsconf-stream-crontabs (&optional test-mode info)
+	(interactive)
+	(let ((emacsconf-publishing-phase 'conference))
+		(setq info (or info (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
+		(dolist (track emacsconf-tracks)
+			(let ((talks (seq-filter (lambda (talk)
+																 (string= (plist-get talk :track)
+																					(plist-get track :name)))
+															 info))
+						(crontab (expand-file-name (concat (plist-get track :id) ".crontab")
+																			 (concat (plist-get track :tramp) "~"))))
+				(with-temp-file crontab
+					(when (plist-get track :auto-pilot)
+						(insert (emacsconf-stream-format-crontab track talks test-mode))))
+				(emacsconf-stream-track-ssh track (concat "crontab ~/" (plist-get track :id) ".crontab"))))))
+
+(defun emacsconf-stream-cancel-crontab (track)
+	"Remove crontab for TRACK."
+	(interactive (list (emacsconf-complete-track)))
+	(emacsconf-stream-track-ssh track "crontab -r"))
+;;;
 (provide 'emacsconf-stream)
 ;;; emacsconf-stream.el ends here
