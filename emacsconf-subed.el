@@ -298,7 +298,8 @@ Create it if necessary."
 	(interactive "e")
 	(goto-char (posn-point (event-start event)))
 	(skip-syntax-backward "w")
-	(subed-split-subtitle))
+	(subed-split-subtitle)
+	(recenter))
 
 (defun emacsconf-subed-merge-and-fill ()
 	"Merge this subtitle with the next one."
@@ -316,9 +317,98 @@ Create it if necessary."
 		 (define-key map [up-1] #'ignore)
 		 (define-key map [drag-mouse-1] #'ignore)
 		 (define-key map [mouse-movement] #'ignore)
+		 (define-key map (kbd "<down>") #'scroll-up)
 		 (define-key map "q" #'fill-paragraph)
 		 (define-key map "." #'emacsconf-subed-merge-and-fill)
+		 (define-key map "u" #'undo)
 		 (define-key map (kbd "SPC") #'scroll-up)
+		 map)
+	 t))
+
+(defun emacsconf-subed-intro-subtitles ()
+	"Create the introduction as subtitles."
+	(interactive)
+	(subed-auto-insert)
+	(let ((emacsconf-publishing-phase 'conference))
+		(mapc
+		 (lambda (sub) (apply #'subed-append-subtitle nil (cdr sub)))
+		 (seq-map-indexed
+			(lambda (talk i)
+				(list
+				 nil
+				 (* i 5000)
+				 (1- (* i 5000))
+				 (format "#+OUTPUT: %s.webm\n[[file:%s]]\n%s"
+								 (plist-get talk :slug)
+								 (expand-file-name
+									(concat (plist-get talk :slug) ".svg.png")
+									(expand-file-name "in-between" emacsconf-stream-asset-dir))
+								 (emacsconf-pad-expand-intro talk))))
+			(emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))))
+
+(defvar-local emacsconf-subed-subtitle-source nil "Buffer with the intended subtitles.")
+
+(defun emacsconf-subed-prepare-string-for-matching (s)
+	(downcase
+	 (replace-regexp-in-string "[^A-Za-z0-9]" ""
+		(replace-regexp-in-string "^\\(\\[\\[.*?\]\\]\\|#\\+.*?\\)\\(\n\\|$\\)" "" s))))
+
+(defun emacsconf-subed-similar-p (source current)
+	(let* ((current-stripped (emacsconf-subed-prepare-string-for-matching current))
+				 (distance (string-distance current-stripped
+																		(emacsconf-subed-prepare-string-for-matching source)))
+				 (ratio (/ (* 100.0 distance) (length current-stripped)))
+				 (threshold 10))
+		(< ratio threshold)))
+
+(defun emacsconf-subed-source-backward ()
+	(interactive)
+	(with-current-buffer (get-buffer emacsconf-subed-subtitle-source)
+		(subed-backward-subtitle-end)
+		(set-mark (point))
+		(subed-jump-to-subtitle-text)
+		(when (get-buffer-window (current-buffer))
+			(set-window-point
+			 (get-buffer-window (current-buffer)) (point))
+			(with-selected-window (get-buffer-window (current-buffer))
+				(recenter)))))
+
+(defun emacsconf-subed-source-forward ()
+	(interactive)
+	(with-current-buffer (get-buffer emacsconf-subed-subtitle-source)
+		(subed-forward-subtitle-end)
+		(set-mark (point))
+		(subed-jump-to-subtitle-text)
+		(when (get-buffer-window (current-buffer))
+			(set-window-point
+			 (get-buffer-window (current-buffer)) (point))
+			(with-selected-window (get-buffer-window (current-buffer))
+				(recenter)))))
+
+(defun emacsconf-subed-match-up-subtitles ()
+	(interactive)
+	(let* ((source
+					(with-current-buffer (get-buffer emacsconf-subed-subtitle-source)
+						(or (subed-subtitle-text) (subed-forward-subtitle-text) (subed-subtitle-text)))))
+		(subed-set-subtitle-text source)
+		(subed-forward-subtitle-text)
+		(emacsconf-subed-source-forward)))
+
+(defun emacsconf-subed-match-multiple (prefix)
+	"Set up for matching multiple subtitles."
+	(interactive "p")
+	(when (or (>= prefix 4) (null emacsconf-subed-subtitle-source))
+		(setq-local emacsconf-subed-subtitle-source (read-buffer "Source subtitles: " nil t)))
+	(set-transient-map
+	 (let ((map (make-sparse-keymap)))
+		 (define-key map (kbd "RET") #'emacsconf-subed-match-up-subtitles)
+		 (define-key map (kbd "SPC") #'emacsconf-subed-match-up-subtitles)
+		 (define-key map (kbd "<up>") #'subed-backward-subtitle-text)
+		 (define-key map (kbd "<down>") #'subed-forward-subtitle-text)
+		 (define-key map (kbd "<S-up>") #'emacsconf-subed-source-backward)
+		 (define-key map (kbd "<S-down>") #'emacsconf-subed-source-forward)
+		 (define-key map "k" #'subed-kill-subtitle)
+		 (define-key map "m" #'emacsconf-subed-merge-and-fill)
 		 map)
 	 t))
 
