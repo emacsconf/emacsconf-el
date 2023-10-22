@@ -336,25 +336,15 @@ This uses the BBB room if available, or the IRC channel if not."
 	 "firefox"
 	 (plist-get talk :webchat-url)))
 
-(defun emacsconf-stream-write-talk-overlay-svgs (talk video-filename other-filename)
+(defun emacsconf-stream-write-talk-overlay-svgs (talk video-filename)
   (setq talk (emacsconf-stream-add-talk-props talk))
   (let ((dom (xml-parse-file (expand-file-name "roles/obs/overlay.svg" emacsconf-ansible-directory)))
         (default-directory (file-name-directory video-filename)))
-    (emacsconf-stream-svg-set-text dom "bottom" (plist-get talk :overlay-bottom))
     (emacsconf-stream-svg-set-text dom "url" (plist-get talk :overlay-url))
-    (with-temp-file other-filename (dom-print dom))
-    (with-temp-file video-filename
-      (let ((node (dom-by-id dom "bottom")))
-        (when node
-          (dom-set-attribute node 'style "visibility: hidden")
-          (dom-set-attribute (dom-child-by-tag node 'tspan) 'style "fill: none; stroke: none")))
-      (dom-print dom))
-    (shell-command
+    (with-temp-file video-filename (dom-print dom))
+		(shell-command
      (concat "inkscape --export-type=png -w 1280 -h 720 --export-background-opacity=0 "
-             (shell-quote-argument (file-name-nondirectory video-filename))))
-    (shell-command
-     (concat "inkscape --export-type=png -w 1280 -h 720 --export-background-opacity=0 "
-             (shell-quote-argument (file-name-nondirectory other-filename))))))
+             (shell-quote-argument (file-name-nondirectory video-filename))))))
 
 (defvar emacsconf-stream-asset-dir "/data/emacsconf/assets/")
 (defvar emacsconf-stream-overlay-dir "/data/emacsconf/assets/overlays/")
@@ -374,21 +364,49 @@ With a prefix argument (\\[universal-argument]), clear the overlay."
 		 (plist-get talk :slug))))
 
 (defun emacsconf-stream-generate-overlays (&optional info force)
+	"Make overlays for INFO."
   (interactive (list (emacsconf-get-talk-info) current-prefix-arg))
-  (setq info (emacsconf-prepare-for-display (or info (emacsconf-get-talk-info))))
+  (setq info (emacsconf-publish-prepare-for-display (or info (emacsconf-get-talk-info))))
   (unless (file-directory-p emacsconf-stream-overlay-dir)
-    (make-directory emacsconf-stream-overlay-dir))
+    (make-directory emacsconf-stream-overlay-dir t))
   (mapc (lambda (talk)
           (when (or force (null (file-exists-p (expand-file-name (concat (plist-get talk :slug) "-video.png") emacsconf-stream-overlay-dir))))
             (emacsconf-stream-write-talk-overlay-svgs
              talk
-             (expand-file-name (concat (plist-get talk :slug) "-video.svg") emacsconf-stream-overlay-dir)
-             (expand-file-name (concat (plist-get talk :slug) "-other.svg") emacsconf-stream-overlay-dir))))
+             (expand-file-name (concat (plist-get talk :slug) "-video.svg") emacsconf-stream-overlay-dir))))
         info)
   (emacsconf-stream-write-talk-overlay-svgs
    nil
-   (expand-file-name "blank-video.svg" emacsconf-stream-overlay-dir)
-   (expand-file-name "blank-other.svg" emacsconf-stream-overlay-dir)))
+   (expand-file-name "blank-video.svg" emacsconf-stream-overlay-dir)))
+
+(defun emacsconf-stream-generate-test-videos (&optional info)
+	"Generate 1-minute test videos for INFO."
+	(interactive)
+  (setq info (or info (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
+	(let ((dir (expand-file-name "test" emacsconf-stream-asset-dir))
+				(subed-default-subtitle-length 1000)
+				(test-length 60))
+		(unless (file-directory-p dir)
+			(make-directory dir t))
+		(shell-command (format "ffmpeg -y -f lavfi -i testsrc=duration=%d:size=1280x720:rate=10 %s " test-length (expand-file-name "template.webm" dir)))
+		(dolist (talk info)
+			(with-temp-file (expand-file-name (concat (plist-get talk :file-prefix) "--main.vtt") dir)
+				(subed-vtt-mode)
+				(subed-auto-insert)
+				(dotimes (i test-length)
+					(subed-append-subtitle
+					 nil
+					 (* i 1000)
+					 (1- (* i 1000))
+					 (format "%s %02d %s"
+									 (plist-get talk :slug)
+									 i
+									 (substring "123456789 123456789 123456789 123456789 123456789 123456789 "
+															(1+ (length (format "%s %02d" (plist-get talk :slug) i))))))))
+			(copy-file
+			 (expand-file-name "template.webm" dir)
+			 (expand-file-name (concat (plist-get talk :file-prefix) "--main.webm") dir)
+			 t))))
 
 (defun emacsconf-stream-display-talk-info (talk)
   (interactive (list (emacsconf-complete-talk-info)))
@@ -444,7 +462,7 @@ With a prefix argument (\\[universal-argument]), clear the overlay."
 
 (defun emacsconf-stream-generate-title-pages (&optional info)
   (interactive)
-  (setq info (emacsconf-filter-talks (or info (emacsconf-get-talk-info))))
+  (setq info (emacsconf-prepare-for-display (or info (emacsconf-get-talk-info))))
   (let ((title-dir (expand-file-name "titles" emacsconf-stream-asset-dir)))
     (unless (file-directory-p title-dir) (make-directory title-dir t))
     (set-frame-size nil 1280 720 t)
@@ -491,12 +509,33 @@ With a prefix argument (\\[universal-argument]), clear the overlay."
 ;; (emacsconf-stream-generate-in-between-page (emacsconf-resolve-talk "health") nil nil t)
 ;; (emacsconf-stream-generate-in-between-page (emacsconf-resolve-talk "eev") nil nil t)
 
+(defun emacsconf-stream-generate-in-between-pdf (&optional info)
+	(interactive)
+  (setq info (or emacsconf-schedule-draft (emacsconf-publish-prepare-for-display (emacsconf-filter-talks (or info (emacsconf-get-talk-info))))))
+  (let* ((by-track (seq-group-by (lambda (o) (plist-get o :track)) info))
+         (dir (expand-file-name "in-between" emacsconf-stream-asset-dir))
+				 (default-directory dir))
+		(dolist (track by-track)
+			(shell-command
+			 (concat
+				"convert "
+				(mapconcat (lambda (talk) (shell-quote-argument
+																	 (concat (plist-get talk :slug) ".svg.png")))
+									 (emacsconf-filter-talks (cdr track))
+									 " ")
+				" "
+				(plist-get (emacsconf-get-track (car track)) :id)
+				"-in-between.pdf"
+				)))))
+
 (defun emacsconf-stream-generate-in-between-pages (&optional info)
   (interactive)
-  (setq info (emacsconf-prepare-for-display (emacsconf-filter-talks (or info (emacsconf-get-talk-info)))))
+  (setq info (or emacsconf-schedule-draft (emacsconf-publish-prepare-for-display (emacsconf-filter-talks (or info (emacsconf-get-talk-info))))))
   (let* ((by-track (seq-group-by (lambda (o) (plist-get o :track)) info))
          (dir (expand-file-name "in-between" emacsconf-stream-asset-dir))
          (template (expand-file-name "template.svg" dir)))
+		(unless (file-directory-p dir)
+			(make-directory dir t))
     (mapc (lambda (track)
             (let (prev)
               (mapc (lambda (talk)
@@ -504,42 +543,29 @@ With a prefix argument (\\[universal-argument]), clear the overlay."
                         (mapc (lambda (entry)
                                 (let ((prefix (car entry)))
                                   (emacsconf-stream-svg-set-text dom (concat prefix "title")
-                                                                 (plist-get (cdr entry) :title))
+                                                 (plist-get (cdr entry) :title))
                                   (emacsconf-stream-svg-set-text dom (concat prefix "speakers")
-                                                                 (plist-get (cdr entry) :speakers-with-pronouns))
+                                                 (plist-get (cdr entry) :speakers))
                                   (emacsconf-stream-svg-set-text dom (concat prefix "url")
-                                                                 (and (cdr entry) (concat emacsconf-base-url (plist-get (cdr entry) :url))))
+                                                 (and (cdr entry) (concat emacsconf-base-url (plist-get (cdr entry) :url))))
                                   (emacsconf-stream-svg-set-text
                                    dom
                                    (concat prefix "qa")
                                    (pcase (plist-get (cdr entry) :q-and-a)
-                                     ("live" "Live Q&A after talk")
-                                     ("IRC" "IRC Q&A after talk")
+                                     ((rx "live") "Live Q&A after talk")
+                                     ((rx "pad") "Etherpad")
+																		 ((rx "IRC") "IRC Q&A after talk")
                                      (_ "")))))
                               (list (cons "previous-" prev)
                                     (cons "current-" talk)))
                         (with-temp-file (expand-file-name (concat (plist-get talk :slug) ".svg") dir)
                           (dom-print dom))
-                        (unless (file-exists-p (expand-file-name (concat (plist-get talk :slug) ".png")
-                                                                 dir))
-                          (shell-command
-                           (concat "inkscape --export-type=png -w 1280 -h 720 --export-background-opacity=0 "
-                                   (shell-quote-argument (expand-file-name (concat (plist-get talk :slug) ".svg")
-                                                                           dir))))))
+												(shell-command
+                         (concat "inkscape --export-type=png -w 1280 -h 720 --export-background-opacity=0 "
+                                 (shell-quote-argument (expand-file-name (concat (plist-get talk :slug) ".svg")
+                                                                         dir)))))
                       (setq prev talk))
-                    (cdr track)))
-            (let ((default-directory dir))
-              (shell-command
-               (concat
-                "convert "
-                (mapconcat (lambda (talk) (shell-quote-argument
-                                           (concat (plist-get talk :slug) ".png")))
-                           (cdr track)
-                           " ")
-                " "
-                (plist-get (emacsconf-get-track (car track)) :id)
-                "-in-between.pdf"
-                ))))
+                    (emacsconf-filter-talks (cdr track)))))
           by-track)))
 
 (defun emacsconf-stream-generate-test-subtitles (&optional info)
@@ -685,7 +711,7 @@ With a prefix argument (\\[universal-argument]), clear the overlay."
   <body>
     <header>
       <h1><a href=\"${base-url}${year}/\">${name} ${year}</a> Livestreams</h1>
-      <h3>December 3 (Saturday) and 4 (Sunday), 2022</h3>
+      <h3>December 2 (Saturday) and 3 (Sunday), 2023</h3>
     </header>
     <main>
       <table>
@@ -884,7 +910,7 @@ ffplay URL
 	"Schedule PLAYING for the rest of talks and CLOSED_Q for recorded talks."
   (interactive)
 	(emacsconf-stream-cancel-all-timers)
-  (setq info (emacsconf-prepare-for-display (emacsconf-filter-talks (or info (emacsconf-get-talk-info)))))
+  (setq info (emacsconf-publish-prepare-for-display (emacsconf-filter-talks (or info (emacsconf-get-talk-info)))))
   (let ((now (current-time)))
     (mapc (lambda (talk)
             (when (and (time-less-p now (plist-get talk :start-time)))
