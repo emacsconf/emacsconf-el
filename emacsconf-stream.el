@@ -388,7 +388,9 @@ With a prefix argument (\\[universal-argument]), clear the overlay."
 				(test-length 60))
 		(unless (file-directory-p dir)
 			(make-directory dir t))
-		(shell-command (format "ffmpeg -y -f lavfi -i testsrc=duration=%d:size=1280x720:rate=10 %s " test-length (expand-file-name "template.webm" dir)))
+		(shell-command
+		 (format "ffmpeg -y -f lavfi -i testsrc=duration=%d:size=1280x720:rate=10 %s "
+						 test-length (expand-file-name "template.webm" dir)))
 		(dolist (talk info)
 			(with-temp-file (expand-file-name (concat (plist-get talk :file-prefix) "--main.vtt") dir)
 				(subed-vtt-mode)
@@ -1115,6 +1117,9 @@ If TEST-MODE is non-nil, load the videos from the test directory."
 		(emacsconf-filter-talks talks))))
 
 (defun emacsconf-stream-crontabs (&optional test-mode info)
+	"Write the streaming users' crontab files.
+If TEST-MODE is non-nil, use the videos in the test directory.
+If INFO is non-nil, use that as the schedule instead."
 	(interactive)
 	(let ((emacsconf-publishing-phase 'conference))
 		(setq info (or info (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))

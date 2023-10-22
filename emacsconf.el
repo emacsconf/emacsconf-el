@@ -20,7 +20,7 @@
 
 ;;; Commentary:
 
-;; 
+;;
 
 ;;; Code:
 
@@ -387,7 +387,7 @@ If INFO is specified, limit it to that list."
 											" - "))
 									 (or info (emacsconf-get-talk-info))))))
     (completing-read
-     "Talk: " 
+     "Talk: "
      (lambda (string predicate action)
        (if (eq action 'metadata)
            '(metadata (category . emacsconf))
@@ -467,11 +467,11 @@ If INFO is specified, limit it to that list."
 
 (defun emacsconf-get-talk-info-from-properties (o)
   (let ((heading (org-heading-components))
-        (field-props '(                 
+        (field-props '(
                        ;; Initial creation
                        (:track "TRACK")
                        (:slug "SLUG")
-                       (:speakers "NAME")                       
+                       (:speakers "NAME")
                        (:speakers-short "NAME_SHORT")
                        (:email "EMAIL")
                        (:public-email "PUBLIC_EMAIL")
@@ -483,7 +483,7 @@ If INFO is specified, limit it to that list."
                        (:q-and-a "Q_AND_A")
                        (:timezone "TIMEZONE")
                        (:irc "IRC")
-                       (:pronunciation "PRONUNCIATION")                       
+                       (:pronunciation "PRONUNCIATION")
                        (:pronouns "PRONOUNS")
 											 (:date-submitted "DATE_SUBMITTED")
 											 (:date-to-notify "DATE_TO_NOTIFY")
@@ -495,15 +495,15 @@ If INFO is specified, limit it to that list."
                        ;; Coordination
                        (:prerec-info "PREREC_INFO")
                        ;; Prep
-                       (:bbb-room "ROOM")                       
+                       (:bbb-room "ROOM")
                        ;; Processing
                        (:file-prefix "FILE_PREFIX")
-                       (:video-file "VIDEO_FILE")                       
-                       (:video-time "VIDEO_TIME")                       
-                       (:video-file-size "VIDEO_FILE_SIZE")                       
+                       (:video-file "VIDEO_FILE")
+                       (:video-time "VIDEO_TIME")
+                       (:video-file-size "VIDEO_FILE_SIZE")
                        (:video-duration "VIDEO_DURATION")
                        (:stream-files "STREAM_FILES")
-                       (:youtube-url "YOUTUBE_URL")                       
+                       (:youtube-url "YOUTUBE_URL")
                        (:toobnix-url "TOOBNIX_URL")
 											 (:intro-time "INTRO_TIME")
                        ;; Captioning
@@ -520,7 +520,7 @@ If INFO is specified, limit it to that list."
                        (:qa-toobnix "QA_TOOBNIX")
 											 (:bbb-playback "BBB_PLAYBACK")
                        ;; Old
-                       (:alternate-apac "ALTERNATE_APAC")                       
+                       (:alternate-apac "ALTERNATE_APAC")
                        (:extra-live-time "EXTRA_LIVE_TIME")
                        (:present "PRESENT")
                        (:talk-id "TALK_ID") ; use slug instead
@@ -541,7 +541,7 @@ If INFO is specified, limit it to that list."
       :url (concat emacsconf-year "/talks/" (org-entry-get (point) "SLUG"))
       :schedule-group (org-entry-get-with-inheritance "SCHEDULE_GROUP")
       :wiki-file-path
-      (expand-file-name 
+      (expand-file-name
        (concat (org-entry-get (point) "SLUG") ".md")
        (expand-file-name "captions" (expand-file-name emacsconf-year emacsconf-directory)))
       :start-time
@@ -564,7 +564,7 @@ If INFO is specified, limit it to that list."
 					                                 (org-entry-get (point) "SCHEDULED"))
 					                                t)))
 		                emacsconf-timezone-offset))))
-     (mapcar 
+     (mapcar
       (lambda (prop)
 				(list
 				 (or (car (rassoc (list (car prop)) field-props))
@@ -641,7 +641,7 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
 
 (defun emacsconf-add-talk-status (o)
   (plist-put o :status-label
-             (or (assoc-default (plist-get o :status) 
+             (or (assoc-default (plist-get o :status)
                                 emacsconf-status-types 'string= "")
                  (plist-get o :status)))
   (if (or
@@ -734,7 +734,7 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
 									 )))
 			(unless (string-match "none\\|after" (or (plist-get o :q-and-a) "none"))
 				(plist-put o :qa-time
-									 (plist-get o :live-time)))      
+									 (plist-get o :live-time)))
       (plist-put o :checkin-label
                  "30 minutes before the scheduled start of your Q&A, since you have a pre-recorded video")
       (when (plist-get o :video-time)
@@ -768,10 +768,11 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
 																		 (replace-regexp-in-string "#" ""
 																															 (plist-get track :channel)))
 													 "")))
-			(plist-put o :track-id (plist-get track :id))) 
+			(plist-put o :track-id (plist-get track :id)))
 		(plist-put o :channel (if (eq emacsconf-publishing-phase 'conference) (plist-get track :channel) "emacsconf"))
     (plist-put o :bbb-backstage (concat emacsconf-media-base-url emacsconf-year "/backstage/current/room/" (plist-get o :slug)))
-    (cond
+		(plist-put o :pad-url (format "https://pad.emacsconf.org/%s-%s" emacsconf-year (plist-get o :slug)))
+		(cond
      ((string= (or (plist-get o :q-and-a) "") "")
       (plist-put o :qa-info "none")
 			(plist-put o :qa-url "")
@@ -786,7 +787,7 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
 			(plist-put o :qa-type "live")
       (plist-put o :qa-link (format "<a href=\"%s\">BBB</a>" (plist-get o :bbb-redirect))))
      ((string-match "IRC" (plist-get o :q-and-a))
-      (plist-put o :qa-info (concat "#" (plist-get o :channel) 
+      (plist-put o :qa-info (concat "#" (plist-get o :channel)
                                     (emacsconf-surround ", speaker nick: " (plist-get o :irc) "")))
 			(plist-put o :qa-url (plist-get o :webchat-url))
 			(plist-put o :qa-backstage-url (plist-get o :webchat-url))
@@ -809,7 +810,6 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
 				(plist-put o :qa-type "none")
         (plist-put o :qa-link "none")
 				(plist-put o :qa-backstage-url (plist-get o :pad-url))))
-    (plist-put o :pad-url (format "https://pad.emacsconf.org/%s-%s" emacsconf-year (plist-get o :slug)))
     (plist-put o :recorded-intro
                (let ((filename
                       (expand-file-name (concat (plist-get o :slug) ".webm")
@@ -1350,7 +1350,7 @@ NAME could be a track name, a talk name, or a list."
   (when (stringp end-time) (setq end-time (date-to-time end-time)))
   (seq-filter (lambda (o)
                 (and (plist-get o :start-time)
-                     (time-less-p (plist-get o :start-time) end-time) 
+                     (time-less-p (plist-get o :start-time) end-time)
                      (time-less-p start-time (plist-get o :end-time))))
               info))
 
@@ -1441,7 +1441,7 @@ Filter by TRACK if given.  Use INFO as the list of talks."
   (let* ((choices
           (emacsconf-volunteer-emails-for-completion))
          (choice (completing-read
-                  "Volunteer: " 
+                  "Volunteer: "
                   (lambda (string predicate action)
                     (if (eq action 'metadata)
                         '(metadata (category . volunteer))
@@ -1462,9 +1462,9 @@ Filter by TRACK if given.  Use INFO as the list of talks."
         (setq input last-input))
       (if (string= input "'")
           (progn
-            (end-of-line)          
+            (end-of-line)
             (unless (looking-back " ")
-              (insert " "))          
+              (insert " "))
             (delete-char 1))
         (forward-word)
         (cond
@@ -1657,7 +1657,7 @@ tracks with the ID in the cdr of that list."
 		"Export link to emacsconf-el file."
 		(format "<a href=\"https://git.emacsconf.org/emacsconf-el/tree/%s.el\">%s</a>"
 						(file-name-nondirectory link) (or description link)))
-	
+
 	(org-link-set-parameters
 	 "emacsconf-el"
 	 :complete #'emacsconf-el-complete
@@ -1682,7 +1682,7 @@ tracks with the ID in the cdr of that list."
 		"Export link to emacsconf-el file."
 		(format "<a href=\"https://git.emacsconf.org/emacsconf-ansible/tree/%s\">%s</a>"
 						link (or description link)))
-	
+
 	(org-link-set-parameters
 	 "emacsconf-ansible"
 	 :complete #'emacsconf-ansible-complete
