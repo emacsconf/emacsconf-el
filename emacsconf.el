@@ -1666,11 +1666,13 @@ tracks with the ID in the cdr of that list."
 
 	(defun emacsconf-ansible-complete ()
 		"Complete a file from the Emacsconf Elisp library."
-		(concat "emacsconf-el:"
-						(file-name-base
+		(concat "emacsconf-ansible:"
+						(file-relative-name
 						 (read-file-name
 							"File: "
-							emacsconf-ansible-directory))))
+							emacsconf-ansible-directory)
+						 emacsconf-ansible-directory)))
+
 	(defun emacsconf-ansible-open (link _)
 		"Visit a file from the Emacsconf Elisp library."
 		(find-file
