@@ -147,12 +147,17 @@ You can find it in $ETHERPAD_PATH/APIKEY.txt"
    (append (list :base-url emacsconf-base-url
                  :channel (concat "emacsconf-" (plist-get (emacsconf-get-track (plist-get o :track)) :id))
                  :bbb-info
-                 (cond
-                  ((null (plist-get o :q-and-a))
-                   "<div>Q&amp;A: none</div>")
-                  ((string-match "live" (plist-get o :q-and-a))
-                   (format "<div>Q&amp;A room: %s</div>" (plist-get o :bbb-redirect)))
-                  (t "<div>Q&amp;A: IRC</div>"))
+                 (pcase (plist-get o :q-and-a)
+									 ('nil "<div>Q&amp;A: none</div>")
+                   ((rx "live")
+										(format "<div>Q&amp;A room: %s</div>" (plist-get o :bbb-redirect)))
+									 ((rx "pad")
+										(format "<div>Q&amp;A: Etherpad</div>"))
+									 ((rx "irc")
+										(format "<div>Q&amp;A: IRC (%s)</div>" (plist-get o :webchat-url)))
+									 ((rx "after")
+										(format "<div>Q&amp;A: after the event</div>"))
+									 (_ "<div>Q&amp;A: none</div>"))
                  :next-talk-list
                  (if (plist-get o :next-talks)
                      (concat "<div>Next talks:\n<ul>"
@@ -606,31 +611,35 @@ ${bbb-checklist}</li>")
 	(interactive)
 	(emacsconf-pad-prepopulate-shift-hyperlists)
 	(emacsconf-pad-prepopulate-host-hyperlists))
+
 (defun emacsconf-pad-expand-intro (talk)
+	"Make an intro for TALK."
   (cond
    ((null (plist-get talk :speakers))
     (format "Next up, we have \"%s\"." (plist-get talk :title)))
    ((plist-get talk :intro-note)
-    (format "The next talk is called \"%s\". %s" (plist-get talk :title)
-            (plist-get talk :intro-note)))
+    (plist-get talk :intro-note))
    (t
     (let ((pronoun (pcase (plist-get talk :pronouns)
                      ((rx "she") "She")
+										 ((rx "\"ou\"" "Ou"))
                      ((or 'nil "nil" (rx string-start "he") (rx "him")) "He")
                      ((rx "they") "They")
                      (_ (or (plist-get talk :pronouns) "")))))
-      (format "The next talk is called \"%s\", by %s.%s" (plist-get talk :title)
+      (format "Next up, we have \"%s\", by %s%s.%s"
+							(plist-get talk :title)
               (replace-regexp-in-string ", \\([^,]+\\)$"
                                         ", and \\1"
                                         (plist-get talk :speakers))
+							(emacsconf-surround " (" (plist-get talk :pronunciation) ")" "")
               (pcase (plist-get talk :q-and-a)
                 ((or 'nil "") "")
-                ((rx "after") " We'll collect questions via Etherpad and IRC to send to the speaker, and we'll post the speaker's answers on the talk page afterwards.")
+                ((rx "after") " We'll collect questions via Etherpad and IRC to send to the speaker, and we'll post the answers on the talk page afterwards.")
                 ((rx "IRC")
                  (format " %s will answer questions via IRC in the #%s channel."
                          pronoun
                          (plist-get talk :channel)))
-                ((rx "Mumble")
+                ((rx "pad")
                  (format " %s will answer questions via Etherpad."
                          pronoun
                          ))
@@ -782,7 +791,7 @@ ${bbb-checklist}</li>")
   (emacsconf-pad-create-pad "intros")
   (emacsconf-pad-set-html
    "intros"
-   (concat "<p>https://media.emacsconf.org/2022/backstage/</p>
+   (concat "<p>https://media.emacsconf.org/" emacsconf-year "/backstage/</p>
 This page is for easy reference and recording. Please make sure any changes here are reflected in the INTRO_NOTE property of the talk.
 <ul>"
            (mapconcat
