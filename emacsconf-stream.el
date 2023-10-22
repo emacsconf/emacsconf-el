@@ -185,7 +185,7 @@ especially when two things need to happen close together."
 				(if (stringp track)
 						(or (emacsconf-get-track track)
 								(emacsconf-get-track (emacsconf-resolve-talk track)))
-					(emacsconf-get-track track))) 
+					(emacsconf-get-track track)))
   (let ((info (tramp-dissect-file-name (emacsconf-stream-track-login track))))
     (apply
      #'start-process
@@ -204,7 +204,7 @@ especially when two things need to happen close together."
   "Play the recorded intro or display the in-between slide for TALK."
   (interactive (list (emacsconf-complete-talk-info)))
   (setq talk (emacsconf-resolve-talk talk))
-  (emacsconf-stream-track-ssh talk "nohup" "intro" (plist-get talk :slug))) 
+  (emacsconf-stream-track-ssh talk "nohup" "intro" (plist-get talk :slug)))
 
 (defun emacsconf-stream-play-talk-on-change (talk)
   "Play the talk."
@@ -309,7 +309,7 @@ This uses the BBB room if available, or the IRC channel if not."
 			 "nohup"
 			 "firefox"
 			 "-new-window"
-			 (plist-get talk :pad-url)) 
+			 (plist-get talk :pad-url))
 		(emacsconf-stream-track-ssh
 		 talk
 		 "nohup"
@@ -860,14 +860,14 @@ ffplay URL
 					 (t														; HH:MM
 						(date-to-time (concat (format-time-string "%Y-%m-%d" nil emacsconf-timezone)
 																	"T"
-																	(string-pad time 5 ?0 t) 
+																	(string-pad time 5 ?0 t)
 																	emacsconf-timezone-offset)))))
 				 (timer-id (concat (format-time-string "%m-%dT%H:%M" converted)
 													 "-"
 													 (plist-get talk :slug)
 													 "-"
 													 new-status)))
-		(emacsconf-stream-cancel-timer timer-id) 
+		(emacsconf-stream-cancel-timer timer-id)
 		(add-to-list 'emacsconf-stream-timers
 									(cons
 									 timer-id
@@ -1032,7 +1032,7 @@ ffplay URL
 					 (append
 						(list
 						 (concat "mixer-" (plist-get track :id))
-						 (concat "*" (plist-get track :name) "*")) 
+						 (concat "*" (plist-get track :name) "*"))
 						emacsconf-stream-console
 						(list
 						 "ssh"
