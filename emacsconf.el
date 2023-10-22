@@ -284,7 +284,7 @@ Return the list of new filenames."
 			 t))))
 
 (defun emacsconf-upload-copy-from-json (talk key filename)
-	"Parse PsiTransfer JSON files and copy the uploaded file to the backstage directory.
+	"Parse PsiTransfer JSON files and copy the uploaded file to the res directory.
 The file is associated with TALK. KEY identifies the file in a multi-file upload.
 FILENAME specifies an extra string to add to the file prefix if needed."
   (interactive (let-alist (json-parse-string (buffer-string) :object-type 'alist)
@@ -300,7 +300,7 @@ FILENAME specifies an extra string to add to the file prefix if needed."
                                 (file-name-extension .metadata.name)))))
     (copy-file
 		 key
-     (expand-file-name new-filename emacsconf-backstage-dir)
+     (expand-file-name new-filename (expand-file-name "cache" emacsconf-res-dir))
 		 t)))
 
 (defcustom emacsconf-download-directory "~/Downloads"
@@ -774,26 +774,41 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
     (cond
      ((string= (or (plist-get o :q-and-a) "") "")
       (plist-put o :qa-info "none")
-      (plist-put o :qa-link "none"))
+			(plist-put o :qa-url "")
+			(plist-put o :qa-type "none")
+      (plist-put o :qa-link ""))
      ((string-match "live" (plist-get o :q-and-a))
       (plist-put o :bbb-redirect (format "https://emacsconf.org/current/%s/room/" (plist-get o :slug)))
       (plist-put o :qa-info (plist-get o :bbb-redirect))
+			(plist-put o :qa-url (plist-get o :bbb-redirect))
+			(plist-put o :qa-backstage-url
+								 (format "https://media.emacsconf.org/%s/backstage/assets/redirects/open/bbb-%s.html" emacsconf-year (plist-get o :slug)))
+			(plist-put o :qa-type "live")
       (plist-put o :qa-link (format "<a href=\"%s\">BBB</a>" (plist-get o :bbb-redirect))))
      ((string-match "IRC" (plist-get o :q-and-a))
       (plist-put o :qa-info (concat "#" (plist-get o :channel) 
                                     (emacsconf-surround ", speaker nick: " (plist-get o :irc) "")))
+			(plist-put o :qa-url (plist-get o :webchat-url))
+			(plist-put o :qa-backstage-url (plist-get o :webchat-url))
+			(plist-put o :qa-type "irc")
       (plist-put o :qa-link (format "<a href=\"%s\">%s</a>" (plist-get o :webchat-url) (plist-get o :qa-info))))
      ((string-match "Mumble" (plist-get o :q-and-a))
       (plist-put o :qa-info "Moderated via Mumble, ask questions via pad or IRC")
+			(plist-put o :qa-type "mumble")
       (plist-put o :qa-link (format "<a href=\"%s\">%s</a>" (plist-get o :webchat-url) (plist-get o :qa-info))))
      ((string-match "pad" (plist-get o :q-and-a))
       (plist-put o :qa-info "Etherpad")
-      (plist-put o :qa-link (if (plist-get o :pad-url)
-																(format "<a href=\"%s\">%s</a>"
-																				(plist-get o :pad-url)
-																				(plist-get o :qa-info)))))
+			(plist-put o :qa-url (plist-get o :pad-url))
+			(plist-put o :qa-backstage-url (plist-get o :pad-url))
+			(plist-put o :qa-type "pad")
+      (plist-put o :qa-link (when (plist-get o :pad-url)
+															(format "<a href=\"%s\">%s</a>"
+																			(plist-get o :pad-url)
+																			(plist-get o :qa-info)))))
      (t (plist-put o :qa-info "none")
-        (plist-put o :qa-link "none")))
+				(plist-put o :qa-type "none")
+        (plist-put o :qa-link "none")
+				(plist-put o :qa-backstage-url (plist-get o :pad-url))))
     (plist-put o :pad-url (format "https://pad.emacsconf.org/%s-%s" emacsconf-year (plist-get o :slug)))
     (plist-put o :recorded-intro
                (let ((filename
@@ -886,7 +901,7 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
     info))
 
 (defun emacsconf-previous-talk (talk &optional info)
-	(setq info (emacsconf-publish-prepare-for-display (or info (emacsconf-get-talk-info))))
+	(setq info (or info (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
 	(let* ((pos (seq-position info talk))
 				 (prev (and pos
 										(> pos 0)
@@ -1247,6 +1262,7 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
            :start "09:00" :end "17:00"
            :vnc-display ":5"
            :vnc-port "5905"
+					 :auto-pilot t
            :status "offline")
    (:name "Development" :color "skyblue" :id "dev" :channel "emacsconf-dev"
           :watch "https://live.emacsconf.org/2022/watch/dev/"
@@ -1260,6 +1276,7 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
           :start "10:00" :end "17:00"
           :vnc-display ":6"
           :vnc-port "5906"
+					:auto-pilot t
           :status "offline")))
 
 (defun emacsconf-get-track (name)
