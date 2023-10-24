@@ -1091,8 +1091,7 @@ Entries are sorted chronologically, with different tracks interleaved."
 
 (defun emacsconf-publish-talk-files (talk files)
   (seq-filter (lambda (o)
-                (and (string-match (concat "^" (regexp-quote (plist-get talk :file-prefix))) o)
-                     (not (string= (plist-get talk :video-file) o))))
+								(string-match (concat "^" (regexp-quote (plist-get talk :file-prefix))) o))
               files))
 
 (defun emacsconf-sum (field talks)
