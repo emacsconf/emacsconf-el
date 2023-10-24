@@ -383,13 +383,14 @@ With a prefix argument (\\[universal-argument]), clear the overlay."
 	"Generate 1-minute test videos for INFO."
 	(interactive)
   (setq info (or info (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
-	(let ((dir (expand-file-name "test" emacsconf-stream-asset-dir))
-				(subed-default-subtitle-length 1000)
-				(test-length 60))
+	(let* ((dir (expand-file-name "test" emacsconf-stream-asset-dir))
+				 (default-directory dir)
+				 (subed-default-subtitle-length 1000)
+				 (test-length 60))
 		(unless (file-directory-p dir)
 			(make-directory dir t))
 		(shell-command
-		 (format "ffmpeg -y -f lavfi -i testsrc=duration=%d:size=1280x720:rate=10 %s "
+		 (format "ffmpeg -y -f lavfi -i testsrc=duration=%d:size=1280x720:rate=10 -i background-music.opus -shortest %s "
 						 test-length (expand-file-name "template.webm" dir)))
 		(dolist (talk info)
 			(with-temp-file (expand-file-name (concat (plist-get talk :file-prefix) "--main.vtt") dir)
@@ -1103,8 +1104,11 @@ ffplay URL
 Use the display specified in TRACK.
 If TEST-MODE is non-nil, load the videos from the test directory."
 	(concat
-	 "PATH=/usr/local/bin:/usr/bin\n"
-	 "MAILTO=\"\"\n"
+	 (format
+		"PATH=/usr/local/bin:/usr/bin
+MAILTO=\"\"
+XDG_RUNTIME_DIR=\"/run/user/%d\"
+" (plist-get track :uid))
 	 (mapconcat
 		(lambda (talk)
 			(format "%s /usr/bin/screen -dmS play-%s bash -c \"DISPLAY=%s TEST_MODE=%s /usr/local/bin/handle-session %s\"\n"
@@ -1131,14 +1135,21 @@ If INFO is non-nil, use that as the schedule instead."
 						(crontab (expand-file-name (concat (plist-get track :id) ".crontab")
 																			 (concat (plist-get track :tramp) "~"))))
 				(with-temp-file crontab
-					(when (plist-get track :auto-pilot)
+					(when (plist-get track :autopilot)
 						(insert (emacsconf-stream-format-crontab track talks test-mode))))
 				(emacsconf-stream-track-ssh track (concat "crontab ~/" (plist-get track :id) ".crontab"))))))
 
 (defun emacsconf-stream-cancel-crontab (track)
 	"Remove crontab for TRACK."
 	(interactive (list (emacsconf-complete-track)))
+	(plist-put track :autopilot nil)
 	(emacsconf-stream-track-ssh track "crontab -r"))
-;;;
+
+(defun emacsconf-stream-cancel-all-crontabs ()
+	"Remove crontabs."
+	(dolist (track emacsconf-tracks)
+		(plist-put track :autopilot nil)
+		(emacsconf-stream-track-ssh track "crontab -r")))
+
 (provide 'emacsconf-stream)
 ;;; emacsconf-stream.el ends here

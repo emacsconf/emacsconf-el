@@ -1260,9 +1260,10 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
 					 :youtube-studio-url "https://studio.youtube.com/video/UEJ88c7MJq0/livestreaming"
 					 :toobnix-url "https://toobnix.org/w/7t9X8eXuSby8YpyEKTb4aj"
            :start "09:00" :end "17:00"
+					 :uid 2002
            :vnc-display ":5"
            :vnc-port "5905"
-					 :auto-pilot t
+					 :autopilot t
            :status "offline")
    (:name "Development" :color "skyblue" :id "dev" :channel "emacsconf-dev"
           :watch "https://live.emacsconf.org/2022/watch/dev/"
@@ -1273,10 +1274,11 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
 					:youtube-studio-url "https://studio.youtube.com/video/PMaoF-xa1b4/livestreaming"
 					:stream ,(concat emacsconf-stream-base "dev.webm")
           :480p ,(concat emacsconf-stream-base "dev-480p.webm")
+					:uid 2003
           :start "10:00" :end "17:00"
           :vnc-display ":6"
           :vnc-port "5906"
-					:auto-pilot t
+					:autopilot t
           :status "offline")))
 
 (defun emacsconf-get-track (name)
