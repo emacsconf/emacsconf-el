@@ -1119,7 +1119,7 @@ XDG_RUNTIME_DIR=\"/run/user/%d\"
 " (plist-get track :uid))
 	 (mapconcat
 		(lambda (talk)
-			(format "%s /usr/bin/screen -dmS play-%s bash -c \"DISPLAY=%s TEST_MODE=%s /usr/local/bin/handle-session %s\"\n"
+			(format "%s /usr/bin/screen -dmS play-%s bash -c \"DISPLAY=%s TEST_MODE=%s /usr/local/bin/handle-session %s | tee -a ~/track.log\"\n"
 							;; cron times are UTC
 							(format-time-string "%-M %-H %-d %m *" (plist-get talk :start-time))
 							(plist-get talk :slug)
@@ -1155,6 +1155,7 @@ If INFO is non-nil, use that as the schedule instead."
 
 (defun emacsconf-stream-cancel-all-crontabs ()
 	"Remove crontabs."
+	(interactive)
 	(dolist (track emacsconf-tracks)
 		(plist-put track :autopilot nil)
 		(emacsconf-stream-track-ssh track "crontab -r")))
