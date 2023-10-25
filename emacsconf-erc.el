@@ -3,7 +3,7 @@
 ;; Copyright (C) 2022  Sacha Chua
 
 ;; Author: Sacha Chua <sacha@sachachua.com>
-;; Keywords: 
+;; Keywords:
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -34,7 +34,7 @@
 ;; - /nowdone slug
 
 ;; use M-x emacsconf-erc-add-to-todo-hook in conf.org to have the announcements triggered by todo state changes
-;; 
+;;
 ;; updating task status
 ;; - /markplaying slug
 ;; - /markclosedq slug
@@ -46,7 +46,7 @@
 ;; - /broadcast message
 ;; - /conftopic message
 ;; - /checkin nick
-;; 
+;;
 ;;; Code:
 
 (defcustom emacsconf-collaborative-pad
@@ -63,12 +63,12 @@
 (defcustom emacsconf-erc-org "#emacsconf-org" "Channel for organizers")
 
 (defcustom emacsconf-topic-templates
-  '(("#emacsconf" "Welcome to EmacsConf 2022 | please join our track-specific channels #emacsconf-gen and #emacsconf-dev as well | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
+  '(("#emacsconf" "Welcome to EmacsConf 2023 | please join our track-specific channels #emacsconf-gen and #emacsconf-dev as well | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
     ("#emacsconf-gen" "General track | https://emacsconf.org/2022/watch/gen/ | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
     ("#emacsconf-dev" "Development track | https://emacsconf.org/2022/watch/dev/ | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
-    ("#emacsconf-accessible" "EmacsConf 2022 accessibility - help by describing what's happening | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
-    ("#emacsconf-org" "EmacsConf 2022 | Dedicated channel for EmacsConf organizers and speakers | this is intended as an internal, low-traffic channel; for main discussion around EmacsConf, please join #emacsconf | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
-    ("#emacsconf-questions" "EmacsConf 2022 | Low-traffic channel for questions if speakers prefer IRC and need help focusing; for main discussion around EmacsConf, please join #emacsconf | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates"))
+    ("#emacsconf-accessible" "EmacsConf 2023 accessibility - help by describing what's happening | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
+    ("#emacsconf-org" "EmacsConf 2023 | Dedicated channel for EmacsConf organizers and speakers | this is intended as an internal, low-traffic channel; for main discussion around EmacsConf, please join #emacsconf | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
+    ("#emacsconf-questions" "EmacsConf 2023 | Low-traffic channel for questions if speakers prefer IRC and need help focusing; for main discussion around EmacsConf, please join #emacsconf | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates"))
   "List of (channel topic-template) entries for mass-setting channel topics."
   :group 'emacsconf
   :type '(repeat (list (string :tag "Channel")
@@ -88,7 +88,7 @@
 (defun erc-cmd-CONFTOPIC (&rest message)
   "Set the topic to MESSAGE | template in the EmacsConf channels.
 If MESSAGE is not specified, reset the topic to the template."
-  (mapc (lambda (template) 
+  (mapc (lambda (template)
           (with-current-buffer (erc-get-buffer (car template))
             (erc-cmd-TOPIC (if message (concat (if (stringp message) message (s-join " " message)) " | " (cadr template))
                              (cadr template)))))
@@ -131,7 +131,7 @@ If MESSAGE is not specified, reset the topic to the template."
     (emacsconf-erc-with-channels (list emacsconf-erc-org)
       (erc-send-message (format "Ready: %s (%s)" (plist-get talk :title) (plist-get talk :speakers))))
     (mapc (lambda (nick)
-            (erc-message "PRIVMSG" 
+            (erc-message "PRIVMSG"
                          (format "%s ready in %s: %s (%s) %s %s"
                                  emacsconf-nick
                                  (plist-get talk :bbb-room)
@@ -160,12 +160,12 @@ If MESSAGE is not specified, reset the topic to the template."
 
 (defun erc-cmd-TALKTOPIC (talk)
 	(interactive (list (emacsconf-complete-talk-info)))
-	(when (stringp talk) (setq talk (or (emacsconf-find-talk-info talk) (error "Could not find talk %s" talk)))) 
+	(when (stringp talk) (setq talk (or (emacsconf-find-talk-info talk) (error "Could not find talk %s" talk))))
 	(when (plist-get talk :track)
 			(emacsconf-erc-with-channels (list (concat "#" (plist-get talk :channel)))
 				(erc-cmd-TOPIC (format "%s: %s (%s) pad: %s Q&A: %s | %s"
 															 (plist-get talk :slug)
-															 (plist-get talk :title)                               
+															 (plist-get talk :title)
 															 (plist-get talk :speakers)
 															 (plist-get talk :pad-url)
 															 (plist-get talk :qa-info)
@@ -173,7 +173,7 @@ If MESSAGE is not specified, reset the topic to the template."
 (defun erc-cmd-NOWPLAYING (talk)
   "Set the channel topics to announce TALK."
   (interactive (list (emacsconf-complete-talk-info)))
-  (when (stringp talk) (setq talk (or (emacsconf-find-talk-info talk) (error "Could not find talk %s" talk)))) 
+  (when (stringp talk) (setq talk (or (emacsconf-find-talk-info talk) (error "Could not find talk %s" talk))))
   ;; Announce it in the track's channel
 	(if (emacsconf-erc-recently-announced (format "---- %s:" (plist-get talk :slug)))
 			(message "Recently announced, skipping")
@@ -181,7 +181,7 @@ If MESSAGE is not specified, reset the topic to the template."
 			(emacsconf-erc-with-channels (list (concat "#" (plist-get talk :channel)))
 				(erc-cmd-TOPIC (format "%s: %s (%s) pad: %s Q&A: %s | %s"
 															 (plist-get talk :slug)
-															 (plist-get talk :title)                               
+															 (plist-get talk :title)
 															 (plist-get talk :speakers)
 															 (plist-get talk :pad-url)
 															 (plist-get talk :qa-info)
@@ -202,7 +202,7 @@ If MESSAGE is not specified, reset the topic to the template."
 			(erc-send-message (format "-- %s track: %s: %s (watch: %s, pad: %s, channel: #%s)"
 																(plist-get talk :track)
 																(plist-get talk :slug)
-																(plist-get talk :title)                               
+																(plist-get talk :title)
 																(plist-get talk :watch-url)
 																(plist-get talk :pad-url)
 																(plist-get talk :channel))))))
@@ -218,7 +218,7 @@ If MESSAGE is not specified, reset the topic to the template."
 																(plist-get talk :title)
 																(plist-get talk :qa-info)
 																(plist-get talk :watch-url)
-																(plist-get talk :pad-url))))  
+																(plist-get talk :pad-url))))
 		(emacsconf-erc-with-channels (list emacsconf-erc-hallway emacsconf-erc-org)
 			(erc-send-message (format "-- Q&A beginning for \"%s\" in the %s track (%s) Watch: %s Add notes/questions: %s . Chat: #%s"
 																(plist-get talk :title)
@@ -238,7 +238,7 @@ If MESSAGE is not specified, reset the topic to the template."
 																(plist-get talk :title)
 																(plist-get talk :qa-info)
 																(plist-get talk :watch-url)
-																(plist-get talk :pad-url))))  
+																(plist-get talk :pad-url))))
 		(emacsconf-erc-with-channels (list emacsconf-erc-hallway emacsconf-erc-org)
 			(erc-send-message (format "-- Q&A now open for \"%s\" in the %s track (%s). Watch: %s Add notes/questions: %s IRC: #%s"
 																(plist-get talk :title)
@@ -257,7 +257,7 @@ If MESSAGE is not specified, reset the topic to the template."
 			(erc-send-message (format "-- Q&A continues off-stream for \"%s\" (%s) Add notes/questions: %s ."
 																(plist-get talk :title)
 																(plist-get talk :qa-info)
-																(plist-get talk :pad-url))))  
+																(plist-get talk :pad-url))))
 		(emacsconf-erc-with-channels (list emacsconf-erc-hallway emacsconf-erc-org)
 			(erc-send-message (format "-- Q&A continues off-stream for \"%s\" in the %s track (%s) Add notes/questions: %s IRC: #%s"
 																(plist-get talk :title)
@@ -435,7 +435,7 @@ TIME can be hh:mm or an offset such as -2 (two minutes ago) based on current tim
         (unless (re-search-backward "TODO.*Update schedule on wiki" nil t)
           (insert "\n* TODO [#B] Update schedule on wiki\n"))
         (goto-char (point-max))
-        (insert (emacsconf-replace-plist-in-string info 
+        (insert (emacsconf-replace-plist-in-string info
                                                    "\n* TODO [#B] Check ${title} on https://media.emacsconf.org/${conf-year}
 
 ,* TODO [#B] Commit the page update for ${title} and check https://emacsconf.org/${conf-year}/talks/${slug}/
