@@ -2296,33 +2296,33 @@ There is no live Q&A room for ${title}. You can find more information about the 
   "Publish the files and update the index."
   (interactive (list (emacsconf-complete-talk-info)))
   (let ((org-state (if (boundp 'org-state) org-state (plist-get talk :status))))
-    (when (or (string= org-state "PLAYING")
-              (string= org-state "TO_STREAM"))
-      (if (plist-get talk :public)
-          ;; Copy main extension files from backstage to public
-          (let ((files (directory-files emacsconf-backstage-dir nil
-                                        (concat "^"
-                                                (regexp-quote (plist-get talk :file-prefix))
-                                                (regexp-opt emacsconf-main-extensions)))))
-            (mapc (lambda (file)
-                    (when (or (not (string-match "--main.vtt$" file))
-                              (plist-get talk :captions-edited))
-                      (copy-file (expand-file-name file emacsconf-backstage-dir)
-                                 (expand-file-name file emacsconf-public-media-directory) t)))
-                  files))
-        ;; Remove files from public
-        (let ((files (directory-files emacsconf-public-media-directory nil
+    (if (plist-get talk :public)
+        ;; Copy main extension files from backstage to public
+        (let ((files (directory-files emacsconf-backstage-dir nil
                                       (concat "^"
-                                              (regexp-quote (plist-get talk :file-prefix)
-                                                            )))))
+                                              (regexp-quote (plist-get talk :file-prefix))
+                                              (regexp-opt emacsconf-main-extensions)))))
           (mapc (lambda (file)
-                  (delete-file (expand-file-name file emacsconf-public-media-directory)))
-                files)))
-      (emacsconf-publish-public-index)
-			(emacsconf-publish-playlist
-			 (expand-file-name "index.m3u" emacsconf-public-media-directory)
-       (concat emacsconf-name " " emacsconf-year)
-       (emacsconf-public-talks (emacsconf-get-talk-info))))))
+                  (when (and
+												 (not (file-exists-p (expand-file-name file emacsconf-public-media-directory)))
+												 (or (not (string-match "--main.vtt$" file))
+														 (plist-get talk :captions-edited)))
+                    (copy-file (expand-file-name file emacsconf-backstage-dir)
+                               (expand-file-name file emacsconf-public-media-directory) t)))
+                files))
+      ;; Remove files from public
+      (let ((files (directory-files emacsconf-public-media-directory nil
+                                    (concat "^"
+                                            (regexp-quote (plist-get talk :file-prefix)
+                                                          )))))
+        (mapc (lambda (file)
+                (delete-file (expand-file-name file emacsconf-public-media-directory)))
+              files)))
+    (emacsconf-publish-public-index)
+		(emacsconf-publish-playlist
+		 (expand-file-name "index.m3u" emacsconf-public-media-directory)
+     (concat emacsconf-name " " emacsconf-year)
+     (emacsconf-public-talks (emacsconf-get-talk-info)))))
 
 (defun emacsconf-publish-bbb-redirect-all ()
   (interactive)
