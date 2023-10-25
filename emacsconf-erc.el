@@ -170,27 +170,34 @@ If MESSAGE is not specified, reset the topic to the template."
 															 (plist-get talk :pad-url)
 															 (plist-get talk :qa-info)
 															 (car (assoc-default (concat "#" (plist-get talk :channel)) emacsconf-topic-templates)))))))
+
 (defun erc-cmd-NOWPLAYING (talk)
   "Set the channel topics to announce TALK."
   (interactive (list (emacsconf-complete-talk-info)))
-  (when (stringp talk) (setq talk (or (emacsconf-find-talk-info talk) (error "Could not find talk %s" talk))))
+  (when (stringp talk)
+		(setq talk (or (emacsconf-find-talk-info talk) (error "Could not find talk %s" talk))))
   ;; Announce it in the track's channel
 	(if (emacsconf-erc-recently-announced (format "---- %s:" (plist-get talk :slug)))
 			(message "Recently announced, skipping")
 		(when (plist-get talk :track)
 			(emacsconf-erc-with-channels (list (concat "#" (plist-get talk :channel)))
-				(erc-cmd-TOPIC (format "%s: %s (%s) pad: %s Q&A: %s | %s"
-															 (plist-get talk :slug)
-															 (plist-get talk :title)
-															 (plist-get talk :speakers)
-															 (plist-get talk :pad-url)
-															 (plist-get talk :qa-info)
-															 (car (assoc-default (concat "#" (plist-get talk :channel)) emacsconf-topic-templates))))
+				(erc-cmd-TOPIC
+				 (format
+					"%s: %s (%s) pad: %s Q&A: %s | %s"
+					(plist-get talk :slug)
+					(plist-get talk :title)
+					(plist-get talk :speakers)
+					(plist-get talk :pad-url)
+					(plist-get talk :qa-info)
+					(car (assoc-default
+								(concat "#" (plist-get talk :channel))
+								emacsconf-topic-templates))))
 				(erc-send-message (format "---- %s: %s - %s ----"
 																	(plist-get talk :slug)
 																	(plist-get talk :title)
 																	(plist-get talk :speakers-with-pronouns)))
-				(erc-send-message (concat "Add your notes/questions to the pad: " (plist-get talk :pad-url)))
+				(erc-send-message
+				 (concat "Add your notes/questions to the pad: " (plist-get talk :pad-url)))
 				(cond
 				 ((string-match "live" (or (plist-get talk :q-and-a) ""))
 					(erc-send-message (concat "Live Q&A: " (plist-get talk :bbb-redirect))))
@@ -287,7 +294,8 @@ If MESSAGE is not specified, reset the topic to the template."
 
 (defun emacsconf-erc-announce-on-change (talk)
   "Announce talk."
-  (let ((func
+  (let ((emacsconf-publishing-phase 'conference)
+				(func
          (pcase org-state
            ("PLAYING" #'erc-cmd-NOWPLAYING)
            ("CLOSED_Q" #'erc-cmd-NOWCLOSEDQ)

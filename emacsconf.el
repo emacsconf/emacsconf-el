@@ -640,16 +640,17 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
 
 
 (defun emacsconf-add-talk-status (o)
+	"Add status label and public info."
   (plist-put o :status-label
              (or (assoc-default (plist-get o :status)
                                 emacsconf-status-types 'string= "")
                  (plist-get o :status)))
-  (if (or
-			 (member (plist-get o :status)
-							 (split-string "PLAYING CLOSED_Q OPEN_Q UNSTREAMED_Q TO_ARCHIVE TO_EXTRACT TO_FOLLOW_UP DONE"))
-			 (time-less-p (plist-get o :start-time)
-										(current-time)))
-      (plist-put o :public t))
+  (when (or
+				 (member (plist-get o :status)
+								 (split-string "PLAYING CLOSED_Q OPEN_Q UNSTREAMED_Q TO_ARCHIVE TO_EXTRACT TO_FOLLOW_UP DONE"))
+				 (time-less-p (plist-get o :start-time)
+											(current-time)))
+    (plist-put o :public t))
   o)
 
 (defun emacsconf-talk-live-p (talk)
@@ -779,7 +780,9 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
 			(plist-put o :qa-type "none")
       (plist-put o :qa-link ""))
      ((string-match "live" (plist-get o :q-and-a))
-      (plist-put o :bbb-redirect (format "https://emacsconf.org/current/%s/room/" (plist-get o :slug)))
+      (plist-put o :bbb-redirect (format "https://media.emacsconf.org/%s/current/bbb-%s.html"
+																				 emacsconf-year
+																				 (plist-get o :slug)))
       (plist-put o :qa-info (plist-get o :bbb-redirect))
 			(plist-put o :qa-url (plist-get o :bbb-redirect))
 			(plist-put o :qa-backstage-url
@@ -1263,7 +1266,7 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
 					 :uid 2002
            :vnc-display ":5"
            :vnc-port "5905"
-					 :autopilot t
+					 :autopilot crontab
            :status "offline")
    (:name "Development" :color "skyblue" :id "dev" :channel "emacsconf-dev"
           :watch "https://live.emacsconf.org/2022/watch/dev/"
@@ -1278,7 +1281,7 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
           :start "10:00" :end "17:00"
           :vnc-display ":6"
           :vnc-port "5906"
-					:autopilot t
+					:autopilot crontab
           :status "offline")))
 
 (defun emacsconf-get-track (name)
@@ -1511,15 +1514,14 @@ Filter by TRACK if given.  Use INFO as the list of talks."
                  #'emacsconf-org-after-todo-state-change  t)))
 
 (defvar emacsconf-todo-hooks
-  '((emacsconf-stream-play-talk-on-change "gen" "dev")
-    (emacsconf-stream-open-qa-windows-on-change "gen" "dev")
+  '(emacsconf-stream-play-talk-on-change
+		emacsconf-stream-open-qa-windows-on-change
     emacsconf-erc-announce-on-change ;; announce via ERC
     emacsconf-publish-bbb-redirect
     emacsconf-stream-update-talk-info-on-change
     emacsconf-publish-media-files-on-change
-    ;; emacsconf-publish-update-talk  ;; skipping this for now, I'll do this locally
+		emacsconf-publish-update-talk
     emacsconf-publish-backstage-org-on-state-change ;; update the backstage index
-    ;; write to the talk text
     )
   "Functions to run when the todo state changes.
 They will be called with TALK.")
