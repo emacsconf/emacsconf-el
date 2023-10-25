@@ -1566,7 +1566,8 @@ tracks with the ID in the cdr of that list."
 (defun emacsconf-update-talk-status (slug from-states to-state)
   (interactive (list (emacsconf-complete-talk) "." (completing-read "To: " (mapcar 'car emacsconf-status-types))))
   (emacsconf-with-talk-heading slug
-    (when (string-match from-states (org-entry-get (point) "TODO"))
+    (when (or (null from-states)
+	      (string-match from-states (org-entry-get (point) "TODO")))
       (org-todo to-state)
       (save-buffer))))
 
