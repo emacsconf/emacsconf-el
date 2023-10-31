@@ -437,7 +437,7 @@ ${next-talk-list}
 <li>[ ] Speaker can hear others</li>
 <li>[ ] No audio feedback issues (may need headphones or earphones)</li>
 <li>[ ] Screen sharing: (optional)
-<ul><li>[ ] Window or screen can be shared 
+<ul><li>[ ] Window or screen can be shared
 <li>[ ] Text is readable</li></ul>
 <li>[ ] Webcam sharing (optional)</li></ul></li>
 <li>OK to do other things until the prerec ends</li>
@@ -552,7 +552,7 @@ ${bbb-checklist}</li>")
 															(format-time-string "%H:%M" (plist-get talk :start-time) emacsconf-timezone))
 											(plist-get talk :hyperlist-note) "</li>" "")
 										 :next-talk-in-5 (if next-talk (format-time-string "%H:%M" (time-subtract (plist-get next-talk :start-time) (seconds-to-time 300)) emacsconf-timezone) "")
-										 :next-talk-in-1 (if next-talk (format-time-string "%H:%M" (time-subtract (plist-get next-talk :start-time) (seconds-to-time 60)) emacsconf-timezone) "")) 
+										 :next-talk-in-1 (if next-talk (format-time-string "%H:%M" (time-subtract (plist-get next-talk :start-time) (seconds-to-time 60)) emacsconf-timezone) ""))
 							 talk)
 							(concat
 							 "${hyperlist-note-info}"
@@ -573,7 +573,7 @@ ${bbb-checklist}</li>")
 								 "<li>Backup: ${start-hhmm} ${slug}: it should play a prerecorded intro, but if it doesn't, join ${mumble} in Mumble and introduce talk: ${expanded-intro}</li>"))
 							 ;; Q&A
 							 (if (and (null (plist-get talk :video-file)) (not (string= (or (plist-get talk :q-and-a) "none") "none")))
-									 "<li>Continue in the BBB room for live Q&A because the talk was live</li>" 
+									 "<li>Continue in the BBB room for live Q&A because the talk was live</li>"
 								 (pcase (plist-get talk :q-and-a)
 									 ((or 'nil "" "none" (rx "after"))
 										(if (plist-get talk :video-file)
@@ -592,7 +592,7 @@ ${bbb-checklist}</li>")
   <ul><li>[ ] Let the speaker know about the time and that the Q&A can continue off-stream if people want to join</li></ul></li>
 <li>${next-talk-in-1} [? Open Q&A is still going on and it's about a minute before the next talk]
   <ul><li>[ ] Announce that the Q&A will continue if people want to join the BBB room from the talk page, and the stream will now move to the next talk</li></ul></li>
-			 "))))))) 
+			 ")))))))
 				 (emacsconf-include-next-talks shift-talks 1)
 				 "\n")
 				"</ul>"
@@ -635,18 +635,18 @@ ${bbb-checklist}</li>")
               (pcase (plist-get talk :q-and-a)
                 ((or 'nil "") "")
                 ((rx "after") " We'll collect questions via Etherpad and IRC to send to the speaker, and we'll post the answers on the talk page afterwards.")
-                ((rx "IRC")
-                 (format " %s will answer questions via IRC in the #%s channel."
-                         pronoun
-                         (plist-get talk :channel)))
-                ((rx "pad")
-                 (format " %s will answer questions via Etherpad."
-                         pronoun
-                         ))
                 ((rx "live")
                  (format " %s will answer questions via BigBlueButton. You can join using the URL from the talk page or ask questions through Etherpad or IRC."
                          pronoun
-                         ))))))))
+                         ))
+								((rx "pad")
+                 (format " %s will answer questions via Etherpad."
+                         pronoun
+                         ))
+								((rx "IRC")
+                 (format " %s will answer questions via IRC in the #%s channel."
+                         pronoun
+                         (plist-get talk :channel)))))))))
 
 ;; Related: emacsconf-talk-hyperlist
 (defun emacsconf-pad-talk-hyperlist (talk &optional do-insert)
@@ -682,13 +682,13 @@ ${bbb-checklist}</li>")
            (format "<li><strong>%s %s (intro: %s, talk: %s, Q&A: %s) %s <a href=\"%s\">%s</a></strong><ul>%s</ul>\n</li>"
                    (format-time-string "%H:%M" (plist-get talk :start-time) emacsconf-timezone)
                    (plist-get talk :slug)
-                   (if (plist-get talk :recorded-intro) "recorded" "live")                   
-                   (if (plist-get talk :video-file) "recorded" "live")                   
+                   (if (plist-get talk :recorded-intro) "recorded" "live")
+                   (if (plist-get talk :video-file) "recorded" "live")
                    (or (plist-get talk :q-and-a) "none")
                    (plist-get talk :title)
                    (plist-get talk :absolute-url)
                    (plist-get talk :absolute-url)
-                   
+
                    (concat
                     (emacsconf-surround "<li><strong>" (plist-get talk :hyperlist-note) "</strong></li>" "")
                     (cond
@@ -724,7 +724,7 @@ ${bbb-checklist}</li>")
                        "<li>[ ] ${host}: Join ${bbb-backstage} and introduce the talk: <strong>${intro-note}</strong>.</li></ul></li>"
                        "<li>[ ] ${stream}: Adjust audio as needed</li>"))
                      )
-                    
+
                     (pcase (or (plist-get talk :q-and-a) "")
                       ((rx "live")
                        (concat
@@ -777,7 +777,7 @@ ${bbb-checklist}</li>")
 <ul><li>Backup link to pad: ${pad-url}</li>
 <li>Backup link to #${channel}: ${webchat-url}</li></ul></li>
 <li>[ ] ${host}: Announce that people can ask questions in the pad or on the ${channel} IRC channel, and that the speaker will follow up later.</li>
-<li>[ ] ${stream}: Update the task status: ${ssh-openq} # this should not make any visible changes, just update the task status</li>"                      
+<li>[ ] ${stream}: Update the task status: ${ssh-openq} # this should not make any visible changes, just update the task status</li>"
                        )
                       (_
                        "<li>[ ] ${stream}: Open the IRC channel (${channel}) and the pad, and arrange the windows: ${ssh-closedq}</li>
