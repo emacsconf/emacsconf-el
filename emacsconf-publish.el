@@ -147,15 +147,16 @@
           (append
            talk
            (list
+						:time-info (emacsconf-surround "Duration: " (plist-get talk :video-duration) " minutes" "")
             :video-html (or (plist-get video :video) "")
             :audio-html (or (plist-get video :audio) "")
-            :chapter-list (or (plist-get video :chapter-list) "")
+						:chapter-list (or (plist-get video :chapter-list) "")
             :resources (or (plist-get video :resources) "")
             :extra (or (plist-get talk :extra) "")
             :speaker-info (or (plist-get talk :speakers-with-pronouns) ""))))
     (emacsconf-replace-plist-in-string
      talk
-     "<div class=\"vid\">${video-html}${audio-html}<div>${extra}</div>${resources}${chapter-list}</div>")))
+     "<div class=\"vid\">${video-html}${audio-html}<div>${extra}</div>${time-info}${resources}${chapter-list}</div>")))
 
 ;; (emacsconf-publish-format-track-as-org (car emacsconf-tracks) "US/Eastern")
 ;; (emacsconf-get-talk-info)
@@ -292,7 +293,10 @@
   (let* ((video-base (and (stringp video-file) (replace-regexp-in-string "reencoded\\|original" "main" (file-name-base video-file))))
          (chapter-info (and (stringp video-file)
                             (emacsconf-make-chapter-strings
-														 (plist-get talk :chapter-file)
+														 (or (plist-get talk :chapter-file)
+																 (expand-file-name
+																	(concat (file-name-sans-extension video-base) "--chapters.vtt")
+																	emacsconf-cache-dir))
                              (plist-get talk :track-base-url)
                              video-id)))
          (info
@@ -524,12 +528,21 @@ resources."
                       (plist-get o :webchat-url))
               :status-info
               (if (member emacsconf-publishing-phase '(cfp program schedule conference)) (format "Status: %s  \n" (plist-get o :status-label)) "")
+							:alternate-apac-info
+							(if (plist-get o :alternate-apac)
+									(format "[[!inline pages=\"internal(%s/inline-alternate)\" raw=\"yes\"]]  \n" emacsconf-year)
+								"")
               :schedule-info
               (if (and (member emacsconf-publishing-phase '(schedule conference))
                        (not (emacsconf-talk-all-done-p o))
                        (not (string= (plist-get o :status) "CANCELLED")))
-                  (let ((start (org-timestamp-to-time (org-timestamp-split-range timestamp)))
-                        (end (org-timestamp-to-time (org-timestamp-split-range timestamp t))))
+                  (let* ((end
+													(org-timestamp-to-time
+													 (org-timestamp-split-range
+														(org-timestamp-from-string (plist-get o :scheduled)) t)))
+												 (start (org-timestamp-to-time
+																 (org-timestamp-split-range
+																	(org-timestamp-from-string (plist-get o :scheduled))))))
                     (format
                      "<div>Times in different timezones:</div><div class=\"times\" start=\"%s\" end=\"%s\"><div class=\"conf-time\">%s</div><div class=\"others\"><div>which is the same as:</div>%s</div></div><div><a href=\"/%s/watch/%s/\">Find out how to watch and participate</a></div>"
                      (format-time-string "%Y-%m-%dT%H:%M:%SZ" start t)
@@ -542,14 +555,10 @@ resources."
                      emacsconf-year
                      (plist-get (emacsconf-get-track (plist-get o :track)) :id)))
                 "")))
-     (concat
-      "[[!toc  ]]
+     "[[!toc  ]]
 Format: ${format}
-${pad-info}${irc-info}${status-info}${schedule-info}\n"
-      (if (plist-get o :alternate-apac)
-          (format "[[!inline pages=\"internal(%s/inline-alternate)\" raw=\"yes\"]]  \n" emacsconf-year)
-        "")
-      "\n"))))
+${pad-info}${irc-info}${status-info}${schedule-info}\n
+${alternate-apac-info}\n")))
 
 (defun emacsconf-publish-format-email-questions-and-comments (talk)
 	"Invite people to e-mail either the public contact for TALK or the private list."
@@ -1125,9 +1134,7 @@ Entries are sorted chronologically, with different tracks interleaved."
 												(list :extra
 															(if (plist-get f :caption-note) (concat "<div class=\"caption-note\">" (plist-get f :caption-note) "</div>") "")
 															:files
-															(cons
-															 (plist-get f :video-file)
-															 (emacsconf-publish-talk-files f files)))))
+															(emacsconf-publish-talk-files f files))))
 							 (format "<li><a name=\"%s\"></a><strong><a href=\"%s\">%s</a></strong><br />%s (id:%s)<br />%s</li>"
 											 (plist-get f :slug)
 											 (plist-get f :absolute-url)
@@ -1140,7 +1147,7 @@ Entries are sorted chronologically, with different tracks interleaved."
 
 (defun emacsconf-publish-backstage-to-assign (by-status files)
 	(let ((list (assoc-default "TO_ASSIGN" by-status)))
-    (format "<h1>%s talk(s) to be captioned (%d minutes)</h1><p>You can e-mail <a href=\"mailto:sacha@sachachua.com\">sacha@sachachua.com</a> to call dibs on editing the captions for one of these talks. We use OpenAI Whisper to provide auto-generated VTT that you can use as a starting point, but you can also write the captions from scratch if you like. If you're writing them from scratch, you can choose to include timing information, or we can probably figure them out afterwards with a forced alignment tool. More info: <a href=\"https://emacsconf.org/captioning/\">captioning tips</a></p><ul class=\"videos\">%s</ul>"
+    (format "<h1>%s talk(s) to be captioned, waiting for volunteers (%d minutes)</h1><p>You can e-mail <a href=\"mailto:sacha@sachachua.com\">sacha@sachachua.com</a> to call dibs on editing the captions for one of these talks. We use OpenAI Whisper to provide auto-generated VTT that you can use as a starting point, but you can also write the captions from scratch if you like. If you're writing them from scratch, you can choose to include timing information, or we can probably figure them out afterwards with a forced alignment tool. More info: <a href=\"https://emacsconf.org/captioning/\">captioning tips</a></p><ul class=\"videos\">%s</ul>"
             (length list)
             (emacsconf-sum :video-time list)
             (mapconcat
@@ -1171,7 +1178,6 @@ Entries are sorted chronologically, with different tracks interleaved."
       (setq f (append
                f
                (list :extra
-
                      (concat "<div class=\"caption-note\">"
                              (emacsconf-surround "Being captioned by " (plist-get f :captioner) " " "")
                              (emacsconf-surround "Note: " (plist-get f :caption-note) "" "")
@@ -1206,9 +1212,6 @@ Entries are sorted chronologically, with different tracks interleaved."
                                                                       :files (emacsconf-publish-talk-files f files)))
                                                       emacsconf-main-extensions)))
                      (assoc-default "TO_STREAM" by-status) "\n")))
-
-(defvar emacsconf-backstage-phase 'harvest) ; prerec
-
 
 (defun emacsconf-publish-backstage-index (&optional filename)
   (interactive)
@@ -1250,7 +1253,11 @@ Entries are sorted chronologically, with different tracks interleaved."
          "<ul>"
          (mapconcat
           (lambda (status)
-            (concat "<li>" status ": "
+            (concat "<li>"
+										(if (string= status "TO_ASSIGN")
+												"TO_ASSIGN (waiting for volunteers)"
+											status)
+										": "
                     (mapconcat (lambda (o) (format "<a href=\"#%s\">%s</a>"
                                                    (plist-get o :slug)
                                                    (plist-get o :slug)))
@@ -1467,7 +1474,7 @@ ${include}
       "</ol>")))
 
 (defun emacsconf-make-chapter-strings (filename track-base-url &optional target)
-  (let ((chapters (and filename (subed-parse-file filename))))
+  (let ((chapters (and filename (file-exists-p filename) (subed-parse-file filename))))
     (when chapters
       (list
        :track (format "<track kind=\"chapters\" label=\"Chapters\" src=\"%s\" />"
@@ -2278,12 +2285,12 @@ when the host has opened the Q&A.</p>
        (emacsconf-replace-plist-in-string
         (append talk (list :base-url emacsconf-base-url :bbb-redirect-url bbb-redirect-url))
         (pcase status
-          ('open
-           "<html><head><meta http-equiv=\"refresh\" content=\"0; URL=${bbb-room}\"></head><body>
-The live Q&A room for ${title} is now open. You should be redirected to <a href=\"${bbb-room}\">${bbb-room}</a> automatically, but if not, please visit the URL manually to join the Q&A.</body></html>")
           ('before
            "<html><head><meta http-equiv=\"refresh\" content=\"5; URL=${bbb-redirect-url}\"></head><body>
 The Q&A room for ${title} is not yet open. This page will refresh every 5 seconds until the BBB room is marked as open, or you can refresh it manually.</body></html>")
+          ('open
+           "<html><head><meta http-equiv=\"refresh\" content=\"0; URL=${bbb-room}\"></head><body>
+The live Q&A room for ${title} is now open. You should be redirected to <a href=\"${bbb-room}\">${bbb-room}</a> automatically, but if not, please visit the URL manually to join the Q&A.</body></html>")
           ('after
            "<html><head><body>
 The Q&A room for ${title} has finished. You can find more information about the talk at <a href=\"${base-url}${url}\">${base-url}${url}</a>.</body></html>")

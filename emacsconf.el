@@ -83,6 +83,15 @@
 					(const :tag "Conference: Show IRC and watching info" conference)
           (const :tag "Resources: Don't include status" resources)))
 
+(defcustom emacsconf-backstage-phase 'prerec
+	"Contros what information to include backstage.
+'prerec - focus on captioning
+'harvest - focus on Q&A."
+	:group 'emacsconf
+	:type '(choice
+					(const tag "Prerec" 'prerec)
+					(const tag "Q&A harvesting" 'harvest)))
+
 (defcustom emacsconf-org-file nil
   "Path to the Org file with emacsconference information."
   :type 'file
