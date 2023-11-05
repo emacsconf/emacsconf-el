@@ -473,7 +473,7 @@ With a prefix argument (\\[universal-argument]), clear the overlay."
 
 (defun emacsconf-stream-generate-title-pages (&optional info)
   (interactive)
-  (setq info (emacsconf-prepare-for-display (or info (emacsconf-get-talk-info))))
+  (setq info (emacsconf-publish-prepare-for-display (or info (emacsconf-get-talk-info))))
   (let ((title-dir (expand-file-name "titles" emacsconf-stream-asset-dir)))
     (unless (file-directory-p title-dir) (make-directory title-dir t))
     (set-frame-size nil 1280 720 t)
@@ -835,6 +835,7 @@ ffplay URL
     (setq emacsconf-stream-clock-timer (run-at-time t 1 #'emacsconf-stream-update-time))))
 
 (defun emacsconf-stream-update-time ()
+	"Update the displayed time."
   (if (get-buffer emacsconf-stream-clock-buffer)
       (when (get-buffer-window emacsconf-stream-clock-buffer)
         (with-current-buffer emacsconf-stream-clock-buffer
