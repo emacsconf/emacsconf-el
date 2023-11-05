@@ -149,9 +149,15 @@
 (defun emacsconf-ftp-upload-dired ()
   (interactive)
   (dired emacsconf-ftp-upload-dir "-tl"))
+
 (defun emacsconf-upload-dired ()
   (interactive)
   (dired emacsconf-upload-dir "-tl"))
+
+(defun emacsconf-res-upload-dired ()
+  (interactive)
+  (dired (expand-file-name "upload" emacsconf-res-dir) "-tl"))
+
 (defun emacsconf-backstage-dired ()
   (interactive)
   (dired emacsconf-backstage-dir "-tl"))
