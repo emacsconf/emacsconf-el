@@ -512,6 +512,7 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
   (mapc (lambda (buffer)
           (when (string-match "unsent" (buffer-name buffer))
             (let ((kill-buffer-query-functions nil)
+									(undo-tree-auto-save-history nil)
                   (buffer-modified-p nil))
               (set-buffer-modified-p nil)
               (kill-buffer buffer))))
@@ -813,7 +814,7 @@ ${signature}
 	"Acknowledge uploaded files for TALK."
   (interactive (list (emacsconf-complete-talk-info)))
 	(emacsconf-mail-prepare
-	 '(:subject "${conf-name} ${year}: received uploaded files for ${title}"
+	 '(:subject "${conf-name} ${year}: received uploaded file${plural} for ${title}"
 							:cc "emacsconf-submit@gnu.org"
 							:reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
 							:mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
@@ -824,7 +825,14 @@ Just a quick note to let you know that I've downloaded your file${plural} for \"
 Now we have the following file${plural} starting with ${file-prefix}:
 
 ${file-list}
-We'll be working on captioning your talk over the next few weeks. We'll e-mail again a little closer to the conference with schedule updates and other useful information. If you want to upload a new version, you can upload it the same way you did the previous one.
+
+I've added the video to the processing queue. You can see how
+things are going backstage at ${backstage-url-with-auth}. We'll
+be working on captioning your talk over the next few weeks. We'll
+e-mail again a little closer to the conference with schedule
+updates and other useful information. If you want to upload a new
+version, you can upload it the same way you did the previous
+one.${fill}
 
 Please feel free to e-mail us at ${submit-email} if you need help updating the talk wiki page at ${base}${url} or if you have other questions.
 
@@ -848,6 +856,17 @@ ${signature}")
 			:signature user-full-name
 			:user-email user-mail-address
 			:speakers-short (plist-get talk :speakers-short)
+			:backstage-url-with-auth
+			(concat
+			 (replace-regexp-in-string
+				"https://"
+				(format "https://%s:%s@"
+								emacsconf-backstage-user
+								emacsconf-backstage-password)
+				emacsconf-media-base-url)
+			 emacsconf-year
+			 "/backstage/#"
+			 (plist-get talk :slug))
 			:file-list
 			(mapconcat
 			 (lambda (file)
@@ -868,22 +887,51 @@ ${signature}")
 			 files
 			 "\n")))))
 
-(defun emacsconf-mail-captions-for-approval (talk)
-  (interactive (list (emacsconf-complete-talk-info)))
+(defun emacsconf-mail-captions-for-review (talk)
+	"E-mail captions for TALK so that the speakers can review them."
+  (interactive (list (emacsconf-complete-talk-info
+											(seq-filter
+											 (lambda (talk)
+												 (and (emacsconf-talk-file talk "--main.vtt")
+															(file-exists-p (emacsconf-talk-file talk "--main.vtt"))))
+											 (emacsconf-get-talk-info)))))
   (let ((captions (expand-file-name (concat (plist-get talk :file-prefix) "--main.vtt")
                                     emacsconf-cache-dir))
         (captioner-info
          (with-current-buffer (find-file-noselect emacsconf-org-file)
            (org-entry-properties (org-find-property "CUSTOM_ID" (plist-get talk :captioner))))))
     (emacsconf-mail-prepare
-     (emacsconf-mail-merge-get-template "captions")
+		 (list
+			:subject "${conf-name} ${year}: Captions for ${title}"
+			:to "${email}"
+			:cc "${captioner-email}, emacsconf-submit@gnu.org"
+			:reply-to "${email}, ${captioner-email}, emacsconf-submit@gnu.org"
+			:body "${email-notes}Hi ${speakers-short}!
+
+Because you sent in your video before the conference, we were able to
+caption it so that more people can find and enjoy your talk.
+${captioner-volunteered} I've attached the caption text file in case
+you want to review it, suggest any corrections, or use the text in a
+blog post or elsewhere. You can look at the attached file or watch
+your video with closed captions at ${url} . I've also included the
+captions at the end of this e-mail for your convenience.${wrap}
+
+${chapters-note}Thanks again for your contribution!
+
+${captioner-thanks}${signature}
+
+${captions}
+")
      (plist-get talk :email)
      (list
+			:email-notes (emacsconf-surround "ZZZ: " (plist-get talk :email-notes) "\n\n" "")
+			:conf-name emacsconf-name
       :speakers-short (plist-get talk :speakers-short)
       :year emacsconf-year
       :email (plist-get talk :email)
       :title (plist-get talk :title)
       :captioner (assoc-default "NAME_SHORT" captioner-info)
+			:signature user-full-name
       :url
       (format "https://%s:%s@media.emacsconf.org/%s/backstage/#%s"
               emacsconf-backstage-user
@@ -900,12 +948,8 @@ ${signature}")
       (if (file-exists-p
            (expand-file-name (concat (plist-get talk :file-prefix) "--main--chapters.vtt")
                              emacsconf-cache-dir))
-          "I've come up with some potential chapter headings which you can see as NOTE in the transcript or in the backstage entry for your video. Let me know if you want to tweak those.\n\n"
+          "We have some potential chapter headings which you can see as NOTE in the transcript or in the backstage entry for your video. Let me know if you want to tweak those.\n\n"
         "")
-      :intro-note
-      (emacsconf-surround
-       "${wrap}Also, I drafted a quick intro for the host to read. Let me know if you want to tweak this: " (plist-get talk :intro-note) "\n\n"
-       "")
       :captioner-thanks
       (if (string= (plist-get talk :captioner) "sachac")
           ""
@@ -955,7 +999,7 @@ Thank you so much for contributing to ${conf-name} ${year}!
 ${signature}")
    (car group)
    (list
-			:email-notes (emacsconf-surround "ZZZ: " (plist-get (cadr group) :email-notes) "\n\n" "")
+		:email-notes (emacsconf-surround "ZZZ: " (plist-get (cadr group) :email-notes) "\n\n" "")
     :backstage (emacsconf-replace-plist-in-string
 								(list :year emacsconf-year)
 								"https://media.emacsconf.org/${year}/backstage/")
@@ -1095,6 +1139,170 @@ quality of the reencoded video."))
                                                                     (plist-get v :email)))
                                                speaker-groups))
                          volunteer-groups)))))
+
+(defun emacsconf-mail-checkin-instructions-to-all ()
+	"Draft check-in instructions for all speakers."
+	(interactive)
+	(let* ((talks (seq-filter (lambda (o) (and (plist-get o :email)
+																						 (plist-get o :q-and-a)))
+														(emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
+				 (by-attendance (seq-group-by (lambda (o) (null (string-match "after" (plist-get o :q-and-a))))
+																			talks)))
+		(dolist (group (emacsconf-mail-groups (assoc-default nil by-attendance)))
+			(emacsconf-mail-checkin-instructions-for-nonattending-speakers group))
+		(dolist (group (emacsconf-mail-groups (assoc-default t by-attendance)))
+			(emacsconf-mail-checkin-instructions-for-attending-speakers group))))
+
+(defun emacsconf-mail-checkin-instructions-for-attending-speakers (group)
+  "Send checkin instructions to speakers who will be there.
+GROUP is (email . (talk talk))"
+  (interactive (list (emacsconf-mail-complete-email-group
+                      (seq-remove
+                       (lambda (o)
+                         (or
+                          (string= (plist-get o :status) "CANCELLED")
+                          (null (plist-get o :email))
+                          (string-match "after" (or (plist-get o :q-and-a) ""))))
+                       (emacsconf-get-talk-info)))))
+	(let ((waiting-talks (seq-filter (lambda (o) (string= (plist-get o :status) "WAITING_FOR_PREREC")) (cdr group))))
+		(emacsconf-mail-prepare
+		 (list
+			:subject "${conf-name} ${year}: Check-in instructions"
+			:reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+			:mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+			:log-note "sent check-in information for people who will be there"
+			:body
+			"${email-notes}Hello, ${speakers-short}!
+
+We're looking forward to having you join us at ${conf-name}!
+Here's your talk page URL and checkin information:
+
+${checkin-info}
+
+You can get a rough idea of your schedule on your talk
+page${plural}, and then check it again on the day of your
+talk${plural} for any changes. We'll try our best to keep your
+talk in the same general timeslot (ex: Saturday morning, Saturday
+afternoon, Sunday morning, Sunday afternoon). If there are big
+changes to your schedule on the day of your talk${plural}, you'll
+get an e-mail from us with a subject like \"URGENT: ${conf-name}
+${year}: ...\". Please let me know if something has come up and
+the times don't work for you.${wrap}
+
+Please check in early so that we can deal with scheduling changes or
+technical issues, and so that we don't worry too much about whether
+you'll be ready to go for Q&A. =) You can find the check-in process at
+${base-url}${year}/speakers/ .${waiting}${wrap}
+
+If something comes up, please let us know as soon as you can. Here's
+my emergency contact information: ${emergency}${wrap}
+
+Thank you for sharing your time and energy with the ${conf-name}
+community!
+
+${signature}
+
+p.s. If you need to cancel, that's okay too, life happens. Let me know
+as soon as you can and I'll try to shuffle things around. Thank you!")
+     (car group)
+     (list
+			:year emacsconf-year
+			:base-url emacsconf-base-url
+			:conf-name emacsconf-name
+			:email (car group)
+			:emergency emacsconf-emergency-contact
+			:plural (if (> (length (cdr group)) 1) "s" "")
+			:speakers-short (plist-get (cadr group) :speakers-short)
+			:url (mapconcat (lambda (o) (concat emacsconf-base-url (plist-get o :url)))
+											(cdr group) " , ")
+			:email-notes (emacsconf-surround "ZZZ: " (plist-get (cadr group) :email-notes) "\n\n" "")
+			:signature user-full-name
+			:waiting
+			(cond
+       ((> (length waiting-talks) 1)
+				" If you can upload talk videos before the conference, I think that might be much less stressful for everyone than doing it live. =) Please note that we will turn off the web-based upload on Dec 1 to free up memory on the server, so please upload them as early as you can.${wrap}")
+       ((= (length waiting-talks) 1)
+				" If you can upload a talk video before the conference, I think that might be much less stressful for everyone than doing it live. =) Please note that we will turn off the web-based upload on Dec 1 to free up memory on the server, so please upload it as early as you can.${wrap}")
+       (t ""))
+			:checkin-info
+			(mapconcat
+       (lambda (o)
+         (let ((base-checkin (format-time-string "%b %-d %-l:%M %p" (plist-get o :checkin-time) emacsconf-timezone))
+               (speaker-checkin (format-time-string "%b %-d %-l:%M %p" (plist-get o :checkin-time) (plist-get o :timezone))))
+           (emacsconf-replace-plist-in-string
+						(append (list :base-url emacsconf-base-url
+													:check-in
+													(concat
+                           "Before "
+                           base-checkin " in " emacsconf-timezone
+                           (if (string= base-checkin speaker-checkin)
+                               ""
+                             (concat
+															", which is the same as " speaker-checkin " in " (plist-get o :timezone))) "\n"
+                           "  (this is " (plist-get o :checkin-label) ")")
+													:qa-info-speakers
+													(cond
+                           ;; aaaaah, no prerec yet
+                           ((string= (plist-get o :status) "WAITING_FOR_PREREC")
+														(concat "Q&A BigBlueButton room (and possibly also the talk if you want to do it live): " (plist-get o :bbb-room)))
+                           ((null (plist-get o :q-and-a)) "")
+                           ((string-match "live" (plist-get o :q-and-a)) (concat "Q&A BigBlueButton room: " (plist-get o :bbb-room)))
+                           ((string-match "irc" (plist-get o :q-and-a)) (concat "Q&A: " (plist-get o :channel) " (" (plist-get o :webchat-url) ")"))
+                           ((string-match "pad" (plist-get o :q-and-a)) "Q&A: On the pad")
+                           (t "Q&A: After the event")))
+										o)
+						"- ${title}
+  Info and sched: ${base-url}${url}
+  Check-in: ${check-in}
+  Pad: ${pad-url}
+  ${qa-info-speakers}")))
+				(cdr group) "\n\n")))))
+
+(defun emacsconf-mail-checkin-instructions-for-nonattending-speakers (group)
+  "Send checkin note to speakers who will not be there.
+GROUP is (email . (talk talk))"
+  (interactive (list (emacsconf-mail-complete-email-group
+                      (seq-remove
+                       (lambda (o)
+                         (or
+                          (string= (plist-get o :status) "CANCELLED")
+                          (null (plist-get o :email))
+                          (null (string-match "after" (or (plist-get o :q-and-a) "")))))
+                       (emacsconf-get-talk-info)))))
+	 (emacsconf-mail-prepare
+		(list
+		 :subject "${conf-name} ${year}: Check-in instructions in case you happen to want to join us"
+		 :reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+		 :mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+		 :log-note "sent check-in information for people who will be there"
+		 :body
+		 "${email-notes}Hello, ${speakers-short}!
+
+Thank you so much for contributing to ${conf-name} ${year}! We're
+looking forward to collecting questions and forwarding them to
+you by e-mail after the conference. We'll also post the
+prerecording at the time that it gets streamed, so people will be
+able to access it at ${url} once it has gone live.${wrap}
+
+If it turns out that you can make it to the conference after all, feel
+free to drop us a line at #emacsconf-org and we'll let people know
+you're around. You can find the check-in process at
+${base-url}${year}/speakers/ .
+
+Thank you again for being part of ${conf-name} ${year}!
+
+Sacha")
+    (car group)
+    (list
+     :year emacsconf-year
+     :base-url emacsconf-base-url
+     :conf-name emacsconf-name
+     :email (plist-get (car talks) :email)
+     :speakers-short (plist-get (car talks) :speakers-short)
+     :url (mapconcat (lambda (o) (concat emacsconf-base-url (plist-get o :url)))
+                     (cdr group) " , ")
+		 :email-notes (emacsconf-surround "ZZZ: " (plist-get (cadr group) :email-notes) "\n\n" ""))))
+
 
 ;;; Other mail functions
 
