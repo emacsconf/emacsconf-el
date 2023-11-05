@@ -824,7 +824,7 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
 															(format "<a href=\"%s\">%s</a>"
 																			(plist-get o :pad-url)
 																			(plist-get o :qa-info)))))
-     (t (plist-put o :qa-info "none")
+     (t (plist-put o :qa-info "after the event")
 				(plist-put o :qa-type "none")
         (plist-put o :qa-link "none")
 				(plist-put o :qa-backstage-url (plist-get o :pad-url))))
@@ -990,9 +990,11 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
       (setq name (pop a) val (pop a))
       (when (stringp val)
         (setq string
-              (replace-regexp-in-string (regexp-quote (concat "${" (substring (symbol-name name) 1) "}"))
-                                        (or val "")
-                                        string t t))))
+              (replace-regexp-in-string
+							 (regexp-quote
+								(concat "${" (substring (symbol-name name) 1) "}"))
+               (or val "")
+               string t t))))
     string))
 
 (defun emacsconf-public-talks (info)
@@ -1675,8 +1677,9 @@ tracks with the ID in the cdr of that list."
 
 	(defun emacsconf-el-export (link description format _)
 		"Export link to emacsconf-el file."
-		(format "<a href=\"https://git.emacsconf.org/emacsconf-el/tree/%s.el\">%s</a>"
-						(file-name-nondirectory link) (or description link)))
+		(format "<a href=\"https://git.emacsconf.org/emacsconf-el/tree/%s\">%s</a>"
+						(file-name-nondirectory link)
+						(or description link)))
 
 	(org-link-set-parameters
 	 "emacsconf-el"
@@ -1687,11 +1690,10 @@ tracks with the ID in the cdr of that list."
 	(defun emacsconf-ansible-complete ()
 		"Complete a file from the Emacsconf Elisp library."
 		(concat "emacsconf-ansible:"
-						(file-relative-name
-						 (read-file-name
-							"File: "
-							emacsconf-ansible-directory)
-						 emacsconf-ansible-directory)))
+						(completing-read
+						 "File: "
+						 (projectile-project-files
+							emacsconf-ansible-directory))))
 
 	(defun emacsconf-ansible-open (link _)
 		"Visit a file from the Emacsconf Elisp library."
