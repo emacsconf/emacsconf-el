@@ -109,15 +109,16 @@ You can find it in $ETHERPAD_PATH/APIKEY.txt"
 																							(called-interactively-p 'any)))))
 
 (defun emacsconf-pad-set-html (pad-id html)
+	"Set PAD-ID contents to the given HTML."
   (interactive "MPad ID: \nMHTML: ")
   (let ((url-request-data (concat "html=" (url-hexify-string html)))
         (url-request-method "POST")
         (url-request-extra-headers '(("Content-Type" . "application/x-www-form-urlencoded"))))
     (emacsconf-pad-json-request (format "%sapi/1/setHTML?apikey=%s&padID=%s"
-                                        emacsconf-pad-base
-                                        (url-hexify-string emacsconf-pad-api-key)
-                                        (url-hexify-string pad-id))
-                                (called-interactively-p 'any))))
+                           emacsconf-pad-base
+                           (url-hexify-string emacsconf-pad-api-key)
+                           (url-hexify-string pad-id))
+                   (called-interactively-p 'any))))
 ;; (emacsconf-pad-append-text "emacsconf-2022-journalism" "Hello again")
 ;; (emacsconf-pad-get-html "emacsconf-2022-journalism")
 ;; (emacsconf-pad-set-html "emacsconf-2022-journalism" "<div><strong>Hello</strong> world</div>")
@@ -245,9 +246,13 @@ ${next-talk-list}
 <div>By contributing to this pad, you agree to make your contributions available under the above licenses. You are also promising that you are the author of your changes, or that you copied them from a work in the public domain or a work released under a free license that is compatible with the above two licenses. DO NOT SUBMIT COPYRIGHTED WORK WITHOUT PERMISSION.</div></div>"))))
 
 (defvar emacsconf-pad-force-all nil "Set to t to clear everything.")
+
 (defun emacsconf-pad-prepopulate-talk-pad (o)
-  (interactive (list (let ((info (emacsconf-include-next-talks (emacsconf-get-talk-info) emacsconf-pad-number-of-next-talks)))
-                       (emacsconf-complete-talk-info info))))
+	"Fill in the pad for O."
+  (interactive
+	 (list
+		(let ((info (emacsconf-include-next-talks (emacsconf-get-talk-info) emacsconf-pad-number-of-next-talks)))
+      (emacsconf-complete-talk-info info))))
   (let ((pad-id (emacsconf-pad-id o)))
     (emacsconf-pad-create-pad pad-id)
     (when (or emacsconf-pad-force-all
@@ -616,7 +621,7 @@ ${bbb-checklist}</li>")
 	"Make an intro for TALK."
   (cond
    ((null (plist-get talk :speakers))
-    (format "Next up, we have \"%s\"." (plist-get talk :title)))
+    (format "Next, we have \"%s\"." (plist-get talk :title)))
    ((plist-get talk :intro-note)
     (plist-get talk :intro-note))
    (t
@@ -626,7 +631,7 @@ ${bbb-checklist}</li>")
                      ((or 'nil "nil" (rx string-start "he") (rx "him")) "He")
                      ((rx "they") "They")
                      (_ (or (plist-get talk :pronouns) "")))))
-      (format "Next up, we have \"%s\", by %s%s.%s"
+      (format "Next, we have \"%s\", by %s%s.%s"
 							(plist-get talk :title)
               (replace-regexp-in-string ", \\([^,]+\\)$"
                                         ", and \\1"
