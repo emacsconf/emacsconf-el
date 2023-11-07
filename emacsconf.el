@@ -1083,9 +1083,8 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
   "Timezone offset for `emacsconf-timezone' on `emacsconf-date'.")
 
 (defun emacsconf-timezone-string (o tz)
-  (let* ((timestamp (org-timestamp-from-string (plist-get o :scheduled)))
-         (start (org-timestamp-to-time (org-timestamp-split-range timestamp)))
-         (end (org-timestamp-to-time (org-timestamp-split-range timestamp t))))
+  (let* ((start (org-timestamp-to-time (org-timestamp-split-range (org-timestamp-from-string (plist-get o :scheduled)))))
+         (end (org-timestamp-to-time (org-timestamp-split-range (org-timestamp-from-string (plist-get o :scheduled)) t))))
     (if (string= tz "UTC")
         (format "%s - %s "
                 (format-time-string "%A, %b %-e %Y, ~%-l:%M %p"
