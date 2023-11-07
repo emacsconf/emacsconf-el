@@ -827,7 +827,7 @@ Now we have the following file${plural} starting with ${file-prefix}:
 ${file-list}
 
 I've added the video to the processing queue. You can see how
-things are going backstage at ${backstage-url-with-auth}. We'll
+things are going backstage at ${backstage-url-with-auth} . We'll
 be working on captioning your talk over the next few weeks. We'll
 e-mail again a little closer to the conference with schedule
 updates and other useful information. If you want to upload a new
