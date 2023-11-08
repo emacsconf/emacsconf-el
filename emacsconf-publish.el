@@ -30,7 +30,7 @@
   :type 'string
   :group 'emacsconf)
 
-(defcustom emacsconf-main-extensions '("--main.webm" "--main.opus" "--main.org" ".org" ".odp" ".pdf" ".el" "--compressed56.webm" "--main.vtt" "--main_fr.vtt" "--main_ja.vtt" "--main_es.vtt" "--main--chapters.vtt" "--script.fountain" "--main.pdf" "--slides.pdf")
+(defcustom emacsconf-main-extensions '("--main.webm" "--main.opus" "--main.org" ".org" ".odp" ".pdf" ".pptx" ".el" "--compressed56.webm" "--main.vtt" "--main_fr.vtt" "--main_ja.vtt" "--main_es.vtt" "--main--chapters.vtt" "--script.fountain" "--main.pdf" "--slides.pdf")
   "Extensions to list on public pages."
   :type '(repeat string)
   :group 'emacsconf)
@@ -133,15 +133,15 @@
 						 (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))
              (format "https://media.emacsconf.org/%s/backstage/" emacsconf-year)))
 
-(defun emacsconf-publish-index-card (talk &optional extensions)
-  "Format an HTML card for TALK, linking the files in EXTENSIONS."
+(defun emacsconf-publish-index-card (talk)
+  "Format an HTML card for TALK."
   (let* ((file-prefix (plist-get talk :file-prefix))
          (video-file (plist-get talk :video-file))
          (video (and file-prefix
                      (emacsconf-publish-index-card-video
                       (or (plist-get talk :video-id)
                           (concat (plist-get talk :slug) "-mainVideo"))
-                      video-file talk extensions))))
+                      video-file talk))))
     ;; Add extra information to the talk
     (setq talk
           (append
@@ -289,7 +289,7 @@
            (insert result))))
      emacsconf-tracks)))
 
-(defun emacsconf-publish-index-card-video (video-id video-file talk extensions)
+(defun emacsconf-publish-index-card-video (video-id video-file talk)
   (let* ((video-base (and (stringp video-file) (replace-regexp-in-string "reencoded\\|original" "main" (file-name-base video-file))))
          (chapter-info (and (stringp video-file)
                             (emacsconf-make-chapter-strings
@@ -340,7 +340,7 @@
             (mapconcat
              (lambda (s)
                (concat "<li>" s "</li>"))
-             (emacsconf-publish-link-file-formats-as-list talk (or extensions emacsconf-main-extensions))
+             (emacsconf-publish-link-file-formats-as-list talk)
              "")
             :toobnix-info (if (plist-get talk :toobnix-url)
                               (format
@@ -468,10 +468,7 @@ resources."
                   o))
   (concat
    (if (plist-get o :qa-public) "# Talk\n\n" "")
-   (emacsconf-publish-index-card o
-                         (if (plist-get o :captions-edited)
-                             emacsconf-main-extensions
-                           (remove "--main.vtt" emacsconf-main-extensions)))
+   (emacsconf-publish-index-card o)
    (if (plist-get o :qa-public)
        (concat "\n\n# Q&A\n\n"
                (emacsconf-publish-index-card (append
@@ -587,7 +584,8 @@ ${alternate-apac-info}\n")))
 										 (file-newer-than-file-p cached-file filename)))
 					 (copy-file cached-file filename t)
 					 (shell-command (concat "git add " (shell-quote-argument filename))))))
-		 (seq-filter (lambda (o) (string-match "vtt$" o)) emacsconf-main-extensions))))
+		 (seq-filter (lambda (o) (string-match "vtt$" o))
+								 emacsconf-main-extensions))))
 
 (defun emacsconf-publish-format-talk-schedule-image (talk info)
 	"Add the schedule image for TALK based on INFO."
@@ -1052,6 +1050,7 @@ Entries are sorted chronologically, with different tracks interleaved."
 																			(_ nil))
 														:time (plist-get o :time)
 														:q-and-a (plist-get o :qa-link)
+														:note (plist-get o :sched-note)
 														:pad (and emacsconf-publish-include-pads (plist-get o :pad-url))
 														:startutc (format-time-string "%FT%T%z" (plist-get o :start-time) t)
 														:endutc (format-time-string "%FT%T%z" (plist-get o :end-time) t)
@@ -1064,8 +1063,7 @@ Entries are sorted chronologically, with different tracks interleaved."
 														:resources (mapconcat (lambda (s) (concat "<li>" s "</li>"))
 																									(emacsconf-publish-link-file-formats-as-list
 																									 (append o
-																													 (list :base-url (format "%s%s/" emacsconf-media-base-url emacsconf-year)))
-																									 (append emacsconf-main-extensions (list "--answers.webm" "--answers.opus" "--answers.vtt")))
+																													 (list :base-url (format "%s%s/" emacsconf-media-base-url emacsconf-year))))
 																									""))))
 												(list
                          :title (plist-get o :title)
@@ -1098,10 +1096,13 @@ Entries are sorted chronologically, with different tracks interleaved."
 	"Include the schedule information for INFO."
   (mapconcat #'emacsconf-publish-sched-directive info "\n"))
 
-(defun emacsconf-publish-talk-files (talk files)
+(defun emacsconf-publish-talk-files (talk &optional files)
+	"Return a list of files for TALK.
+Use FILES as the file list, or look in the cache directory."
   (seq-filter (lambda (o)
 								(string-match (concat "^" (regexp-quote (plist-get talk :file-prefix))) o))
-              files))
+							(or files
+									(directory-files emacsconf-cache-dir))))
 
 (defun emacsconf-sum (field talks)
   (apply '+ (seq-map (lambda (talk) (string-to-number (or (plist-get talk field) "0"))) talks)))
@@ -1147,7 +1148,7 @@ Entries are sorted chronologically, with different tracks interleaved."
 
 (defun emacsconf-publish-backstage-to-assign (by-status files)
 	(let ((list (assoc-default "TO_ASSIGN" by-status)))
-    (format "<h1>%s talk(s) to be captioned, waiting for volunteers (%d minutes)</h1><p>You can e-mail <a href=\"mailto:sacha@sachachua.com\">sacha@sachachua.com</a> to call dibs on editing the captions for one of these talks. We use OpenAI Whisper to provide auto-generated VTT that you can use as a starting point, but you can also write the captions from scratch if you like. If you're writing them from scratch, you can choose to include timing information, or we can probably figure them out afterwards with a forced alignment tool. More info: <a href=\"https://emacsconf.org/captioning/\">captioning tips</a></p><ul class=\"videos\">%s</ul>"
+    (format "<h1>%s talk(s) to be captioned, waiting for volunteers (%d minutes)</h1><p>You can e-mail <a href=\"mailto:sacha@sachachua.com\">sacha@sachachua.com</a> to call dibs on editing the captions for one of these talks. We use OpenAI Whisper to provide auto-generated VTT that you can use as a starting point, but you can also write the captions from scratch if you like. The starting point for the main video ends in --main.vtt. If you're writing the captions from scratch, you can choose to include timing information, or we can probably figure them out afterwards with a forced alignment tool. More info: <a href=\"https://emacsconf.org/captioning/\">captioning tips</a></p><ul class=\"videos\">%s</ul>"
             (length list)
             (emacsconf-sum :video-time list)
             (mapconcat
@@ -1208,16 +1209,16 @@ Entries are sorted chronologically, with different tracks interleaved."
                                 (plist-get f :title)
                                 (plist-get f :speakers-with-pronouns)
                                 (plist-get f :slug)
-                                (emacsconf-publish-index-card (append f (list :extra (concat "Captioned by " (plist-get f :captioner))
-                                                                      :files (emacsconf-publish-talk-files f files)))
-                                                      emacsconf-main-extensions)))
+                                (emacsconf-publish-index-card (append f
+																										 (list :extra
+																													 (concat "Captioned by " (plist-get f :captioner))
+                                                           :files (emacsconf-publish-talk-files f files))))))
                      (assoc-default "TO_STREAM" by-status) "\n")))
 
 (defun emacsconf-publish-backstage-index (&optional filename)
   (interactive)
   (setq filename (or filename (expand-file-name "index.html" emacsconf-backstage-dir)))
-  (let ((info (or emacsconf-schedule-draft (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
-				(emacsconf-main-extensions (append emacsconf-main-extensions emacsconf-publish-backstage-extensions)))
+  (let ((info (or emacsconf-schedule-draft (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))
     (with-temp-file filename
       (let* ((talks
               (mapcar
@@ -1253,19 +1254,20 @@ Entries are sorted chronologically, with different tracks interleaved."
          "<ul>"
          (mapconcat
           (lambda (status)
-            (concat "<li>"
+            (format "<li>%s - %d talk(s), %d minutes: %s</li>"
 										(if (string= status "TO_ASSIGN")
-												"TO_ASSIGN (waiting for volunteers)"
+												"TO_ASSIGN (waiting for captioning volunteers)"
 											status)
-										": "
-                    (mapconcat (lambda (o) (format "<a href=\"#%s\">%s</a>"
+										(length (assoc-default status by-status))
+										(emacsconf-sum :video-time (assoc-default status by-status))
+                    (mapconcat (lambda (o) (format "<a href=\"#%s\">%s</a>%s"
                                                    (plist-get o :slug)
-                                                   (plist-get o :slug)))
+                                                   (plist-get o :slug)
+																									 (emacsconf-surround " (" (plist-get o :video-duration) ")" "")))
                                (assoc-default status by-status)
-                               ", ")
-                    "</li>"))
+                               ", ")))
 					(pcase emacsconf-backstage-phase
-						('prerec '("TO_PROCESS" "PROCESSING" "TO_ASSIGN" "TO_CAPTION" "TO_STREAM"))
+						('prerec '("PROCESSING" "TO_ASSIGN" "TO_CAPTION" "TO_STREAM"))
 						('harvest '("TO_ARCHIVE" "TO_REVIEW_QA" "TO_INDEX_QA" "TO_CAPTION_QA")))
 					"")
          "</ul>"
@@ -1341,8 +1343,7 @@ answers without needing to listen to everything again. You can see <a href=\"htt
 																																	 (concat (plist-get f :file-prefix) "--bbb-webcams.opus"))
 																															 "\">BBB audio only</a>" ""))
 																					:files (emacsconf-publish-talk-files f files))
-																				 f)
-																 emacsconf-main-extensions)))
+																				 f))))
 										 (assoc-default status by-status) "\n"))))
 							 stages
 							 "\n"))))
@@ -1351,17 +1352,26 @@ answers without needing to listen to everything again. You can see <a href=\"htt
            "")
          "</body></html>")))))
 
-(defun emacsconf-publish-filter-files (talk files extensions &optional selector)
-  (when (plist-get talk :file-prefix)
-      (seq-filter
-       (lambda (f)
-         (string-match (concat (regexp-quote (plist-get talk :file-prefix))
-                               (if selector (concat "--" selector))
-                               ".*"
-                               (regexp-opt extensions)
-															 "$")
-                       f))
-       files)))
+(defun emacsconf-publish-filter-public-files (talk &optional selector files)
+	"Return files that are okay to post publicly for TALK."
+  (and (plist-get talk :file-prefix)
+			 (seq-filter
+				(lambda (f)
+					(when (string-match (concat (regexp-quote (plist-get talk :file-prefix))
+																			(if selector (concat "--" selector) ""))
+															f)
+						;; further tests
+						(pcase f
+							((rx (seq "vtt" string-end)) (plist-get talk :captions-edited))
+							((rx (seq "--"
+												(or "original" "reencoded" "normalized")
+												"."
+												(1+ (syntax word))
+												string-end))
+							 nil)
+							((rx (seq "--intro." (or "vtt" "webm") string-end)) nil)
+							(_ t))))
+				(or files (emacsconf-publish-talk-files talk)))))
 
 (defun emacsconf-publish-public-index-for-talk (o files)
 	(format "<li><div class=\"title\"><a name=\"%s\" href=\"%s\">%s</a></div></div><div class=\"speakers\">%s</div>%s</li>%s"
@@ -1371,11 +1381,11 @@ answers without needing to listen to everything again. You can see <a href=\"htt
           (plist-get o :speakers)
           (emacsconf-publish-index-card
            (append (list :files
-                         (emacsconf-publish-filter-files o files emacsconf-main-extensions)
+                         (seq-remove (lambda (f) (string-match "--answers" f))
+																		  (emacsconf-publish-filter-public-files o))
 												 :audio-file
 												 (emacsconf-talk-file o "--main.opus"))
-                   o)
-           '(".org" ".pdf" "--main.vtt" "--compressed56.webm"))
+                   o))
           (if (or (emacsconf-talk-file o "--answers.webm")
 									(emacsconf-talk-file o "--answers.opus"))
               (format "<li><div class=\"title\"><a href=\"%s\">Q&amp;A for %s</a></div>%s</li>"
@@ -1391,12 +1401,11 @@ answers without needing to listen to everything again. You can see <a href=\"htt
 												 :video-file-size (plist-get o :qa-video-file-size)
                          :video-file (plist-get o :qa-video-file)
 												 :audio-file (emacsconf-talk-file o "--answers.opus")
-                         :files (emacsconf-publish-filter-files
+                         :files (emacsconf-publish-filter-public-files
                                  o
-                                 files emacsconf-main-extensions
-                                 "answers"))
-                        o)
-                       (list "--answers.webm" "--answers.opus" "--answers.vtt" "--answers--chapters.vtt")))
+                                 "answers"
+																 files))
+                        o)))
             "")))
 ;; (emacsconf-publish-public-index-for-talk (emacsconf-resolve-talk "rms") (directory-files emacsconf-cache-dir))
 
@@ -1452,9 +1461,9 @@ ${include}
                                      :track-base-url
                                      (format "/%s/captions/" (plist-get f :conf-year))
                                      :files
-                                     (emacsconf-publish-filter-files f files emacsconf-main-extensions))
-                               f)
-                       emacsconf-main-extensions)
+																		 (seq-remove (lambda (f) (string-match "--answers" f))
+																								 (emacsconf-publish-filter-public-files f files)))
+                               f))
                     "")
                   (if (plist-get f :qa-public)
                       (emacsconf-publish-index-card
@@ -1466,9 +1475,10 @@ ${include}
                          :track-base-url
                          (format "/%s/captions/" (plist-get f :conf-year))
                          :video-file
-												 (emacsconf-talk-file f "--answers.webm"))
-                        f)
-                       (list "--answers.vtt" "--answers--chapters.vtt" "--answers.webm"))
+												 (emacsconf-talk-file f "--answers.webm")
+												 :files
+												 (emacsconf-publish-filter-public-files f files "--answers"))
+                        f))
                     "")))
         info "\n"))
       "</ol>")))
@@ -1524,10 +1534,10 @@ ${include}
 		emacsconf-publish-subtitle-languages
     "")))
 
-(defun emacsconf-publish-link-file-formats (file-prefix extensions)
-  (string-join (emacsconf-publish-link-file-formats-as-list file-prefix extensions) " "))
+(defun emacsconf-publish-link-file-formats (file-prefix)
+  (string-join (emacsconf-publish-link-file-formats-as-list file-prefix) " "))
 
-(defun emacsconf-publish-link-file-formats-as-list (talk extensions)
+(defun emacsconf-publish-link-file-formats-as-list (talk)
 	(seq-map
 	 (lambda (file)
 		 (let ((cache-file (expand-file-name (file-name-nondirectory file) emacsconf-cache-dir)))
@@ -1540,13 +1550,7 @@ ${include}
 									 (format " (%sB)" (file-size-human-readable (file-attribute-size (file-attributes cache-file))))
 								 ""))))
 	 (or (plist-get talk :files)
-			 (let ((file-prefix (plist-get talk :file-prefix)))
-				 (seq-keep (lambda (ext)
-										 (let ((file (expand-file-name
-																	(concat file-prefix ext)
-																	emacsconf-cache-dir)))
-											 (and (file-exists-p file) file)))
-									 extensions)))))
+			 (emacsconf-publish-talk-files talk))))
 
 (defun emacsconf-publish-talks-json ()
 	"Return JSON format with a subset of talk information."
@@ -1909,16 +1913,7 @@ This video is available under the terms of the Creative Commons Attribution-Shar
     (when (file-exists-p video-file)
       (emacsconf-youtube-edit)
       (emacsconf-toobnix-edit)
-      (emacsconf-publish-update-talk (emacsconf-get-talk-info-for-subtree)))
-    ;; (copy-file (emacsconf-get-preferred-video slug) emacsconf-public-media-directory t)
-    ;; (mapc (lambda (ext)
-    ;;         (when (file-exists-p (expand-file-name (concat slug ext) emacsconf-cache-dir))
-    ;;           (copy-file (expand-file-name (concat slug ext) emacsconf-cache-dir)
-    ;;                      emacsconf-public-media-directory
-    ;;                      t)))
-    ;;       emacsconf-published-extensions)
-    ))
-
+      (emacsconf-publish-update-talk (emacsconf-get-talk-info-for-subtree)))))
 
 (defvar emacsconf-publish-autocommit-wiki nil)
 (defun emacsconf-publish-commit-and-push-wiki-maybe (&optional do-it message)
@@ -2304,19 +2299,13 @@ There is no live Q&A room for ${title}. You can find more information about the 
   (interactive (list (emacsconf-complete-talk-info)))
   (let ((org-state (if (boundp 'org-state) org-state (plist-get talk :status))))
     (if (plist-get talk :public)
-        ;; Copy main extension files from backstage to public
-        (let ((files (directory-files emacsconf-backstage-dir nil
-                                      (concat "^"
-                                              (regexp-quote (plist-get talk :file-prefix))
-                                              (regexp-opt emacsconf-main-extensions)))))
+        ;; Copy main files from backstage to public
+        (let ((public-files (emacsconf-publish-filter-public-files talk)))
           (mapc (lambda (file)
-                  (when (and
-												 (not (file-exists-p (expand-file-name file emacsconf-public-media-directory)))
-												 (or (not (string-match "--main.vtt$" file))
-														 (plist-get talk :captions-edited)))
+                  (when (not (file-exists-p (expand-file-name file emacsconf-public-media-directory)))
                     (copy-file (expand-file-name file emacsconf-backstage-dir)
                                (expand-file-name file emacsconf-public-media-directory) t)))
-                files))
+                public-files))
       ;; Remove files from public
       (let ((files (directory-files emacsconf-public-media-directory nil
                                     (concat "^"
