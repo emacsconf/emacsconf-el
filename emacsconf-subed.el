@@ -302,27 +302,35 @@ Create it if necessary."
 	(subed-split-subtitle)
 	(recenter))
 
-(defun emacsconf-subed-merge-and-fill ()
+(defun emacsconf-subed-merge-and-unfill ()
 	"Merge this subtitle with the next one."
 	(interactive)
 	(subed-merge-with-next)
-	(fill-paragraph))
+	(emacsconf-subed-unfill-paragraph))
+
+(defun emacsconf-subed-unfill-paragraph ()
+	"Sometimes the regular fill doesn't work."
+	(interactive)
+	(subed-set-subtitle-text
+	 (replace-regexp-in-string
+		"\n+" " "
+		(subed-subtitle-text))))
 
 (defvar emacsconf-subed-split-map
-		(let ((map (make-sparse-keymap)))
-			(define-key map [down-mouse-1] #'emacsconf-subed-split-at-mouse)
-			(define-key map [mouse-1] #'ignore)
-			(define-key map [up-1] #'ignore)
-			(define-key map [drag-mouse-1] #'ignore)
-			(define-key map [mouse-movement] #'ignore)
-			(define-key map (kbd "<down>") #'scroll-up)
-			(define-key map (kbd "M-q") #'fill-paragraph)
-			(define-key map (kbd "M-.") #'emacsconf-subed-merge-and-fill)
-			(define-key map "q" #'fill-paragraph)
-			(define-key map "." #'emacsconf-subed-merge-and-fill)
-			(define-key map "u" #'undo)
-			(define-key map (kbd "SPC") #'scroll-up)
-			map)
+	(let ((map (make-sparse-keymap)))
+		(define-key map [down-mouse-1] #'emacsconf-subed-split-at-mouse)
+		(define-key map [mouse-1] #'ignore)
+		(define-key map [up-1] #'ignore)
+		(define-key map [drag-mouse-1] #'ignore)
+		(define-key map [mouse-movement] #'ignore)
+		(define-key map (kbd "<down>") #'scroll-up)
+		(define-key map (kbd "M-q") #'emacsconf-subed-unfill-paragraph)
+		(define-key map (kbd "M-.") #'emacsconf-subed-merge-and-unfill)
+		(define-key map "q" #'emacsconf-subed-unfill-paragraph)
+		(define-key map "." #'emacsconf-subed-merge-and-unfill)
+		(define-key map "u" #'undo)
+		(define-key map (kbd "SPC") #'scroll-up)
+		map)
 	"Map for splitting.")
 
 (defun emacsconf-subed-split ()
