@@ -1829,12 +1829,11 @@ This video is available under the terms of the Creative Commons Attribution-Shar
     result))
 ;; (emacsconf-publish-video-description (emacsconf-find-talk-info "async") t)
 
-(defun emacsconf-cache-all-video-data (&optional force)
-  (interactive (list current-prefix-arg))
+(defun emacsconf-cache-all-video-data ()
+  (interactive)
   (mapc
    (lambda (talk)
-     (when (and (plist-get talk :file-prefix)
-                (or force (null (plist-get talk :video-file-size))))
+     (when (plist-get talk :file-prefix)
        (emacsconf-publish-cache-video-data talk)))
    (emacsconf-get-talk-info)))
 ;; (emacsconf-cache-all-video-data t)
