@@ -529,6 +529,7 @@ If INFO is specified, limit it to that list."
                        (:check-in "CHECK_IN")
                        (:public "PUBLIC")
                        (:intro-note "INTRO_NOTE")
+                       (:sched-note "SCHED_NOTE")
                        (:hyperlist-note "HYPERLIST_NOTE")
                        ;; Extraction
                        (:qa-youtube "QA_YOUTUBE")
