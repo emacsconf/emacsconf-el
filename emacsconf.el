@@ -260,6 +260,27 @@ Return the list of new filenames."
 		(when (derived-mode-p 'dired-mode)
 			(revert-buffer))))
 
+(defun emacsconf-update-file-prefixes (talk &optional dry-run)
+	"Update all files for the specified SLUG to use the new file prefix."
+	(interactive (list (emacsconf-complete-talk-info)))
+	(let (results)
+		(dolist (dir (list
+									emacsconf-cache-dir
+									(and emacsconf-res-dir (expand-file-name "cache" emacsconf-res-dir))
+									emacsconf-backstage-dir))
+			(when (and dir (file-directory-p dir))
+				(dolist (file (directory-files dir t (concat "^" emacsconf-id "-" emacsconf-year "-" (plist-get talk :slug) "--.*")))
+					(let ((new-file (replace-regexp-in-string
+													 (concat "/" emacsconf-id "-" emacsconf-year "-" (plist-get talk :slug) "--.*?--.*?\\(\\(--.*\\)?\.[a-zA-Z0-9]+\\)$")
+													 (concat "/" (plist-get talk :file-prefix)
+																	 "\\1")
+													 file)))
+						(unless (string= file new-file)
+							(unless dry-run
+								(rename-file file new-file))
+							(add-to-list 'results (cons file new-file) t))))))
+		results))
+
 (defun emacsconf-rename-and-upload-to-backstage (talk &optional filename)
 	"Rename marked files or the current file, then upload to backstage."
   (interactive (list (emacsconf-complete-talk-info)))
