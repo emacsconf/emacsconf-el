@@ -677,16 +677,10 @@ ${signature}"
 	(let ((result
 				 (concat
 					(plist-get o :title) "\n"
-					(format-time-string "%b %-e %a %-I:%M %#p %Z" (plist-get o :start-time) emacsconf-timezone) "\n"
-					(if (and (plist-get o :timezone) (not (string= (plist-get o :timezone) emacsconf-timezone)))
-							(if (string= (format-time-string "%z" (plist-get o :start-time) (plist-get o :timezone))
-													 (format-time-string "%z" (plist-get o :start-time) emacsconf-timezone))
-									(format "which is the same time in your local timezone %s\n"
-													(emacsconf-schedule-rename-etc-timezone (plist-get o :timezone)))
-								(format "translated to your local timezone %s: %s\n"
-												(emacsconf-schedule-rename-etc-timezone (plist-get o :timezone))
-												(format-time-string "%b %-e %a %-I:%M %#p %Z" (plist-get o :start-time) (plist-get o :timezone))))
-						""))))
+					(emacsconf-timezone-strings-combined
+					 (plist-get o :start-time)
+					 (plist-get o :timezone)
+					 "%b %-e %a %-I:%M %#p %Z"))))
 		(when (called-interactively-p 'any)
 			(insert result))
 		result))
@@ -1242,18 +1236,14 @@ as soon as you can and I'll try to shuffle things around. Thank you!")
 			:checkin-info
 			(mapconcat
        (lambda (o)
-         (let ((base-checkin (format-time-string "%b %-d %-l:%M %p" (plist-get o :checkin-time) emacsconf-timezone))
-               (speaker-checkin (format-time-string "%b %-d %-l:%M %p" (plist-get o :checkin-time) (plist-get o :timezone))))
            (emacsconf-replace-plist-in-string
 						(append (list :base-url emacsconf-base-url
 													:check-in
 													(concat
                            "Before "
-                           base-checkin " in " emacsconf-timezone
-                           (if (string= base-checkin speaker-checkin)
-                               ""
-                             (concat
-															", which is the same as " speaker-checkin " in " (plist-get o :timezone))) "\n"
+													 (emacsconf-timezone-strings-combined
+														(plist-get o :checkin-time)
+														(plist-get o :timezone))
                            "  (this is " (plist-get o :checkin-label) ")")
 													:qa-info-speakers
 													(cond

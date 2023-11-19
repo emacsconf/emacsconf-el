@@ -1098,8 +1098,30 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
               (format-time-string "%-l:%M %p %Z"
                                   end tz)
               tz))))
+
 (defun emacsconf-timezone-strings (o &optional timezones)
   (mapcar (lambda (tz) (emacsconf-timezone-string o tz)) (or timezones emacsconf-timezones)))
+
+(defun emacsconf-timezone-strings-combined (time timezones &optional format)
+	"Show TIME in TIMEZONES.
+If TIMEZONES is a string, split it by commas."
+	(let* ((format (or format "%b %-d %-l:%M %p"))
+				 (base-time (format-time-string format time emacsconf-timezone))
+				 (timezones (if (stringp timezones) (split-string timezones " *, *" t))))
+		(concat base-time " in " (emacsconf-schedule-rename-etc-timezone emacsconf-timezone)
+						(if timezones
+								(concat
+								 " (which is "
+								 (mapconcat
+									(lambda (tz)
+										(let ((translated-time (format-time-string format time tz)))
+											(if (string= translated-time base-time)
+													(concat "the same in " (emacsconf-schedule-rename-etc-timezone tz))
+												(concat translated-time " in " (emacsconf-schedule-rename-etc-timezone tz)))))
+									timezones
+									"; ")
+								 ")")
+							""))))
 
 ;;;###autoload
 (defun emacsconf-convert-from-timezone (timezone time)
