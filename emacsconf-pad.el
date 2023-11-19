@@ -639,7 +639,7 @@ ${bbb-checklist}</li>")
 							(emacsconf-surround " (" (plist-get talk :pronunciation) ")" "")
               (pcase (plist-get talk :q-and-a)
                 ((or 'nil "") "")
-                ((rx "after") " We'll collect questions via Etherpad and IRC to send to the speaker, and we'll post the answers on the talk page afterwards.")
+                ((rx "after") " You can ask questions via Etherpad and IRC. We'll send them to the speaker, and we'll post the answers on the talk page afterwards.")
                 ((rx "live")
                  (format " %s will answer questions via BigBlueButton. You can join using the URL from the talk page or ask questions through Etherpad or IRC."
                          pronoun
