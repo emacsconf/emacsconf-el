@@ -29,7 +29,7 @@ Needs a Spookfox connection."
 	(let* ((bbb-name
 					(format "%s (%s) - %s%s"
 									(mapconcat (lambda (o) (plist-get o :slug)) (cdr group) ", ")
-									(plist-get (cadr group) :speakers)
+									(or (plist-get (cadr group) :speakers) "emacsconf")
 									emacsconf-id
 									emacsconf-year))
 				 path
@@ -68,5 +68,55 @@ document.querySelector('.create-room-button').click();"
 		(dolist (group groups)
 			(emacsconf-spookfox-create-bbb group))))
 
+(defun emacsconf-spookfox-create-bbb-for-all-talks ()
+	"Create BBB rooms for talks that don't have them yet."
+	(interactive)
+	(let* ((talks (seq-remove
+								 (lambda (o) (plist-get o :bbb-room))
+								 (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
+				 (groups (and talks (emacsconf-mail-groups talks))))
+		(dolist (group groups)
+			(emacsconf-spookfox-create-bbb group))))
+
+(defun emacsconf-spookfox-update-bbb-settings (talk settings)
+	(spookfox-js-injection-eval-in-active-tab
+	 (format
+		"current = document.querySelector('a[href=\"%s\"]'); current.querySelector('.fa-ellipsis-v').click(); console.debug(current.querySelector('h4').textContent)"
+		(replace-regexp-in-string
+		 (regexp-quote "https://bbb.emacsverse.org")
+		 ""
+		 (plist-get talk :bbb-room))) t)
+	(spookfox-js-injection-eval-in-active-tab "current.querySelector('.update-room').click()" t)
+	(let (will-change)
+		(dolist (o settings)
+			(setq will-change
+						(or
+						 will-change
+						 (eq
+							(spookfox-js-injection-eval-in-active-tab
+							 (format
+								"document.querySelector('#%s').checked != %s"
+								(car o)
+								(cdr o))
+							 t)
+							t))))
+		(dolist (o settings)
+			(spookfox-js-injection-eval-in-active-tab
+			 (format "document.querySelector('#%s').checked = %s"
+							 (car o)
+							 (cdr o))
+			 t))
+		(if will-change
+				(progn
+					(spookfox-js-injection-eval-in-active-tab
+					 "document.querySelector('input.update-only').click()"
+					 t)
+					(message "%s changed" (plist-get talk :slug))
+					(sleep-for 5))
+			(message "%s confirmed" (plist-get talk :slug))
+			(spookfox-js-injection-eval-in-active-tab
+			 "document.querySelector('button.create-room-button[data-dismiss=\"modal\"]').click()"
+			 t)
+			(sleep-for 1))))
 (provide 'emacsconf-spookfox)
 ;;; emacsconf-spookfox.el ends here
