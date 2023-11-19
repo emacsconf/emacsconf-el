@@ -160,7 +160,7 @@ TYPE can be 'end if you want the match end instead of the beginning."
   (let (result current)
     (mapc
      (lambda (o)
-       (if (elt o 4)
+       (if (not (string= (or (elt o 4) "") ""))
            (progn
              (when current (setq result (cons current result)))
              (setq current
@@ -323,10 +323,12 @@ Create it if necessary."
 		(define-key map [up-1] #'ignore)
 		(define-key map [drag-mouse-1] #'ignore)
 		(define-key map [mouse-movement] #'ignore)
+		(define-key map (kbd "<up>") #'scroll-down)
 		(define-key map (kbd "<down>") #'scroll-up)
 		(define-key map (kbd "M-q") #'emacsconf-subed-unfill-paragraph)
 		(define-key map (kbd "M-.") #'emacsconf-subed-merge-and-unfill)
 		(define-key map "q" #'emacsconf-subed-unfill-paragraph)
+		(define-key map "p" #'subed-backward-subtitle-text)
 		(define-key map "." #'emacsconf-subed-merge-and-unfill)
 		(define-key map "u" #'undo)
 		(define-key map (kbd "SPC") #'scroll-up)
