@@ -507,6 +507,21 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
       (when note (insert "#+NOTE: " note "\n======== Delete above before sending =============\n\n"))
       (insert body))))
 
+(defun emacsconf-mail-merge-check-drafts ()
+	"Put all the drafts in one buffer to check."
+	(interactive)
+	(let (result)
+		(mapc (lambda (buffer)
+						(when (string-match "unsent" (buffer-name buffer))
+							(with-current-buffer buffer
+								(add-to-list 'result (buffer-string)))))
+					(buffer-list))
+		(with-current-buffer (get-buffer-create "*Drafts*")
+			(erase-buffer)
+			(insert (string-join result "\n-------------------------------------------------------\n"))
+			(goto-char (point-min))
+			(switch-to-buffer (current-buffer)))))
+
 (defun emacsconf-mail-merge-cancel ()
   (interactive)
   (mapc (lambda (buffer)
