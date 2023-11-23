@@ -20,7 +20,7 @@
 
 ;;; Commentary:
 
-;; 
+;;
 
 ;;; Code:
 
@@ -153,6 +153,7 @@ Each function should take the info and manipulate it as needed, returning the ne
                        schedule))
           '(hline)))
      sched nil)))
+
 (defun emacsconf-schedule-inflate-sexp (sequence &optional info include-time)
   "Takes a list of talk IDs and returns a list that includes the scheduling info.
 Pairs with `emacsconf-schedule-dump-sexp'."
@@ -163,7 +164,7 @@ Pairs with `emacsconf-schedule-dump-sexp'."
     (mapcar
      (lambda (seq)
        (unless (listp seq) (setq seq (list seq)))
-       
+
        (if include-time
            (error "Not yet implemented")
          (let ((start-prop (or (plist-get (cdr seq) :start)
@@ -175,7 +176,7 @@ Pairs with `emacsconf-schedule-dump-sexp'."
                (track-prop (plist-get (cdr seq) :track))
 							 (set-track-prop (plist-get (cdr seq) :set-track)))
            (append
-            ;; overriding 
+            ;; overriding
             (when start-prop
               (if (string-match "-" start-prop)
                   (setq date (format-time-string "%Y-%m-%d" (date-to-time start-prop)))
@@ -481,7 +482,7 @@ Other status: gray"
                 (or start-position 0)
                 (if end
                     (+ (or start-position 0)
-                       (seq-position (seq-subseq info (or start-position 0)) 
+                       (seq-position (seq-subseq info (or start-position 0))
                                      end
                                      (lambda (o match) (string-match match (plist-get o :title)))))
                   (length info)))))
@@ -518,7 +519,7 @@ Uses `emacsconf-schedule-default-buffer-minutes' and
             (when (plist-get o :slug)
               (unless (plist-get o :buffer)
                 (plist-put o :buffer
-                           (number-to-string 
+                           (number-to-string
                             (if (string-match "live" (or (plist-get o :q-and-a) "live"))
                                 emacsconf-schedule-default-buffer-minutes-for-live-q-and-a
                               emacsconf-schedule-default-buffer-minutes)))))
@@ -565,12 +566,12 @@ Uses `emacsconf-schedule-default-buffer-minutes' and
           info))
 
 (defun emacsconf-schedule-based-on-info (info)
-  (let (current-time end-time duration) 
+  (let (current-time end-time duration)
     (mapcar
      (lambda (talk)
        (when (plist-get talk :fixed-time)
          (setq current-time (plist-get talk :start-time)))
-       (when (and (plist-get talk :time) 
+       (when (and (plist-get talk :time)
                   (not (string= (plist-get talk :status) "CANCELLED")))
          (setq duration (* (string-to-number (plist-get talk :time)) 60)
                end-time (time-add current-time (seconds-to-time duration)))
@@ -589,14 +590,14 @@ Talks with a FIXED_TIME property are not moved."
   (interactive)
   (save-excursion
     (org-with-wide-buffer
-     (let (current-time end-time duration) 
+     (let (current-time end-time duration)
        (org-map-entries
         (lambda ()
           (when (or (org-entry-get (point) "TIME") (org-entry-get (point) "FIXED_TIME"))
             (let ((talk (emacsconf-get-talk-info-for-subtree)))
               (when (org-entry-get (point) "FIXED_TIME")
                 (setq current-time (plist-get talk :start-time)))
-              (when (and (plist-get talk :time) 
+              (when (and (plist-get talk :time)
                          (not (string= (plist-get talk :status) "CANCELLED")))
                 (setq duration (* (string-to-number (plist-get talk :time)) 60)
                       end-time (time-add current-time (seconds-to-time duration)))
@@ -682,7 +683,7 @@ Both start and end time are tested."
 (defun emacsconf-schedule-q-and-a-p (talk)
 	"Return non-nil if TALK has a Q&A scheduled for the event."
 	(not (string-match "after the event" (or (plist-get talk :q-and-a) ""))))
-	
+
 (defun emacsconf-schedule-get-time-constraint (o)
 	(when (emacsconf-schedule-q-and-a-p o)
 		(let ((avail (or (plist-get o :availability) ""))
@@ -749,7 +750,7 @@ Both start and end time are tested."
 							 (emacsconf-surround " " (and include-offset emacsconf-timezone-offset) "" "")
 							 (if local-timezone
 									 (format " (%s %s)" end-local (emacsconf-schedule-rename-etc-timezone local-timezone))
-								 ""))))) 
+								 "")))))
 					(if (elt constraints 2) (format "on %s" (elt constraints 2)))))
 	 " and "))
 
@@ -897,7 +898,7 @@ Return nil if there are no errors."
                                                                               last-end)))
                             (plist-get o :invalid))
                         (setq last-end (plist-get o :end-time))))
-                    (sort 
+                    (sort
                      (seq-filter (lambda (o) (string-match "live" (or (plist-get o :q-and-a) "")))
                                  schedule)
                      (lambda (a b)
