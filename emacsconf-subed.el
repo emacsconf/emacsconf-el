@@ -335,6 +335,7 @@ Create it if necessary."
 		map)
 	"Map for splitting.")
 
+;;;###autoload
 (defun emacsconf-subed-split ()
 	"Use transient map for splitting subtitles."
 	(interactive)
