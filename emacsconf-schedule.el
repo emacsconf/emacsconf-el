@@ -443,8 +443,10 @@ Other status: gray"
                           "yellow")
                          ("TO_CAPTION"
                           "lightgreen")
-                         ("TO_STREAM"
+                         ("TO_CHECK"
                           "green")
+                         ("TO_STREAM"
+                          "darkgreen")
 												 ("TODO"
 													"lightgray")
                          (_ "gray")))))
