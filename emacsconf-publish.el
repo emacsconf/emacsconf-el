@@ -1246,10 +1246,19 @@ If MODIFY-FUNC is specified, use it to modify the talk."
                                (assoc-default status by-status)
                                ", ")))
 					(pcase emacsconf-backstage-phase
-						('prerec '("WAITING_FOR_PREREC" "PROCESSING" "TO_ASSIGN" "TO_CAPTION" "TO_STREAM"))
+						('prerec '("WAITING_FOR_PREREC" "PROCESSING" "TO_ASSIGN" "TO_CAPTION" "TO_CHECK" "TO_STREAM"))
 						('harvest '("TO_ARCHIVE" "TO_REVIEW_QA" "TO_INDEX_QA" "TO_CAPTION_QA")))
 					"")
          "</ul>"
+				 ;; alphabetical index
+				 "<div>Alphabetical index: "
+				 (mapconcat (lambda (o)
+											(format "<a href=\"#%s\">%s</a>"
+                              (plist-get o :slug)
+                              (plist-get o :slug)))
+										(sort talks (lambda (a b) (string< (plist-get a :slug) (plist-get b :slug))))
+										", ")
+				 "</div>"
 				 (pcase emacsconf-backstage-phase
 					 ('prerec
 						(concat
@@ -1263,6 +1272,10 @@ If MODIFY-FUNC is specified, use it to modify the talk."
 							"Not ready for captioning yet, but they will be eventually")
 						 (emacsconf-publish-backstage-to-assign by-status files)
 						 (emacsconf-publish-backstage-to-caption by-status files)
+						 (emacsconf-publish-backstage-list
+							(assoc-default "TO_CHECK" by-status) files
+							"to be checked"
+							"These can be checked to see if the subtitle timings are correct, audio/video is fine, etc.")
 						 (emacsconf-publish-backstage-list
 							(assoc-default "TO_STREAM" by-status)
 							files
