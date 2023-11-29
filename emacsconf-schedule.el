@@ -431,7 +431,8 @@ Pairs with `emacsconf-schedule-dump-sexp'."
 Processing: palegoldenrod,
 Waiting to be assigned a captioner: yellow,
 Captioning in progress: lightgreen,
-Ready to stream: green,
+To check: green,
+Ready to stream: blue,
 Other status: gray"
   (unless (plist-get o :invalid)
     (dom-set-attribute node 'fill
@@ -447,7 +448,7 @@ Other status: gray"
                          ("TO_CHECK"
                           "green")
                          ("TO_STREAM"
-                          "darkgreen")
+                          "lightblue")
 												 ("TODO"
 													"lightgray")
                          (_ "gray")))))
