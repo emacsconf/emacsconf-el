@@ -168,15 +168,44 @@
     (lambda (talk)
       (concat
        "*** " (plist-get talk :title) "\n"
-       "<" (format-time-string
-                       (cdr org-time-stamp-formats)
-                       (plist-get talk :start-time)
-                       tz)
-       ">\n"
+       "<"
+			 (format-time-string
+        (cdr org-time-stamp-formats)
+        (plist-get talk :start-time)
+        tz)
+			 ">--<"
+			 (format-time-string
+        (cdr org-time-stamp-formats)
+        (plist-get talk :end-time)
+        tz)
+			 ">\n"
        (emacsconf-surround "- " (plist-get talk :speakers-with-pronouns) "\n" "")
        (emacsconf-surround "- " (plist-get talk :absolute-url) "\n" "")
+			 "- Watch live: "
+			 (mapconcat (lambda (player)
+										(org-link-make-string
+										 (concat "shell:" player " " (plist-get track :stream) " &")
+										 player))
+									'("mpv" "vlc" "ffplay")
+									" or ")
+			 " or "
+			 (org-link-make-string
+				(plist-get track :watch)
+				"web-based player")
+			 "\n"
        (emacsconf-surround "- Etherpad: " (plist-get talk :pad-url) "\n" "")
-       (emacsconf-surround "- Q&A: " (plist-get talk :qa-info) "\n" "")
+       (emacsconf-surround "- Chat: "
+													 (org-link-make-string
+														(plist-get talk :webchat-url)
+														(concat "#" (plist-get talk :channel)))
+													 "\n" "")
+       (emacsconf-surround "- Q&A: "
+													 (if (plist-get talk :qa-url)
+															 (org-make-link-string
+																(plist-get talk :qa-url)
+																(plist-get talk :qa-info))
+														 (plist-get talk :qa-info))
+													 "\n" "")
        (emacsconf-surround "\n" (plist-get talk :intro-note) "\n" "")))
     (emacsconf-filter-talks-by-track track info)
     "\n")))
@@ -186,8 +215,9 @@
   (let ((new-filename (expand-file-name
                        (concat "schedule-"
                                (replace-regexp-in-string
-                                "[^a-z]+" "-"
-                                (downcase timezone))
+                                "[^-+a-z0-9]+" "-"
+																(downcase
+																 (emacsconf-schedule-rename-etc-timezone timezone)))
                                ".org")
                        (expand-file-name "schedules"
                                          emacsconf-public-media-directory))))
@@ -195,7 +225,8 @@
       (make-directory (file-name-directory new-filename)))
     (with-temp-file new-filename
       (insert
-       "* " emacsconf-name " " emacsconf-year "\n\nTimes are in " timezone " timezone. You can find this file and other calendars at "
+       "* " emacsconf-name " " emacsconf-year "\n\nTimes are in "
+			 (emacsconf-schedule-rename-etc-timezone timezone) " timezone. You can find this file and other calendars at "
        emacsconf-media-base-url emacsconf-year "/schedules/ .\n\n"
        (mapconcat (lambda (track)
                     (emacsconf-publish-format-track-as-org track timezone info))
@@ -206,7 +237,11 @@
   (interactive)
   (setq info (or info (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
   (mapc (lambda (tz) (emacsconf-publish-schedule-org-for-timezone tz info))
-        emacsconf-timezones))
+				(append
+				 emacsconf-timezones
+				 (cl-loop for offset from -12 upto 14
+									collect
+									(format "Etc/GMT%s%d" (if (< offset 0) "+" "-") (abs offset))))))
 
 (defun emacsconf-publish-format-res-talks (info)
 	"Format lines for the backstage index."
@@ -338,9 +373,12 @@
                                  (file-size-human-readable (file-attribute-size (file-attributes video-file))))
 						:links
 						(concat
-						 (emacsconf-surround "<li><a href=\"" (plist-get talk :pad-url) "\">Open Etherpad</a></li>" "")
 						 (emacsconf-surround "<li><a href=\""
-																 (and (plist-get talk :backstage) (plist-get talk :bbb-room)
+																 (if (plist-get talk :backstage)
+																		 (emacsconf-backstage-url (plist-get talk :pad-url))
+																	 (plist-get talk :pad-url)) "\">Open Etherpad</a></li>" "")
+						 (emacsconf-surround "<li><a href=\""
+																 (and (plist-get talk :backstage)
 																			(plist-get talk :bbb-backstage))
 																 "\">Open backstage BigBlueButton</a></li>" "")
 						 (emacsconf-surround "<li><a href=\""
@@ -825,25 +863,49 @@ Back to the [[talks]]  \n"
 									(sort
 									 (seq-filter #'emacsconf-publish-talk-p
 															 (or emacsconf-schedule-draft (emacsconf-get-talk-info)))
-									 #'emacsconf-sort-by-track-then-schedule))))
+									 #'emacsconf-sort-by-track-then-schedule)))
+				(range (format "<%s %s-%s>"
+											 emacsconf-date
+											 (plist-get (car emacsconf-tracks) :start)
+											 (plist-get (car emacsconf-tracks) :end))))
     (with-temp-file (expand-file-name "talk-details.md" (expand-file-name emacsconf-year emacsconf-directory))
-      (insert (format "<table><thead><th>Duration</th><th>Title</th><th>Speakers</th></thead><tbody>%s</tbody></table>"
-                      (mapconcat
-                       (lambda (o)
-                         (if (null (plist-get o :slug))
-                             (format "<tr><td colspan=\"3\">%s</td></tr>" (emacsconf-format-talk-link o))
-                           (format "<tr><td>%s</td><td>%s</td><td>%s</td><tr>"
-                                   (plist-get o :time)
-                                   (emacsconf-format-talk-link o)
-                                   (plist-get o :speakers))))
-                       info "\n"))))))
+))
 
 (defun emacsconf-generate-main-schedule-with-tracks (&optional info)
   (interactive (list nil))
   (setq info (or info (emacsconf-publish-prepare-for-display info)))
   (with-temp-file (expand-file-name "schedule-details.md"
                                     (expand-file-name emacsconf-year emacsconf-directory))
-    ;; By track
+		(when (member emacsconf-publishing-phase '(schedule conference))
+			(insert
+			 (emacsconf-replace-plist-in-string
+				(list
+				 :timezone emacsconf-timezone
+				 :gmt-offset emacsconf-timezone-offset
+				 :alternative-timezones
+				 (string-join (emacsconf-timezone-strings range nil "~%-l:%M %p")
+											" / ")
+				 :icals
+				 (concat
+					(format "<a href=\"%s%s%s.ics\">%s.ics</a> - "
+									emacsconf-media-base-url
+									emacsconf-year
+									emacsconf-id)
+					(mapconcat (lambda (track)
+											 (format "<a href=\"%s%s%s-%s.ics\">%s-%s.ics</a>"
+															 emacsconf-media-base-url
+															 emacsconf-year
+															 emacsconf-id
+															 (plist-get track :id)))
+										 emacsconf-tracks " - "))
+				 :schedule-directory
+				 (concat emacsconf-media-base-url emacsconf-year "/schedules/"))
+				"The conference is from ${alternative-timezones}.
+
+Times below are in %{timezone} (GMT${gmt-offset}). If you have Javascript enabled, clicking on talk pages should include times in your computer's local time setting.
+
+You can also get this schedule as iCalendar files: ${icals}. Importing that into your calendar should translate things into your local timezone. Alternatively, you can use these timezone-translated Org files: <${schedule-directory}>")))
+		;; By track
     (let* ((by-day (mapcar (lambda (o))
 													 (seq-group-by (lambda (o)
 																					 (format-time-string "%Y-%m-%d" nil emacsconf-timezone))
@@ -858,11 +920,11 @@ Back to the [[talks]]  \n"
 																											(list (downcase (format-time-string "%a" (date-to-time (car day))))
 																														(format-time-string "%A" (date-to-time (car day)))))
 																										by-day)
-                                          " - ")))
-										 (mapcar (lambda (o) (list (plist-get o :id)
-																							 (plist-get o :name)))
-														 emacsconf-tracks)
-                     " | ")))
+																						" - ")))
+											 (mapcar (lambda (o) (list (plist-get o :id)
+																								 (plist-get o :name)))
+															 emacsconf-tracks)
+											 " | ")))
       (insert
 			 (mapconcat
         (lambda (track)
@@ -972,6 +1034,40 @@ Entries are sorted chronologically, with different tracks interleaved."
 	(setq info (or info (emacsconf-publish-prepare-for-display info)))
   (with-temp-file (expand-file-name "schedule-details.md"
 																		(expand-file-name emacsconf-year emacsconf-directory))
+		(when (member emacsconf-publishing-phase '(schedule conference))
+				(insert
+				 (emacsconf-replace-plist-in-string
+					(list
+					 :timezone emacsconf-timezone
+					 :gmt-offset emacsconf-timezone-offset
+					 :alternative-timezones
+					 (string-join (emacsconf-timezone-strings range nil "~%-l:%M %p")
+												" / ")
+					 :icals
+					 (concat
+						(format "<a href=\"%s%s/%s.ics\">%s.ics</a> - "
+										emacsconf-media-base-url
+										emacsconf-year
+										emacsconf-id
+										emacsconf-id)
+						(mapconcat (lambda (track)
+												 (format "<a href=\"%s%s/%s-%s.ics\">%s-%s.ics</a>"
+																 emacsconf-media-base-url
+																 emacsconf-year
+																 emacsconf-id
+																 (plist-get track :id)
+																 emacsconf-id
+																 (plist-get track :id)))
+											 emacsconf-tracks " - "))
+					 :schedule-directory
+					 (concat emacsconf-media-base-url emacsconf-year "/schedules/"))
+					"The conference is from ${alternative-timezones}.
+
+Times below are in ${timezone} (GMT${gmt-offset}). If you have Javascript enabled, clicking on talk pages should include times in your computer's local time setting.
+
+You can also get this schedule as iCalendar files: ${icals}. Importing that into your calendar should translate things into your local timezone. Alternatively, you can use these timezone-translated Org files: <${schedule-directory}>
+
+")))
     (insert
      (if (member emacsconf-publishing-phase '(cfp program))
          (let ((sorted (emacsconf-publish-prepare-for-display (or info (emacsconf-get-talk-info)))))
@@ -1212,14 +1308,18 @@ If MODIFY-FUNC is specified, use it to modify the talk."
 				 (if (file-exists-p (expand-file-name "include-in-index.html" emacsconf-cache-dir))
              (with-temp-buffer (insert-file-contents (expand-file-name "include-in-index.html" emacsconf-cache-dir)) (buffer-string))
            "")
-				 "<p>Schedule by status: (gray: waiting, light yellow: processing, yellow: to assign, light green: captioning, green: captioned and ready)<br />Updated by conf.org and the wiki repository</br />"
+				 "<p>Schedule by status: (gray: waiting, light yellow: processing, yellow: to assign, light green: captioning, green: to check, light blue: captioned and ready)<br />Updated by conf.org and the wiki repository</br />"
 				 (let* ((emacsconf-schedule-svg-modify-functions '(emacsconf-schedule-svg-color-by-status))
 								(img (emacsconf-schedule-svg 800 200 info)))
 					 (with-temp-buffer
 						 (mapc (lambda (node)
 										 (dom-set-attribute
 											node 'href
-											(concat "#" (dom-attr node 'data-slug))))
+											(concat "#" (dom-attr node 'data-slug)))
+
+										 (dom-append-child
+											(dom-by-tag node 'title)
+											(plist-get (emacsconf-resolve-talk (dom-attr node 'data-slug) talks) :status)))
 									 (dom-by-tag img 'a))
 						 (svg-print img)
 						 (buffer-string)))
@@ -2113,6 +2213,7 @@ If you don't have a streaming media player, you can watch using the player below
 <ul>Legend:
 <li>Solid lines: Q&A will be through a BigBlueButton room (you can ask questions there or through IRC/Etherpad)</li>
 <li>Dashed lines: Q&A will be over IRC or the Etherpad, or the speaker will follow up afterwards</li></ul>
+<div>Times are in Eastern Standard Time (America/Toronto, GMT-5). If you have Javascript enabled, clicking on talk pages should include times in your computer's local time setting.</div>
 <div>${sched}</div>
 <div>${talks}</div>
 "))))
@@ -2180,7 +2281,9 @@ if (video) {
 <h1>${conf-name} ${year}</h1>
 ${watch-index}
 <p>
-        Depending on which media player you use, you may enter the stream address
+Times are in Eastern Standard Time (America/Toronto, GMT-5). If you have Javascript enabled, clicking on talk pages should include times in your computer's local time setting.</p>
+
+        <p>Depending on which media player you use, you may enter the stream address
         in a graphical user interface or provide it as an argument to the program
         when launching it from the terminal.
       </p>
