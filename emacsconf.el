@@ -41,7 +41,7 @@
 (defcustom emacsconf-cfp-deadline "2023-09-14" "Deadline for proposals."
 	:group 'emacsconf
 	:type 'string)
-(defcustom emacsconf-date "2023-12-03" "Starting date of EmacsConf."
+(defcustom emacsconf-date "2023-12-02" "Starting date of EmacsConf."
 	:group 'emacsconf
 	:type 'string)
 (defcustom emacsconf-video-target-date "2023-11-04" "Target date for receiving talk videos from the speakers."
@@ -73,7 +73,8 @@
 (defcustom emacsconf-publishing-phase 'program
   "Controls what information to include.
 'program - don't include times
-'schedule - include times; use this leading up to the emacsconference
+'schedule - include times; use this leading up to the conference
+'conference - show IRC and watching info
 'resources - after EmacsConf, don't need status"
   :group 'emacsconf
   :type '(choice
@@ -109,7 +110,15 @@
 (defcustom emacsconf-review-days 7 "Number of days for review for early acceptance."
 	:type 'natnum
 	:group 'emacsconf)
-
+(defcustom emacsconf-qa-start-open t "Non-nil means start Q&A as open, skipping CLOSED_QA phase."
+	:type 'boolean
+	:group 'emacsconf)
+(defcustom emacsconf-restream-youtube nil "Non-nil means include instructions for restreaming to YouTube."
+	:type 'boolean
+	:group 'emacsconf)
+(defcustom emacsconf-restream-toobnix nil "Non-nil means include instructions for restreaming to Toobnix."
+	:type 'boolean
+	:group 'emacsconf)
 (defvar emacsconf-stream-base "https://live0.emacsconf.org/")
 (defvar emacsconf-chat-base "https://chat.emacsconf.org/")
 (defvar emacsconf-backstage-dir "/ssh:orga@media.emacsconf.org:/var/www/media.emacsconf.org/2022/backstage")
@@ -484,6 +493,7 @@ If INFO is specified, limit it to that list."
     ("TO_AUTOCAP" . "Processing uploaded video")
     ("TO_ASSIGN" . "Waiting for a caption volunteer")
     ("TO_CAPTION" . "Being captioned")
+    ("TO_CHECK" . "Quality check")
     ("TO_STREAM" . "Ready to stream")
     ("PLAYING" . "Now playing on the conference livestream")
     ("CLOSED_Q" . "Q&A starting (not yet open for joining)")
@@ -759,10 +769,10 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
 					(plist-put o :qa-time (plist-get o :live-time))
 					(plist-put
 					 o :checkin-label
-					 "1 hour before the scheduled start of your talk, since you don't have a pre-recorded video")
+					 "30 minutes before the scheduled start of your talk, since you don't have a pre-recorded video")
 					(plist-put
 					 o :checkin-time
-					 (seconds-to-time (time-subtract (plist-get o :start-time) (seconds-to-time 3600)))))
+					 (seconds-to-time (time-subtract (plist-get o :start-time) (seconds-to-time (/ 3600 2))))))
 			(plist-put o :live-time
                  (seconds-to-time
 									(+
@@ -1057,6 +1067,25 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
   (interactive (list (emacsconf-complete-talk)))
   (insert (plist-get (emacsconf-search-talk-info search) :title)))
 
+(defun emacsconf-insert-talk-email (search)
+	"Insert the talk email matching SEARCH."
+  (interactive (list (emacsconf-complete-talk)))
+  (insert (plist-get (emacsconf-search-talk-info search) :email)))
+
+(defun emacsconf-backstage-url (&optional base-url)
+	"Return or insert backstage URL with credentials."
+	(setq base-url (or base-url (concat emacsconf-media-base-url emacsconf-year "/backstage/")))
+	(interactive)
+	(let ((url (format
+							"https://%s:%s@%s"
+							emacsconf-backstage-user
+							emacsconf-backstage-password
+							(replace-regexp-in-string "https://" "" base-url)
+							emacsconf-year)))
+		(when (called-interactively-p 'any)
+			(insert url))
+		url))
+
 (defun emacsconf-message-talk-info (talk prop)
 	"Briefly display info for TALK"
 	(interactive
@@ -1069,6 +1098,8 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
   (defvar-keymap embark-emacsconf-actions
     :doc "Keymap for emacsconf-related things"
     "a" #'emacsconf-announce
+		"i e" #'emacsconf-insert-talk-email
+		"i t" #'emacsconf-insert-talk-title
 		"I" #'emacsconf-message-talk-info
     "c" #'emacsconf-find-captions-from-slug
     "d" #'emacsconf-find-caption-directives-from-slug
@@ -1104,31 +1135,36 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
   (format-time-string "%z" (date-to-time emacsconf-date) emacsconf-timezone)
   "Timezone offset for `emacsconf-timezone' on `emacsconf-date'.")
 
-(defun emacsconf-timezone-string (o tz)
-  (let* ((start (org-timestamp-to-time (org-timestamp-split-range (org-timestamp-from-string (plist-get o :scheduled)))))
-         (end (org-timestamp-to-time (org-timestamp-split-range (org-timestamp-from-string (plist-get o :scheduled)) t))))
+(defun emacsconf-timezone-string (o tz &optional format)
+	(when (and (listp o) (plist-get o :scheduled)) (setq o (plist-get o :scheduled)))
+  (let* ((start (org-timestamp-to-time (org-timestamp-split-range (org-timestamp-from-string o))))
+         (end (org-timestamp-to-time (org-timestamp-split-range (org-timestamp-from-string o) t))))
     (if (string= tz "UTC")
         (format "%s - %s "
-                (format-time-string "%A, %b %-e %Y, ~%-l:%M %p"
+                (format-time-string (or format "%A, %b %-e %Y, ~%-l:%M %p")
                                     start tz)
                 (format-time-string "%-l:%M %p %Z"
                                     end tz))
       (format "%s - %s (%s)"
-              (format-time-string "%A, %b %-e %Y, ~%-l:%M %p"
+              (format-time-string (or format "%A, %b %-e %Y, ~%-l:%M %p")
                                   start tz)
               (format-time-string "%-l:%M %p %Z"
                                   end tz)
               tz))))
 
-(defun emacsconf-timezone-strings (o &optional timezones)
-  (mapcar (lambda (tz) (emacsconf-timezone-string o tz)) (or timezones emacsconf-timezones)))
+(defun emacsconf-timezone-strings (o &optional timezones format)
+  (mapcar (lambda (tz) (emacsconf-timezone-string o tz format)) (or timezones emacsconf-timezones)))
 
 (defun emacsconf-timezone-strings-combined (time timezones &optional format)
 	"Show TIME in TIMEZONES.
 If TIMEZONES is a string, split it by commas."
 	(let* ((format (or format "%b %-d %-l:%M %p"))
 				 (base-time (format-time-string format time emacsconf-timezone))
-				 (timezones (if (stringp timezones) (split-string timezones " *, *" t))))
+				 (timezones
+					(seq-remove (lambda (s) (string= emacsconf-timezone s))
+											(if (stringp timezones)
+													(split-string timezones " *, *" t)
+												timezones))))
 		(concat base-time " in " (emacsconf-schedule-rename-etc-timezone emacsconf-timezone)
 						(if timezones
 								(concat
@@ -1314,14 +1350,14 @@ If TIMEZONES is a string, split it by commas."
 ;;; Tracks
 (defvar emacsconf-tracks
   `((:name "General" :color "peachpuff" :id "gen" :channel "emacsconf-gen"
-           :watch "https://live.emacsconf.org/2022/watch/gen/"
+           :watch ,(format "https://live.emacsconf.org/%s/watch/gen/" emacsconf-year)
 				   :tramp "/ssh:emacsconf-gen@res.emacsconf.org#46668:"
            :webchat-url "https://chat.emacsconf.org/?join=emacsconf,emacsconf-org,emacsconf-accessible,emacsconf-dev,emacsconf-gen"
            :stream ,(concat emacsconf-stream-base "gen.webm")
            :480p ,(concat emacsconf-stream-base "gen-480p.webm")
-					 :youtube-url "https://www.youtube.com/watch?v=UEJ88c7MJq0"
-					 :youtube-studio-url "https://studio.youtube.com/video/UEJ88c7MJq0/livestreaming"
-					 :toobnix-url "https://toobnix.org/w/7t9X8eXuSby8YpyEKTb4aj"
+					 ;; :youtube-url "https://www.youtube.com/watch?v=UEJ88c7MJq0"
+					 ;; :youtube-studio-url "https://studio.youtube.com/video/UEJ88c7MJq0/livestreaming"
+					 ;; :toobnix-url "https://toobnix.org/w/7t9X8eXuSby8YpyEKTb4aj"
            :start "09:00" :end "17:00"
 					 :uid 2002
            :vnc-display ":5"
@@ -1329,12 +1365,12 @@ If TIMEZONES is a string, split it by commas."
 					 :autopilot crontab
            :status "offline")
    (:name "Development" :color "skyblue" :id "dev" :channel "emacsconf-dev"
-          :watch "https://live.emacsconf.org/2022/watch/dev/"
+          :watch  ,(format "https://live.emacsconf.org/%s/watch/dev/" emacsconf-year)
 				  :webchat-url "https://chat.emacsconf.org/?join=emacsconf,emacsconf-org,emacsconf-accessible,emacsconf-gen,emacsconf-dev"
           :tramp "/ssh:emacsconf-dev@res.emacsconf.org#46668:"
-					:toobnix-url "https://toobnix.org/w/w6K77y3bNMo8xsNuqQeCcD"
-					:youtube-url "https://www.youtube.com/watch?v=PMaoF-xa1b4"
-					:youtube-studio-url "https://studio.youtube.com/video/PMaoF-xa1b4/livestreaming"
+					;; :toobnix-url "https://toobnix.org/w/w6K77y3bNMo8xsNuqQeCcD"
+					;; :youtube-url "https://www.youtube.com/watch?v=PMaoF-xa1b4"
+					;; :youtube-studio-url "https://studio.youtube.com/video/PMaoF-xa1b4/livestreaming"
 					:stream ,(concat emacsconf-stream-base "dev.webm")
           :480p ,(concat emacsconf-stream-base "dev-480p.webm")
 					:uid 2003
@@ -1443,7 +1479,7 @@ Filter by TRACK if given.  Use INFO as the list of talks."
 (defun emacsconf-bbb-status (talk)
   (let ((states
          '((open . "OPEN_Q UNSTREAMED_Q")
-           (before . "TODO TO_REVIEW TO_ACCEPT WAITING_FOR_PREREC TO_PROCESS PROCESSING TO_AUTOCAP TO_ASSIGN TO_CAPTION TO_STREAM PLAYING CLOSED_Q")
+           (before . "TODO TO_REVIEW TO_ACCEPT WAITING_FOR_PREREC TO_PROCESS PROCESSING TO_AUTOCAP TO_ASSIGN TO_CAPTION TO_CHECK TO_STREAM PLAYING CLOSED_Q")
            (after . "TO_ARCHIVE TO_EXTRACT TO_REVIEW_QA TO_INDEX_QA TO_CAPTION_QA TO_FOLLOW_UP DONE")
            (cancelled . "CANCELLED"))))
     (if (string-match "live" (or (plist-get talk :q-and-a) ""))
@@ -1501,6 +1537,18 @@ Filter by TRACK if given.  Use INFO as the list of talks."
              ">" ""))
           (or info (emacsconf-get-volunteer-info))))
 
+(defun emacsconf-volunteer-insert-email (&optional info)
+	(interactive)
+	(insert (completing-read
+					 (mapcar
+						(lambda (o)
+							(emacsconf-surround
+							 (if (assoc-default "ITEM" o)
+									 (concat (assoc-default "ITEM" o) " <")
+								 "<")
+							 (assoc-default "EMAIL" o)
+							 ">" ""))
+						(or info (emacsconf-get-volunteer-info))))))
 (defun emacsconf-complete-volunteer (&optional info)
   (setq info (or info (emacsconf-get-volunteer-info)))
   (let* ((choices
