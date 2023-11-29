@@ -52,57 +52,90 @@
     "END:VCALENDAR")
    "\r\n"))
 
+(defun emacsconf-ical-fold (s)
+	(replace-regexp-in-string
+	 "\r\n$" ""
+	 (replace-regexp-in-string
+		"\n" "\r\n"
+		(string-trim
+		 (org-icalendar-fold-string
+			(org-icalendar-cleanup-string
+			 s))))))
+
 (defun emacsconf-ical-format-talk (o &optional updated)
   (string-join
    (delq
     nil
     (list
      "BEGIN:VEVENT"
-     (string-trim (org-icalendar-fold-string
-                   (org-icalendar-cleanup-string
-                    (concat "SUMMARY:" (plist-get o :title)
-                            (if (plist-get o :speakers)
-                                (concat " - " (plist-get o :speakers))
-                              "")))))
+		 (emacsconf-ical-fold
+			(concat "SUMMARY:" (plist-get o :title)
+							(emacsconf-surround " - " (plist-get o :speakers) "" "")))
      "ORGANIZER:EmacsConf"
-     (concat "LOCATION:" "https://emacsconf.org/")
-     ;; (concat "UID:emacsconf-" emacsconf-year "-" (plist-get o :slug))
-     (concat "UID:" (plist-get o :uuid))
-     (concat "URL:" "https://emacsconf.org/" emacsconf-year "/talks/" (plist-get o :slug))
+     (concat "LOCATION:" (plist-get (emacsconf-get-track (plist-get o :track)) :watch))
+		 (if (plist-get o :uuid)
+				 (concat "UID:" (plist-get o :uuid))
+			 (concat "UID:" emacsconf-id "-" emacsconf-year "-" (plist-get o :slug)))
+     (concat "URL:" (plist-get o :absolute-url))
      (concat "DTSTART:" (format-time-string "%Y%m%dT%H%M%SZ" (plist-get o :start-time) t))
      (concat "DTEND:" (format-time-string "%Y%m%dT%H%M%SZ" (plist-get o :end-time) t))
      (if updated (concat "DTSTAMP:" updated))
-     (string-trim
-      (org-icalendar-fold-string
-       (org-icalendar-cleanup-string
-        (concat "DESCRIPTION: Times are approximate and will probably change.\n"
-                "https://emacsconf.org/" emacsconf-year "/talks/" (plist-get o :slug) "\n"
-                (emacsconf-surround (if (length= (plist-get o :speakers) 1) "Speaker: " "Speakers: ")
-                                    (plist-get o :speakers)
-                                    "\n" "")
-                (plist-get o :markdown)))))
+			(emacsconf-ical-fold
+				(emacsconf-replace-plist-in-string
+				 (append o
+								 (list
+									:year emacsconf-year
+									:watch-url (plist-get (emacsconf-get-track (plist-get o :track)) :watch)
+									:stream (plist-get (emacsconf-get-track (plist-get o :track)) :stream)
+									:replay
+									(if (plist-get o :video-file) "There is a pre-recorded video for this talk, so it should be available from ${url} shortly after the talk starts."
+										(format "This talk is live. We'll upload it to %s%s by January or so. You can subscribe to emacsconf-discuss for updates: https://lists.gnu.org/mailman/listinfo/emacsconf-discuss"
+														emacsconf-media-base-url
+														emacsconf-year))
+									:speaker-text (emacsconf-surround
+																 (if (length= (plist-get o :speakers) 1) "\nSpeaker: " "\nSpeakers: ")
+																 (plist-get o :speakers)
+																 "" "")))
+				 "DESCRIPTION:${url}${speaker-text}
+
+Times are approximate and may change. Please check the talk webpage for details and other resources.
+
+Watch live using a streaming media player. Some examples:
+mpv ${stream}
+vlc ${stream}
+ffplay ${stream}
+
+or watch using the web-based player: ${watch-track}
+
+Q&A: ${qa-info}
+
+${replay}
+
+Description:
+${markdown}
+"))
      "END:VEVENT"))
    "\r\n"))
 
-(defun emacsconf-format-as-ical (emacsconf-info)
+(defun emacsconf-format-as-ical (emacsconf-info &optional title)
   (require 'ox-icalendar)
   (let ((updated (format-time-string "%Y%m%dT%H%M%SZ" nil t)))
     (string-join 
      (list
       "BEGIN:VCALENDAR"
       "VERSION:2.0"
-      "PRODID:EmacsConf"
-      (concat "X-WR-CALNAME:EmacsConf " emacsconf-year)
-      "X-WR-CALNAME:EmacsConf"
-      "CALSCALE:GREGORIAN"
+      (concat "PRODID:" emacsconf-name "-" emacsconf-year (emacsconf-surround "-" title "" ""))
+			(concat "X-WR-CALNAME:" emacsconf-name " " emacsconf-year (emacsconf-surround " " title "" ""))
+			"CALSCALE:GREGORIAN"
       "METHOD:PUBLISH"
-      (mapconcat (lambda (o) (emacsconf-ical-format-talk o updated))
-                 (seq-remove (lambda (o) (string= (plist-get o :status) "CANCELLED"))
-                             (emacsconf-filter-talks emacsconf-info))
-                 "\r\n")
+      (mapconcat
+			 (lambda (o) (emacsconf-ical-format-talk o updated))
+			 (emacsconf-publish-prepare-for-display (emacsconf-filter-talks emacsconf-info))
+       "\r\n")
       "END:VCALENDAR")
      "\r\n")))
 
+;;;###autoload
 (defun emacsconf-ical-generate-all ()
   (interactive)
   (let* ((emacsconf-talk-info-functions (append emacsconf-talk-info-functions (list 'emacsconf-get-abstract-from-wiki)))
@@ -114,7 +147,7 @@
   (with-temp-file (expand-file-name "emacsconf.ics"
                                     (or emacsconf-ical-public-directory
                                         (expand-file-name emacsconf-year emacsconf-directory)))
-    (insert (emacsconf-format-as-ical (emacsconf-prepare-for-display (or info (emacsconf-get-talk-info)))))))
+    (insert (emacsconf-format-as-ical (emacsconf-publish-prepare-for-display (or info (emacsconf-get-talk-info)))))))
 
 (defun emacsconf-ical-generate-tracks (&optional info)
   (interactive)
@@ -124,7 +157,8 @@
               (with-temp-file (expand-file-name (format "emacsconf-%s.ics" (plist-get track :id))
                                                 (or emacsconf-ical-public-directory
                                                     (expand-file-name emacsconf-year emacsconf-directory)))
-                (insert (emacsconf-format-as-ical (cdr entry)))))))
-        (seq-group-by (lambda (o) (plist-get o :track)) (emacsconf-prepare-for-display (or info (emacsconf-get-talk-info))))))
+                (insert (emacsconf-format-as-ical (cdr entry)
+																									(plist-get track :name)))))))
+        (seq-group-by (lambda (o) (plist-get o :track)) (emacsconf-publish-prepare-for-display (or info (emacsconf-get-talk-info))))))
 
 (provide 'emacsconf-ical)
