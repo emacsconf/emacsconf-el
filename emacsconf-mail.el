@@ -523,14 +523,15 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
 			(switch-to-buffer (current-buffer)))))
 
 (defun emacsconf-mail-merge-cancel ()
+	"Cancel all the unsent messages."
   (interactive)
   (mapc (lambda (buffer)
           (when (string-match "unsent" (buffer-name buffer))
-            (let ((kill-buffer-query-functions nil)
-									(undo-tree-auto-save-history nil)
-                  (buffer-modified-p nil))
-              (set-buffer-modified-p nil)
-              (kill-buffer buffer))))
+						(with-current-buffer buffer
+							(let ((kill-buffer-query-functions nil)
+										(undo-tree-auto-save-history nil))
+								(set-buffer-modified-p nil)
+								(kill-buffer buffer)))))
         (buffer-list)))
 
 ;;; Notmuch
@@ -572,7 +573,7 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
 Good for adding to `message-send-hook'."
 	(save-excursion
 		(goto-char (point-min))
-		(when (re-search-forward "ZZZ" nil t)
+		(when (re-search-forward "ZZZ\\|\\${" nil t)
 			(unless (yes-or-no-p "ZZZ marker found. Send anyway? ")
 				(error "ZZZ marker found.")))))
 
@@ -850,8 +851,13 @@ Thank you so much for all the work you put into preparing a talk for ${conf-name
 ${signature}")
 	 (plist-get talk :email)
 	 (let ((default-directory emacsconf-cache-dir)
-				 (files (directory-files emacsconf-cache-dir
-																 t (regexp-quote (plist-get talk :file-prefix)))))
+				 (files
+					(seq-remove
+					 (lambda (o)
+						 (string-match "--intro\\.\\(webm\\|vtt\\)"
+													 o))
+					 (directory-files emacsconf-cache-dir
+														t (regexp-quote (plist-get talk :file-prefix))))))
 		 (list
 			:title (plist-get talk :title)
 			:conf-name emacsconf-name
@@ -1353,7 +1359,7 @@ ${signature}"))
 						(error "Number of rooms for %s speaker: %d"
 									 (plist-get (cadr group) :slug)
 									 (length (seq-uniq (mapcar (lambda (o) (plist-get o :bbb-room)) (cdr group))))))
-					 (t (plist-get (car (cdr group)) :bbb-backstage)))
+					 (t (emacsconf-backstage-url (plist-get (car (cdr group)) :bbb-backstage))))
 					:bbb-tips (concat emacsconf-base-url emacsconf-year "/bbb-for-speakers/")
 					:intro-url (mapconcat
 											(lambda (talk)
@@ -1366,14 +1372,18 @@ ${signature}"))
 																		emacsconf-year
 																		(plist-get talk :file-prefix))
 													(error "No intro file for %s" (plist-get talk :slug))))
-											(cdr group))))))))
+											(cdr group)
+											" , ")))))))
 
 (defun emacsconf-mail-checkin-instructions-to-all ()
 	"Draft check-in instructions for all speakers."
 	(interactive)
-	(let* ((talks (seq-filter (lambda (o) (and (plist-get o :email)
-																						 (plist-get o :q-and-a)))
-														(emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
+	(let* ((talks
+					(emacsconf-filter-talks-by-logbook
+					 "sent check-in information"
+					 (seq-filter (lambda (o) (and (plist-get o :email)
+																				(plist-get o :q-and-a)))
+											 (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))
 				 (by-attendance (seq-group-by (lambda (o) (null (string-match "after" (plist-get o :q-and-a))))
 																			talks)))
 		(dolist (group (emacsconf-mail-groups (assoc-default nil by-attendance)))
@@ -1392,37 +1402,26 @@ GROUP is (email . (talk talk))"
                           (null (plist-get o :email))
                           (string-match "after" (or (plist-get o :q-and-a) ""))))
                        (emacsconf-get-talk-info)))))
-	(let ((waiting-talks (seq-filter (lambda (o) (string= (plist-get o :status) "WAITING_FOR_PREREC")) (cdr group))))
-		(emacsconf-mail-prepare
-		 (list
-			:subject "${conf-name} ${year}: Check-in instructions"
-			:reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
-			:mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
-			:log-note "sent check-in information for people who will be there"
-			:body
-			"${email-notes}Hello, ${speakers-short}!
+	(emacsconf-mail-prepare
+	 (list
+		:subject "${conf-name} ${year}: Check-in instructions"
+		:reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+		:mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+		:log-note "sent check-in information for people who will be there"
+		:body
+		"${email-notes}Hello, ${speakers-short}!
 
 We're looking forward to having you join us at ${conf-name}!
 Here's your talk page URL and checkin information:
 
 ${checkin-info}
 
-You can get a rough idea of your schedule on your talk
-page${plural}, and then check it again on the day of your
-talk${plural} for any changes. We'll try our best to keep your
-talk in the same general timeslot (ex: Saturday morning, Saturday
-afternoon, Sunday morning, Sunday afternoon). If there are big
-changes to your schedule on the day of your talk${plural}, you'll
-get an e-mail from us with a subject like \"URGENT: ${conf-name}
-${year}: ...\". Please let me know if something has come up and
-the times don't work for you.${wrap}
+Please check in early so that we can deal with scheduling changes
+or technical issues, and so that we don't worry too much about
+missing speakers (aaah!). You can find the check-in
+process at ${base-url}${year}/speakers/ . ${wrap}
 
-Please check in early so that we can deal with scheduling changes or
-technical issues, and so that we don't worry too much about whether
-you'll be ready to go for Q&A. =) You can find the check-in process at
-${base-url}${year}/speakers/ .${waiting}${wrap}
-
-If something comes up, please let us know as soon as you can. Here's
+${waiting}If something comes up, please let us know as soon as you can. Here's
 my emergency contact information: ${emergency}${wrap}
 
 Thank you for sharing your time and energy with the ${conf-name}
@@ -1432,55 +1431,59 @@ ${signature}
 
 p.s. If you need to cancel, that's okay too, life happens. Let me know
 as soon as you can and I'll try to shuffle things around. Thank you!")
-     (car group)
-     (list
-			:year emacsconf-year
-			:base-url emacsconf-base-url
-			:conf-name emacsconf-name
-			:email (car group)
-			:emergency emacsconf-emergency-contact
-			:plural (if (> (length (cdr group)) 1) "s" "")
-			:speakers-short (plist-get (cadr group) :speakers-short)
-			:url (mapconcat (lambda (o) (concat emacsconf-base-url (plist-get o :url)))
-											(cdr group) " , ")
-			:email-notes (emacsconf-surround "ZZZ: " (plist-get (cadr group) :email-notes) "\n\n" "")
-			:signature user-full-name
-			:waiting
-			(cond
-       ((> (length waiting-talks) 1)
-				" If you can upload talk videos before the conference, I think that might be much less stressful for everyone than doing it live. =) Please note that we will turn off the web-based upload on Dec 1 to free up memory on the server, so please upload them as early as you can.${wrap}")
-       ((= (length waiting-talks) 1)
-				" If you can upload a talk video before the conference, I think that might be much less stressful for everyone than doing it live. =) Please note that we will turn off the web-based upload on Dec 1 to free up memory on the server, so please upload it as early as you can.${wrap}")
-       (t ""))
-			:checkin-info
-			(mapconcat
-       (lambda (o)
-           (emacsconf-replace-plist-in-string
-						(append (list :base-url emacsconf-base-url
-													:check-in
-													(concat
-                           "Before "
-													 (emacsconf-timezone-strings-combined
-														(plist-get o :checkin-time)
-														(plist-get o :timezone))
-                           "  (this is " (plist-get o :checkin-label) ")")
-													:qa-info-speakers
-													(cond
-                           ;; aaaaah, no prerec yet
-                           ((string= (plist-get o :status) "WAITING_FOR_PREREC")
-														(concat "Q&A BigBlueButton room (and possibly also the talk if you want to do it live): " (plist-get o :bbb-room)))
-                           ((null (plist-get o :q-and-a)) "")
-                           ((string-match "live" (plist-get o :q-and-a)) (concat "Q&A BigBlueButton room: " (plist-get o :bbb-room)))
-                           ((string-match "irc" (plist-get o :q-and-a)) (concat "Q&A: " (plist-get o :channel) " (" (plist-get o :webchat-url) ")"))
-                           ((string-match "pad" (plist-get o :q-and-a)) "Q&A: On the pad")
-                           (t "Q&A: After the event")))
-										o)
-						"- ${title}
+   (car group)
+   (list
+		:year emacsconf-year
+		:base-url emacsconf-base-url
+		:conf-name emacsconf-name
+		:user-email user-mail-address
+		:email (car group)
+		:emergency emacsconf-emergency-contact
+		:plural (if (> (length (cdr group)) 1) "s" "")
+		:speakers-short (plist-get (cadr group) :speakers-short)
+		:url (mapconcat (lambda (o) (concat emacsconf-base-url (plist-get o :url)))
+										(cdr group) " , ")
+		:email-notes (emacsconf-surround "ZZZ: " (plist-get (cadr group) :email-notes) "\n\n" "")
+		:waiting (let ((waiting (seq-remove (lambda (o) (plist-get o :video-file)) (cdr group))))
+							 (cond
+								((= (length waiting) 0) "")
+								((= (length waiting) 1) "If you happen to be able to get a pre-recorded video together in the next few days, I think we might be able to still manage that.${fill}\n\n")
+								(t "If you happen to be able to get your pre-recorded videos together in the next few days, I think we might be able to still manage them.${fill}\n\n")))
+		:signature user-full-name
+		:checkin-info
+		(mapconcat
+     (lambda (o)
+       (emacsconf-replace-plist-in-string
+				(append (list :base-url emacsconf-base-url
+											:check-in
+											(concat
+                       "Before "
+											 (emacsconf-timezone-strings-combined
+												(plist-get o :checkin-time)
+												(plist-get o :timezone))
+                       "\n  (this is " (plist-get o :checkin-label) ")")
+											:qa-info-speakers
+											(cond
+											 ((or (plist-get o :live) (null (plist-get o :video-file)))	;; intentionally a live talk
+												(concat "Talk & Q&A BigBlueButton room: "
+																(emacsconf-backstage-url (plist-get o :bbb-backstage))))
+                       ((string= (plist-get o :qa-type) "none")
+												"Q&A: After the event; we'll collect the questions and e-mail them to you")
+											 ((string= (plist-get o :qa-type) "live")
+												(concat "Q&A BigBlueButton room: "
+																(emacsconf-backstage-url (plist-get o :bbb-backstage))))
+											 ((string= (plist-get o :qa-type) "irc")
+												(concat "Q&A: On IRC: #" (plist-get o :channel) " ( " (plist-get o :webchat-url) " )"))
+											 ((string= (plist-get o :qa-type) "pad")
+												(concat "Q&A: On Etherpad"))
+											 (t "Q&A: After the event; we'll collect the questions and e-mail them to you")))
+								o)
+				"- ${title}
   Info and sched: ${base-url}${url}
   Check-in: ${check-in}
   Pad: ${pad-url}
   ${qa-info-speakers}"))
-				(cdr group) "\n\n")))))
+		 (cdr group) "\n\n"))))
 
 (defun emacsconf-mail-checkin-instructions-for-nonattending-speakers (group)
   "Send checkin note to speakers who will not be there.
@@ -1498,7 +1501,7 @@ GROUP is (email . (talk talk))"
 		 :subject "${conf-name} ${year}: Check-in instructions in case you happen to want to join us"
 		 :reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
 		 :mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
-		 :log-note "sent check-in information for people who will be there"
+		 :log-note "sent check-in information for people who will not be there"
 		 :body
 		 "${email-notes}Hello, ${speakers-short}!
 
@@ -1521,8 +1524,9 @@ Sacha")
      :year emacsconf-year
      :base-url emacsconf-base-url
      :conf-name emacsconf-name
-     :email (plist-get (car talks) :email)
-     :speakers-short (plist-get (car talks) :speakers-short)
+     :email (car group)
+		:user-email user-mail-address
+     :speakers-short (plist-get (cadr group) :speakers-short)
      :url (mapconcat (lambda (o) (concat emacsconf-base-url (plist-get o :url)))
                      (cdr group) " , ")
 		 :email-notes (emacsconf-surround "ZZZ: " (plist-get (cadr group) :email-notes) "\n\n" ""))))
