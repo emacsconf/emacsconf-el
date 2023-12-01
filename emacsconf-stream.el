@@ -20,7 +20,7 @@
 
 ;;; Commentary:
 
-;; 
+;;
 
 ;;; Code:
 
@@ -459,7 +459,7 @@ With a prefix argument (\\[universal-argument]), clear the overlay."
       (global-hl-line-mode -1))
     (set-window-margins nil 10 10)))
 
-(defun emacsconf-stream-generate-title-page (talk)
+(defun emacsconf-stream-generate-title-page-in-emacs (talk)
   (interactive (list (emacsconf-complete-talk-info)))
   (emacsconf-stream-display-talk-info talk)
   (message nil)
@@ -471,7 +471,7 @@ With a prefix argument (\\[universal-argument]), clear the overlay."
              (shell-quote-argument (expand-file-name (concat (plist-get talk :slug) "-title.svg")
                                     (expand-file-name "titles" emacsconf-stream-asset-dir))))))
 
-(defun emacsconf-stream-generate-title-pages (&optional info)
+(defun emacsconf-stream-generate-title-pages-in-emacs (&optional info)
   (interactive)
   (setq info (emacsconf-publish-prepare-for-display (or info (emacsconf-get-talk-info))))
   (let ((title-dir (expand-file-name "titles" emacsconf-stream-asset-dir)))
@@ -578,6 +578,37 @@ With a prefix argument (\\[universal-argument]), clear the overlay."
                       (setq prev talk))
                     (emacsconf-filter-talks (cdr track)))))
           by-track)))
+
+(defun emacsconf-stream-generate-titles (&optional info)
+  (interactive)
+  (setq info (or emacsconf-schedule-draft (emacsconf-publish-prepare-for-display (emacsconf-filter-talks (or info (emacsconf-get-talk-info))))))
+  (let* ((by-track (seq-group-by (lambda (o) (plist-get o :track)) info))
+         (dir (expand-file-name "titles" emacsconf-stream-asset-dir))
+         (template (expand-file-name "template.svg" (expand-file-name "in-between"
+																																			emacsconf-stream-asset-dir))))
+		(unless (file-directory-p dir)
+			(make-directory dir t))
+    (mapc (lambda (track)
+            (let (prev)
+              (mapc (lambda (talk)
+                      (let ((dom (xml-parse-file template)))
+												;; hide all the previous stuff
+												(svg-remove dom "g-prev")
+												(svg-remove dom "divider")
+												(svg-remove dom "current-qa")
+												(emacsconf-stream-svg-set-text dom "current-title" (plist-get talk :title))
+                        (emacsconf-stream-svg-set-text dom "current-speakers" (plist-get talk :speakers))
+                        (emacsconf-stream-svg-set-text dom "current-url" (plist-get talk :absolute-url))
+                        (with-temp-file (expand-file-name (concat (plist-get talk :slug) ".svg") dir)
+                          (dom-print dom))
+												(shell-command
+                         (concat "inkscape --export-type=png -w 1280 -h 720 --export-background-opacity=0 "
+                                 (shell-quote-argument (expand-file-name (concat (plist-get talk :slug) ".svg")
+                                                                         dir)))))
+                      (setq prev talk))
+                     (emacsconf-filter-talks (cdr track)))))
+          by-track)))
+
 
 (defun emacsconf-stream-generate-test-subtitles (&optional info)
   (interactive)
