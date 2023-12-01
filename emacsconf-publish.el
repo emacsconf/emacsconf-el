@@ -1468,7 +1468,9 @@ answers without needing to listen to everything again. You can see <a href=\"htt
 															f)
 						;; further tests
 						(pcase f
-							((rx (seq "vtt" string-end)) (plist-get talk :captions-edited))
+							((rx (seq "vtt" string-end))
+							 (or (plist-get talk :captions-edited)
+									 (emacsconf-captions-edited-p (expand-file-name f emacsconf-cache-dir))))
 							((rx (seq "--"
 												(or "original" "reencoded" "normalized")
 												"."
