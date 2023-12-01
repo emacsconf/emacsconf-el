@@ -130,6 +130,8 @@ Each function should take the info and manipulate it as needed, returning the ne
             o)
           info))
 
+(defun emacsconf-schedule-ignore-fixed (info)
+	(mapcar (lambda (o) (plist-put o :fixed-time nil)) info))
 (defun emacsconf-schedule-dump-sexp (info &optional include-time)
   (mapcar (lambda (o)
             (cond
@@ -267,15 +269,18 @@ Pairs with `emacsconf-schedule-dump-sexp'."
               (org-entry-put (point) "TIME" (plist-get talk :time)))
             (emacsconf-filter-talks info)))))
 
-(defun emacsconf-schedule-save-emailed-times (info &optional force)
-	(interactive (list (or emacsconf-schedule-draft (emacsconf-get-talk-info)) current-prefix-arg))
+(defun emacsconf-schedule-save-emailed-times (info &optional field force)
+	(interactive (list (or emacsconf-schedule-draft (emacsconf-get-talk-info))
+										 (read-string "Field: ") current-prefix-arg))
 	(save-window-excursion
     (save-excursion
       (mapc (lambda (talk)
               (emacsconf-go-to-talk (plist-get talk :slug))
 							(when (and (plist-get talk :scheduled)
-												 (or force (null (org-entry-get (point) "ORIGINAL_SCHEDULE"))))
-								(org-entry-put (point) "ORIGINAL_SCHEDULE"
+												 (or force (null (org-entry-get (point)
+																												(or field "ORIGINAL_SCHEDULE")))))
+								(org-entry-put (point)
+															 (or field "ORIGINAL_SCHEDULE")
 															 (replace-regexp-in-string "[<>]" "" (plist-get talk :scheduled)))))
             (emacsconf-filter-talks info)))))
 

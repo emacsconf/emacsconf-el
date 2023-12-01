@@ -372,7 +372,7 @@ ${next-talk-list}
 										:year emacsconf-year)
               shift)
       (concat
-       "Back to ${index}<br />In case of ...: https://emacsconf.org/${year}/organizers-notebook/#exceptions<br />"
+       "Back to ${index}<br />In case of ...: https://pad.emacsconf.org/exceptions<br />"
        "<h1><strong>" (plist-get shift :id) "</strong></h1>"
        "<p>Host: ${host}, Streamer: ${streamer}, IRC: ${irc}, Pad: ${pad}, Check-in: ${checkin}, Coord: ${coord}</p>"))
      (emacsconf-replace-plist-in-string
@@ -456,11 +456,11 @@ ${next-talk-list}
 											 (emacsconf-surround " (" (plist-get talk :irc) ")" "")
 											 "</strong>")
             :time
-            (format-time-string "%H:%M" (plist-get talk :checkin-time) emacsconf-timezone)
+            (format-time-string "%-l:%M %p" (plist-get talk :checkin-time) emacsconf-timezone)
             :live
-            (format-time-string "%H:%M" (plist-get talk :live-time) emacsconf-timezone)
+            (format-time-string "%-l:%M %p" (plist-get talk :live-time) emacsconf-timezone)
             :start
-            (format-time-string "%H:%M" (plist-get talk :start-time) emacsconf-timezone)
+            (format-time-string "%-l:%M %p" (plist-get talk :start-time) emacsconf-timezone)
             :bbb-checklist
 						(emacsconf-replace-plist-in-string
 						 (list :backstage-url-with-password (emacsconf-backstage-url (plist-get talk :bbb-backstage))
@@ -469,7 +469,12 @@ ${next-talk-list}
 									 (concat (emacsconf-surround "" (plist-get talk :pronunciation) " or listen to " "Refer to ")
 													 (format "%s%s/backstage/%s--intro.webm" emacsconf-media-base-url emacsconf-year (plist-get talk :file-prefix)))
 									 :backstage-password emacsconf-backstage-password
-									 :backstage-url (plist-get talk :bbb-backstage))
+									 :backstage-url (plist-get talk :bbb-backstage)
+									 :live
+									 (emacsconf-timezone-strings-combined
+										(plist-get talk :live-time)
+										(plist-get talk :timezone)
+										"%-l:%M %p"))
 						 "<ul>
 <li>Message for the speaker: Thanks for checking in! Your BigBlueButton web conference room is at ${backstage-url}. If you don't have the backstage username and password saved, let me know and I can send you a direct message with the info. Please join me there so that I can set you as a moderator and go through the preflight checklist with you.
 <li>Direct message for the speaker if needed: Your BigBlueButton web conference room is at ${backstage-url-with-password}, or username \"${backstage-user}\" and password \"${backstage-password}\".</li>
@@ -483,7 +488,7 @@ ${next-talk-list}
 <ul><li>[ ] Window or screen can be shared
 <li>[ ] Text is readable</li></ul>
 <li>[ ] Webcam sharing (optional)</li></ul></li>
-<li>OK to do other things until the prerec ends</li>
+<li>OK to do other things until going live at <strong>${live}</strong></li>
 <li>People will add questions to the pad or IRC channel; host can read them to you, or you can read them</li>
 <li>You can answer questions in any order, and you can skip questions if you want. Feel free to take your time to think about answers or to save some for following up later</li>
 <li>Host and streamer will join after prerec ends and give you the signal when you're good to go</li>
@@ -573,7 +578,7 @@ ${bbb-checklist}</li>")
 				"")
 
 			 )
-			"<p>Things to do in case of... ${base-url}${year}/organizers-notebook/#exceptions</p>
+			"<p>Things to do in case of... https://pad.emacsconf.org/exceptions</p>
 
 <div>Checkin:
 <ul>${checkin-list}</ul></div>
@@ -640,25 +645,25 @@ ${bbb-checklist}</li>")
 					 (let ((next-talk (car (plist-get talk :next-talks))))
 						 (emacsconf-replace-plist-in-string
 							(append
-							 (list :start-hhmm (format-time-string "%H:%M" (plist-get talk :start-time) emacsconf-timezone)
+							 (list :start-hhmm (format-time-string "%-l:%M %p" (plist-get talk :start-time) emacsconf-timezone)
 										 :expanded-intro (emacsconf-pad-expand-intro talk)
 										 :intro-url (format "%s%s/backstage/%s--intro.webm" emacsconf-media-base-url emacsconf-year (plist-get talk :file-prefix))
 										 :mumble (concat emacsconf-id "-" (plist-get (emacsconf-get-track talk) :id))
 										 :open-qa (if emacsconf-qa-start-open ""
 																"<li>Decide when to open the Q&A BBB up to everyone. Let ${coord} know.</li>")
-										 :end-of-qa (if next-talk (format-time-string "%H:%M" (plist-get next-talk :start-time) emacsconf-timezone)
+										 :end-of-qa (if next-talk (format-time-string "%-l:%M %p" (plist-get next-talk :start-time) emacsconf-timezone)
 																	"end of shift")
 										 :pronunciation
 										 (concat (emacsconf-surround "" (plist-get talk :pronunciation) " or listen to " "Refer to ")
 														 (format "%s%s/backstage/%s--intro.webm" emacsconf-media-base-url emacsconf-year (plist-get talk :file-prefix)))
-										 :qa-hhmm (format-time-string "%H:%M" (plist-get talk :qa-time) emacsconf-timezone)
+										 :qa-hhmm (format-time-string "%-l:%M %p" (plist-get talk :qa-time) emacsconf-timezone)
 										 :hyperlist-note-info
 										 (emacsconf-surround
 											(format "<li><strong>%s NOTE for ${slug}:</strong> "
-															(format-time-string "%H:%M" (plist-get talk :start-time) emacsconf-timezone))
+															(format-time-string "%-l:%M %p" (plist-get talk :start-time) emacsconf-timezone))
 											(plist-get talk :hyperlist-note) "</li>" "")
-										 :next-talk-in-5 (if next-talk (format-time-string "%H:%M" (time-subtract (plist-get next-talk :start-time) (seconds-to-time 300)) emacsconf-timezone) "")
-										 :next-talk-in-1 (if next-talk (format-time-string "%H:%M" (time-subtract (plist-get next-talk :start-time) (seconds-to-time 60)) emacsconf-timezone) ""))
+										 :next-talk-in-5 (if next-talk (format-time-string "%-l:%M %p" (time-subtract (plist-get next-talk :start-time) (seconds-to-time 300)) emacsconf-timezone) "")
+										 :next-talk-in-1 (if next-talk (format-time-string "%-l:%M %p" (time-subtract (plist-get next-talk :start-time) (seconds-to-time 60)) emacsconf-timezone) ""))
 							 talk)
 							(concat
 							 "${hyperlist-note-info}"
@@ -667,7 +672,7 @@ ${bbb-checklist}</li>")
 								 (null (plist-get talk :video-file))
 								 "<li><strong>${start-hhmm} ${slug} live talk</strong>: it should play a prerecorded intro, but if it doesn't, join ${bbb-backstage} and introduce talk, then turn it over to speaker for <strong>live talk</strong>: ${expanded-intro} (pronunciation: ${pronunciation})</li>")
 								(t ;; prerecorded talk
-								 "<li>Backup: ${start-hhmm} ${slug}: it should play a prerecorded intro and talk, but if it doesn't, join ${mumble} in Mumble and introduce talk: ${expanded-intro} (pronunciation: ${pronunciation})</li>"))
+								 "<li>Backup: ${start-hhmm} ${slug}: it should play a prerecorded intro and talk, but if it doesn't, join ${mumble} in Mumble and introduce talk: ${expanded-intro} (pronunciation: ${pronunciation}); then <em>play ${slug}</em></li>"))
 							 ;; Q&A
 							 (if (and (null (plist-get talk :video-file)) (not (string= (or (plist-get talk :q-and-a) "none") "none")))
 									 "<li>Continue in the BBB room for live Q&A because the talk was live</li>"
@@ -764,10 +769,10 @@ ${bbb-checklist}</li>")
             (emacsconf-pad-expand-intro talk)
             :media-base emacsconf-media-base-url
             :mumble (concat emacsconf-id "-" track-id)
-            :next-talk-in-5 (if next-talk (format-time-string "%H:%M" (time-subtract (plist-get next-talk :start-time) (seconds-to-time 300)) emacsconf-timezone) "")
-            :next-talk-in-1 (if next-talk (format-time-string "%H:%M" (time-subtract (plist-get next-talk :start-time) (seconds-to-time 60)) emacsconf-timezone) "")
-						:qa-start (format-time-string "%H:%M" (plist-get talk :qa-time) emacsconf-timezone)
-						:qa-end (if next-talk (format-time-string "%H:%M" (plist-get next-talk :start-time))
+            :next-talk-in-5 (if next-talk (format-time-string "%-l:%M %p" (time-subtract (plist-get next-talk :start-time) (seconds-to-time 300)) emacsconf-timezone) "")
+            :next-talk-in-1 (if next-talk (format-time-string "%-l:%M %p" (time-subtract (plist-get next-talk :start-time) (seconds-to-time 60)) emacsconf-timezone) "")
+						:qa-start (format-time-string "%-l:%M %p" (plist-get talk :qa-time) emacsconf-timezone)
+						:qa-end (if next-talk (format-time-string "%-l:%M %p" (plist-get next-talk :start-time))
 											"end of shift")
             :ssh  "ssh orga@res.emacsconf.org -p 46668 "
             :ssh-track (format "ssh %s-%s@res.emacsconf.org -p 46668 " emacsconf-id track-id)
@@ -787,7 +792,7 @@ ${bbb-checklist}</li>")
           (emacsconf-replace-plist-in-string
            modified-talk
            (format "<li><strong>%s %s (intro: %s, talk: %s, Q&A: %s) %s <a href=\"%s\">%s</a></strong><ul>%s</ul>\n</li>"
-                   (format-time-string "%H:%M" (plist-get talk :start-time) emacsconf-timezone)
+                   (format-time-string "%-l:%M %p" (plist-get talk :start-time) emacsconf-timezone)
                    (plist-get talk :slug)
                    (if (plist-get talk :recorded-intro) "recorded" "live")
                    (if (plist-get talk :video-file) "recorded" "live")
