@@ -856,21 +856,6 @@ Back to the [[talks]]  \n"
             (emacsconf-publish-before-page o info))
           info)))
 
-(defun emacsconf-publish-talks-page (&optional emacsconf-info)
-	"Generate a list of talks."
-  (interactive)
-  (let ((info (or emacsconf-info
-									(sort
-									 (seq-filter #'emacsconf-publish-talk-p
-															 (or emacsconf-schedule-draft (emacsconf-get-talk-info)))
-									 #'emacsconf-sort-by-track-then-schedule)))
-				(range (format "<%s %s-%s>"
-											 emacsconf-date
-											 (plist-get (car emacsconf-tracks) :start)
-											 (plist-get (car emacsconf-tracks) :end))))
-    (with-temp-file (expand-file-name "talk-details.md" (expand-file-name emacsconf-year emacsconf-directory))
-))
-
 (defun emacsconf-generate-main-schedule-with-tracks (&optional info)
   (interactive (list nil))
   (setq info (or info (emacsconf-publish-prepare-for-display info)))
