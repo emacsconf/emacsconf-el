@@ -347,7 +347,8 @@
                 (file-name-nondirectory video-file)))
             :captions
             (and (stringp video-file)
-                 (plist-get talk :captions-edited)
+                 (or (plist-get talk :captions-edited)
+										 (emacsconf-captions-edited-p (expand-file-name (emacsconf-talk-file talk "--main.vtt") emacsconf-cache-dir)))
                  (let ((tracks
                         (emacsconf-video-subtitle-tracks
 												 (or (plist-get talk :caption-file)
