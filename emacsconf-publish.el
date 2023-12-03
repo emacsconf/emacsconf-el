@@ -348,7 +348,10 @@
             :captions
             (and (stringp video-file)
                  (or (plist-get talk :captions-edited)
-										 (emacsconf-captions-edited-p (expand-file-name (emacsconf-talk-file talk "--main.vtt") emacsconf-cache-dir)))
+										 (and
+											(emacsconf-talk-file talk "--main.vtt")
+											(emacsconf-captions-edited-p
+											 (expand-file-name (emacsconf-talk-file talk "--main.vtt") emacsconf-cache-dir))))
                  (let ((tracks
                         (emacsconf-video-subtitle-tracks
 												 (or (plist-get talk :caption-file)
@@ -587,7 +590,7 @@ resources."
 																 (org-timestamp-split-range
 																	(org-timestamp-from-string (plist-get o :scheduled))))))
                     (format
-                     "<div>Times in different timezones:</div><div class=\"times\" start=\"%s\" end=\"%s\"><div class=\"conf-time\">%s</div><div class=\"others\"><div>which is the same as:</div>%s</div></div><div><a href=\"/%s/watch/%s/\">Find out how to watch and participate</a></div>"
+                     "<div>Times in different timezones:</div><div class=\"times\" start=\"%s\" end=\"%s\"><div class=\"conf-time\">%s</div><div class=\"others\"><div>which is the same as:</div>%s</div></div><div><strong><a href=\"/%s/watch/%s/\">Find out how to watch and participate</a></strong></div>"
                      (format-time-string "%Y-%m-%dT%H:%M:%SZ" start t)
                      (format-time-string "%Y-%m-%dT%H:%M:%SZ" end t)
                      (emacsconf-timezone-string o emacsconf-timezone)
@@ -747,7 +750,7 @@ This includes the intro note, the schedule, and talk resources."
 													 (if lang
 															 (format "--main_%s.vtt" lang)
 														 "--main.vtt"))))
-										 (if (emacsconf-captions-edited-p filename) ; todo: cache this somewhere
+										 (if (and filename (emacsconf-captions-edited-p filename)) ; todo: cache this somewhere
 												 (emacsconf-publish-format-transcript
 													(append
 													 (list :chapter-file (emacsconf-talk-file talk "--main--chapters.vtt")
@@ -823,7 +826,10 @@ Back to the [[talks]]  \n"
                           (if prev-talk (format "Previous by %s: %s  \n" label prev-talk) "")
                           (if next-talk (format "Next by %s: %s  \n" label next-talk) "")
                           (if (plist-get o :track) ; tagging doesn't work here because ikiwiki will list the nav page
-                              (format "Track: <span class=\"sched-track %s\">%s</span>  \n" (plist-get o :track) (plist-get o :track))
+                              (format "Track: <span class=\"sched-track %s\">%s</span> - <strong><a href=\"%s\">Watch</a></strong>  \n"
+																			(plist-get o :track)
+																			(plist-get o :track)
+																			(plist-get o :watch-url))
                             "")
                           "</div>
 ")))))))
