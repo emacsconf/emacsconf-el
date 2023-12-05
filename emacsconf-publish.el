@@ -699,40 +699,41 @@ This includes the intro note, the schedule, and talk resources."
     (insert "<!-- End of emacsconf-publish-before-page -->")))
 
 
-(defun emacsconf-format-transcript-from-list (subtitles paragraphs video-id &optional lang)
-  "Return subtitle directives for SUBTITLES split by PARAGRAPHS."
+(defun emacsconf-format-transcript-from-list (subtitles video-id &optional lang)
+  "Return subtitle directives for SUBTITLES."
   (when (stringp subtitles) (setq subtitles (subed-parse-file subtitles)))
-  (when (stringp paragraphs) (setq paragraphs (subed-parse-file paragraphs)))
   (mapconcat
    (lambda (sub)
      (let ((msecs (elt sub 1)))
-       (format "[[!template %stext=\"\"\"%s\"\"\" start=\"%s\" video=\"%s\" id=\"subtitle\"%s]]"
-               (if (and paragraphs (>= msecs (elt (car paragraphs) 1)))
-                   (progn
-                     (while (and paragraphs (>= (elt sub 1) (elt (car paragraphs) 1)))
-                       (setq paragraphs (cdr paragraphs)))
-                     "new=\"1\" ")
-                 "")
-							 (replace-regexp-in-string "^#" "\\\\#"
-															 (replace-regexp-in-string "\"" "&quot;" (elt sub 3)))
-               (concat (format-seconds "%02h:%02m:%02s" (/ (floor msecs) 1000))
-                       "." (format "%03d" (mod (floor msecs) 1000)))
-               video-id
-               (emacsconf-surround " lang=\"" lang "\"" ""))))
+			 (concat
+				(if (and (elt sub 4) (not (string= (elt sub 4) "")))
+						(format "\n[[!template new=\"1\" text=\"\"\"%s\"\"\" video=\"%s\" id=\"subtitle\"%s]]\n\n"
+										(string-trim (replace-regexp-in-string "^NOTE[ \n]" "" (elt sub 4)))
+										(concat (format-seconds "%02h:%02m:%02s" (/ (floor msecs) 1000))
+														"." (format "%03d" (mod (floor msecs) 1000)))
+										video-id
+										(emacsconf-surround " lang=\"" lang "\"" ""))
+					"")
+				(format
+				 "[[!template text=\"\"\"%s\"\"\" start=\"%s\" video=\"%s\" id=\"subtitle\"%s]]"
+				 (replace-regexp-in-string "^#" "\\\\#"
+																	 (replace-regexp-in-string "\"" "&quot;" (elt sub 3)))
+				 (concat (format-seconds "%02h:%02m:%02s" (/ (floor msecs) 1000))
+								 "." (format "%03d" (mod (floor msecs) 1000)))
+				 video-id
+				 (emacsconf-surround " lang=\"" lang "\"" "")))))
    subtitles "\n"))
 
 (defun emacsconf-publish-format-transcript (talk &optional video-id lang)
   "Format the transcript for TALK, adding paragraph markers when possible."
 	(require 'subed)
-  (let* ((chapters (plist-get talk :chapter-file))
-         (subtitles
+  (let* ((subtitles
           (subed-parse-file (if lang
 																(format "%s_%s.vtt"
 																				(file-name-sans-extension
 																				 (plist-get talk :caption-file))
 																				lang)
-															(plist-get talk :caption-file))))
-         (pars (subed-parse-file chapters)))
+															(plist-get talk :caption-file)))))
     (if subtitles
         (format "<a name=\"%s-%s-transcript%s\"></a>
 # %s
@@ -745,7 +746,7 @@ This includes the intro note, the schedule, and talk resources."
                 (emacsconf-surround "-" lang "" "")
 								(if lang (assoc-default lang emacsconf-publish-subtitle-languages) "Transcript")
 								(emacsconf-format-transcript-from-list
-                 subtitles pars (concat video-id "-" (plist-get talk :slug))))
+                 subtitles (concat video-id "-" (plist-get talk :slug))))
       "")))
 
 (defun emacsconf-publish-format-captions (talk)
