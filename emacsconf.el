@@ -124,7 +124,7 @@
 (defvar emacsconf-backstage-dir "/ssh:orga@media.emacsconf.org:/var/www/media.emacsconf.org/2022/backstage")
 (defvar emacsconf-upload-dir "/ssh:orga@media.emacsconf.org:/srv/upload")
 (defvar emacsconf-res-dir (format "/ssh:orga@res.emacsconf.org:/data/emacsconf/%s" emacsconf-year))
-(defvar emacsconf-media-extensions '("webm" "mkv" "mp4" "webm" "avi" "ts" "ogv" "wav" "ogg" "mp3"))
+(defvar emacsconf-media-extensions '("webm" "mkv" "mp4" "webm" "mov" "avi" "ts" "ogv" "wav" "ogg" "mp3" ))
 (defvar emacsconf-ftp-upload-dir "/ssh:orga@media.emacsconf.org:/srv/ftp/anon/upload-here")
 (defvar emacsconf-backstage-user "emacsconf")
 (defvar emacsconf-backstage-password nil "Password for backstage area.")
@@ -1362,7 +1362,7 @@ If TIMEZONES is a string, split it by commas."
            :vnc-display ":5"
            :vnc-port "5905"
 					 :autopilot crontab
-           :status "offline")
+           :status "online")
    (:name "Development" :color "skyblue" :id "dev" :channel "emacsconf-dev"
           :watch  ,(format "https://live.emacsconf.org/%s/watch/dev/" emacsconf-year)
 				  :webchat-url "https://chat.emacsconf.org/?join=emacsconf,emacsconf-org,emacsconf-accessible,emacsconf-gen,emacsconf-dev"
@@ -1377,7 +1377,7 @@ If TIMEZONES is a string, split it by commas."
           :vnc-display ":6"
           :vnc-port "5906"
 					:autopilot crontab
-          :status "offline")))
+          :status "online")))
 
 (defun emacsconf-get-track (name)
 	"Get the track for NAME.
