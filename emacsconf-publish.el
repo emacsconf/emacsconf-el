@@ -835,10 +835,14 @@ Back to the [[talks]]  \n"
                           (if prev-talk (format "Previous by %s: %s  \n" label prev-talk) "")
                           (if next-talk (format "Next by %s: %s  \n" label next-talk) "")
                           (if (plist-get o :track) ; tagging doesn't work here because ikiwiki will list the nav page
-                              (format "Track: <span class=\"sched-track %s\">%s</span> - <strong><a href=\"%s\">Watch</a></strong>  \n"
-																			(plist-get o :track)
-																			(plist-get o :track)
-																			(plist-get o :watch-url))
+															(if (member emacsconf-publishing-phase '(schedule conference))
+																	(format "Track: <span class=\"sched-track %s\">%s</span> - <strong><a href=\"%s\">Watch</a></strong>  \n"
+																					(plist-get o :track)
+																					(plist-get o :track)
+																					(plist-get o :watch-url))
+																(format "Track: <span class=\"sched-track %s\">%s</span>  \n"
+																				(plist-get o :track)
+																				(plist-get o :track)))
                             "")
                           "</div>
 ")))))))
@@ -1169,11 +1173,18 @@ You can also get this schedule as iCalendar files: ${icals}. Importing that into
 													 (list
 														:pad nil
 														:channel nil
-														:resources (mapconcat (lambda (s) (concat "<li>" s "</li>"))
-																									(emacsconf-publish-link-file-formats-as-list
-																									 (append o
-																													 (list :base-url (format "%s%s/" emacsconf-media-base-url emacsconf-year))))
-																									""))))
+														:resources
+														(concat
+														 (emacsconf-surround "<li><a href=\""
+																								 (plist-get o :bbb-rec)
+																								 "\">Play recording from BigBlueButton</a></li>" "")
+														 (mapconcat
+															(lambda (s) (concat "<li>" s "</li>"))
+															(emacsconf-publish-link-file-formats-as-list
+															 (append o
+																			 (list :base-url (format "%s%s/" emacsconf-media-base-url emacsconf-year))))
+															""))
+)))
 												(list
                          :title (plist-get o :title)
                          :url (concat "/" (plist-get o :url))
@@ -1484,7 +1495,6 @@ answers without needing to listen to everything again. You can see <a href=\"htt
 												(1+ (syntax word))
 												string-end))
 							 nil)
-							((rx (seq "--intro." (or "vtt" "webm") string-end)) nil)
 							(_ t))))
 				(or files (emacsconf-publish-talk-files talk)))))
 
@@ -1497,9 +1507,22 @@ answers without needing to listen to everything again. You can see <a href=\"htt
           (emacsconf-publish-index-card
            (append (list :files
                          (seq-remove (lambda (f) (string-match "--answers" f))
-																		  (emacsconf-publish-filter-public-files o))
+																		 (emacsconf-publish-filter-public-files o))
 												 :audio-file
-												 (emacsconf-talk-file o "--main.opus"))
+												 (emacsconf-talk-file o "--main.opus")
+												 :links
+												 (concat
+													(emacsconf-surround "<li><a href=\""
+																							(if (plist-get o :backstage)
+																									(emacsconf-backstage-url (plist-get o :pad-url))
+																								(plist-get o :pad-url)) "\">Open Etherpad</a></li>" "")
+													(emacsconf-surround "<li><a href=\""
+																							(and (member emacsconf-publishing-phase '(schedule conference))
+																									 (plist-get o :qa-url))
+																							"\">Open public Q&A</a></li>" "")
+													(emacsconf-surround "<li><a href=\""
+																							(plist-get o :bbb-rec)
+																							"\">Play recording from BigBlueButton</a></li>" "")))
                    o))
           (if (or (emacsconf-talk-file o "--answers.webm")
 									(emacsconf-talk-file o "--answers.opus"))
@@ -1575,6 +1598,10 @@ ${include}
                                      (concat emacsconf-media-base-url (plist-get f :conf-year) "/")
                                      :track-base-url
                                      (format "/%s/captions/" (plist-get f :conf-year))
+																		 :links
+																			(emacsconf-surround "<li><a href=\""
+																													(plist-get o :bbb-rec)
+																													"\">Play recording from BigBlueButton</a></li>" "")
                                      :files
 																		 (seq-remove (lambda (f) (string-match "--answers" f))
 																								 (emacsconf-publish-filter-public-files f files)))
@@ -1665,7 +1692,9 @@ ${include}
 									 (format " (%sB)" (file-size-human-readable (file-attribute-size (file-attributes cache-file))))
 								 ""))))
 	 (or (plist-get talk :files)
-			 (emacsconf-publish-talk-files talk))))
+			 (if (plist-get talk :backstage)
+					 (emacsconf-publish-talk-files talk)
+				 (emacsconf-publish-filter-public-files talk)))))
 
 (defun emacsconf-publish-talks-json ()
 	"Return JSON format with a subset of talk information."
