@@ -1391,6 +1391,101 @@ ${signature}"))
 		(dolist (group (emacsconf-mail-groups (assoc-default t by-attendance)))
 			(emacsconf-mail-checkin-instructions-for-attending-speakers group))))
 
+(defun emacsconf-mail-schedule-update ()
+	"E-mail day-of schedule updates"
+	(interactive)
+	(let ((groups
+				 (emacsconf-mail-groups
+					(seq-remove (lambda (talk)
+												(string= (replace-regexp-in-string "[<>]" "" (plist-get talk :scheduled))
+																 (plist-get talk :checkin-schedule-sent)))
+											(emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))))
+		(dolist (group groups)
+			(emacsconf-mail-prepare
+			 (list
+				:subject "${conf-name} ${year}: Schedule update - new check-in time ${checkin-time}"
+				:reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+				:mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+				:log-note "sent updated schedule"
+				:body
+				"${email-notes}Hello, ${speakers-short}!
+
+We tweaked the schedule a bit! Your new check-in information is:
+
+${checkin-info}
+
+Please check in early so that we can deal with scheduling changes
+or technical issues, and so that we don't worry too much about
+missing speakers (aaah!). You can find the check-in
+process at ${base-url}${year}/speakers/ . ${wrap}
+
+If something comes up, please let us know as soon as you can. Here's
+my emergency contact information: ${emergency}${wrap}
+
+Thank you for sharing your time and energy with the ${conf-name}
+community!
+
+${signature}
+
+p.s. If you need to cancel, that's okay too, life happens. Let me know
+as soon as you can and I'll try to shuffle things around. Thank you!")
+			 (car group)
+			 (list
+				:year emacsconf-year
+				:base-url emacsconf-base-url
+				:conf-name emacsconf-name
+				:user-email user-mail-address
+				:email (car group)
+				:checkin-time (mapconcat (lambda (o)
+																	 (emacsconf-timezone-strings-combined
+																		(plist-get o :checkin-time)
+																		(plist-get o :timezone)))
+																 (cdr group)
+																 "; ")
+				:emergency emacsconf-emergency-contact
+				:plural (if (> (length (cdr group)) 1) "s" "")
+				:speakers-short (plist-get (cadr group) :speakers-short)
+				:url (mapconcat (lambda (o) (concat emacsconf-base-url (plist-get o :url)))
+												(cdr group) " , ")
+				:email-notes (emacsconf-surround "ZZZ: " (plist-get (cadr group) :email-notes) "\n\n" "")
+				:signature user-full-name
+				:checkin-info
+				(mapconcat
+				 (lambda (o)
+					 (emacsconf-replace-plist-in-string
+						(append (list :base-url emacsconf-base-url
+													:check-in
+													(concat
+													 "Before "
+													 (emacsconf-timezone-strings-combined
+														(plist-get o :checkin-time)
+														(plist-get o :timezone))
+													 "\n  (this is " (plist-get o :checkin-label) ")"
+													 "\n")
+													:qa-info-speakers
+													(cond
+													 ((or (plist-get o :live) (null (plist-get o :video-file))) ;; intentionally a live talk
+														(concat "Talk & Q&A BigBlueButton room: "
+																		(emacsconf-backstage-url (plist-get o :bbb-backstage))))
+													 ((string= (plist-get o :qa-type) "none")
+														"Q&A: After the event; we'll collect the questions and e-mail them to you")
+													 ((string= (plist-get o :qa-type) "live")
+														(concat "Q&A BigBlueButton room: "
+																		(emacsconf-backstage-url (plist-get o :bbb-backstage))))
+													 ((string= (plist-get o :qa-type) "irc")
+														(concat "Q&A: On IRC: #" (plist-get o :channel) " ( " (plist-get o :webchat-url) " )"))
+													 ((string= (plist-get o :qa-type) "pad")
+														(concat "Q&A: On Etherpad"))
+													 (t "Q&A: After the event; we'll collect the questions and e-mail them to you"))
+													)
+										o)
+						"- ${title}
+  Info and sched: ${base-url}${url}
+  Check-in: ${check-in}
+  Pad: ${pad-url}
+  ${qa-info-speakers}"))
+				 (cdr group) "\n\n"))))))
+
 (defun emacsconf-mail-checkin-instructions-for-attending-speakers (group)
   "Send checkin instructions to speakers who will be there.
 GROUP is (email . (talk talk))"
