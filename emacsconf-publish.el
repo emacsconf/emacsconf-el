@@ -388,8 +388,12 @@
 																			(plist-get talk :bbb-backstage))
 																 "\">Open backstage BigBlueButton</a></li>" "")
 						 (emacsconf-surround "<li><a href=\""
-																 (plist-get talk :qa-url)
-																 "\">Open public Q&A</a></li>" ""))
+																 (and (member emacsconf-publishing-phase '(schedule conference))
+																			(plist-get talk :qa-url))
+																 "\">Open public Q&A</a></li>" "")
+						 (emacsconf-surround "<li><a href=\""
+																 (plist-get talk :bbb-rec)
+																 "\">Play recording from BigBlueButton</a></li>" ""))
             :other-files
             (mapconcat
              (lambda (s)
@@ -433,7 +437,7 @@
   (format "[%s](mailto:%s?subject=%s)"
           (or email (plist-get o :public-email))
           (or email (plist-get o :public-email))
-          (url-hexify-string (format "Comment for EmacsConf 2022 %s: %s" (plist-get o :slug) (plist-get o :title)))))
+          (url-hexify-string (format "Comment for EmacsConf 2023 %s: %s" (plist-get o :slug) (plist-get o :title)))))
 
 (defun emacsconf-publish-format-speaker-info (o)
   (let ((extra-info (mapconcat #'identity
@@ -555,34 +559,38 @@ resources."
      (append o
              (list
 							:format
-              (concat (or (plist-get o :video-time)
-                          (plist-get o :time))
-                      "-min talk; Q&A: "
+							(concat (or (plist-get o :video-time)
+													(plist-get o :time))
+											"-min talk; Q&A: "
 											(pcase (plist-get o :qa-type)
-											 	("none" "ask questions via Etherpad/IRC; we'll e-mail the speaker and post answers on this wiki page after the conference")
+												("none" "ask questions via Etherpad/IRC; we'll e-mail the speaker and post answers on this wiki page after the conference")
 												("live" "BigBlueButton conference room")
 												("pad" "Etherpad")
 												("irc" "IRC")
 												(_ (plist-get o :qa-type)))
-											(emacsconf-surround " <" (plist-get o :qa-url) ">" ""))
-              :pad-info
-              (if (and emacsconf-publish-include-pads (not (string= (plist-get o :qa-type) "etherpad")))
-                  (format "Etherpad: <https://pad.emacsconf.org/%s-%s>  \n" emacsconf-year (plist-get o :slug))
-                "")
-              :irc-info
-              (format "Discuss on IRC: [#%s](%s)  \n" (plist-get o :channel)
-                      (plist-get o :webchat-url))
-              :status-info
-              (if (member emacsconf-publishing-phase '(cfp program schedule conference)) (format "Status: %s  \n" (plist-get o :status-label)) "")
+											(emacsconf-surround " <" (and (member emacsconf-publishing-phase '(schedule conference))
+																										(plist-get o :qa-url)) ">" ""))
+							:pad-info
+							(if (and emacsconf-publish-include-pads (not (and (member emacsconf-publishing-phase '(schedule conference))
+																							 (string= (plist-get o :qa-type) "etherpad"))))
+									(format "Etherpad: <https://pad.emacsconf.org/%s-%s>  \n" emacsconf-year (plist-get o :slug))
+								"")
+							:irc-info
+							(if (member emacsconf-publishing-phase '(schedule conference))
+									(format "Discuss on IRC: [#%s](%s)  \n" (plist-get o :channel)
+													(plist-get o :webchat-url))
+								"")
+							:status-info
+							(format "Status: %s  \n" (plist-get o :status-label))
 							:alternate-apac-info
 							(if (plist-get o :alternate-apac)
 									(format "[[!inline pages=\"internal(%s/inline-alternate)\" raw=\"yes\"]]  \n" emacsconf-year)
 								"")
-              :schedule-info
-              (if (and (member emacsconf-publishing-phase '(schedule conference))
-                       (not (emacsconf-talk-all-done-p o))
-                       (not (string= (plist-get o :status) "CANCELLED")))
-                  (let* ((end
+							:schedule-info
+							(if (and (member emacsconf-publishing-phase '(schedule conference))
+											 (not (emacsconf-talk-all-done-p o))
+											 (not (string= (plist-get o :status) "CANCELLED")))
+									(let* ((end
 													(org-timestamp-to-time
 													 (org-timestamp-split-range
 														(org-timestamp-from-string (plist-get o :scheduled)) t)))
@@ -1298,8 +1306,7 @@ If MODIFY-FUNC is specified, use it to modify the talk."
                (lambda (o) (append
 														(list :captions-edited t
 																	:backstage t) o))
-               (seq-filter (lambda (o) (plist-get o :speakers))
-			                     (emacsconf-active-talks (emacsconf-filter-talks info)))))
+							  (emacsconf-filter-talks info)))
              (by-status (seq-group-by (lambda (o) (plist-get o :status)) talks))
              (files (directory-files emacsconf-backstage-dir)))
         (insert
@@ -1762,17 +1769,24 @@ ${include}
                      results)
                nil)))))
 
+(defvar emacsconf-conduct-url (concat emacsconf-base-url "conduct/") "URL for guidelines for conduct.")
+
 (defun emacsconf-generate-pad-template (emacsconf-info)
-    "Generate a template for copying and pasting into the pad.
+  "Generate a template for copying and pasting into the pad.
             Writes it to pad-template.html."
-    (interactive (list (emacsconf-get-talk-info)))
-    (let* ((talks (emacsconf-filter-talks emacsconf-info))
-           (text (concat
-                "<p>Conference info, how to watch/participate: https://emacsconf.org/2021/<br />
+  (interactive (list (emacsconf-get-talk-info)))
+  (let* ((talks (emacsconf-filter-talks emacsconf-info))
+         (text (concat
+								(emacsconf-replace-plist-in-string
+								 (list :conf-info (concat emacsconf-base-url emacsconf-year)
+											 :conduct emacsconf-conduct-url
+											 :base-url emacsconf-base-url
+											 :conf-name emacsconf-name))
+								"<p>Conference info, how to watch/participate: ${conf-info}<br />
             Guidelines for conduct: https://emacsconf.org/conduct/</p>
 
-            <p>Except where otherwise noted, the material on the EmacsConf pad are dual-licensed under the terms of the Creative Commons Attribution-ShareAlike 4.0 International Public License ; and the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) an later version.
-            Copies of these two licenses are included in the EmacsConf wiki repository, in the COPYING.GPL and COPYING.CC-BY-SA files (https://emacsconf.org/COPYING/).</p>
+            <p>Except where otherwise noted, the material on the ${conf-name} pad are dual-licensed under the terms of the Creative Commons Attribution-ShareAlike 4.0 International Public License ; and the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) an later version.
+            Copies of these two licenses are included in the ${conf-name} wiki repository, in the COPYING.GPL and COPYING.CC-BY-SA files (${base-url}COPYING/).</p>
 
             <p>By contributing to this pad, you agree to make your contributions available under the above licenses. You are also promising that you are the author of your changes, or that you copied them from a work in the public domain or a work released under a free license that is compatible with the above two licenses. DO NOT SUBMIT COPYRIGHTED WORK WITHOUT PERMISSION.</p>
 
@@ -1784,10 +1798,10 @@ ${include}
             </ol>
             </p>
             "
-         (mapconcat
-          (lambda (o)
-            (let ((url (format "https://emacsconf.org/%s/talks/%s" emacsconf-year (plist-get o :slug))))
-              (format "-------------------------------------------------------------------------------------------------<br/><strong>Talk%s: %s</strong><br />
+								(mapconcat
+								 (lambda (o)
+									 (let ((url (plist-get o :absolute-url)))
+										 (format "-------------------------------------------------------------------------------------------------<br/><strong>Talk%s: %s</strong><br />
             Speaker(s): %s<br />
             Talk page: <a href=\"%s\">%s</a><br />
             Actual start of talk EST: &nbsp ;&nbsp;&nbsp;  Start of Q&A: &nbsp;&nbsp;  End of Q&A: &nbsp;&nbsp;<br />
@@ -1808,7 +1822,7 @@ ${include}
             <li>sample text</li>
             </ul>
             " (plist-get o :slug) (plist-get o :title) (plist-get o :speakers) url url))) talks "<br/><br/>\n")
-         "<br/><br/>-------------------------------------------------------------------------------------------------<br/>
+								"<br/><br/>-------------------------------------------------------------------------------------------------<br/>
             <strong>General Feedback: What went well?</strong><br/><br/>
             <ul>
             <li>sample text</li>
@@ -1829,11 +1843,11 @@ ${include}
             -------------------------------------------------------------------------------------------------<br/>
             <strong>Colophon:</strong>
             <ul></ul>")))
-      (with-current-buffer (find-file "pad-template.html")
-        (erase-buffer)
-        (insert text)
-        (save-buffer)))
-    (browse-url-of-file "pad-template.html"))
+    (with-current-buffer (find-file "pad-template.html")
+      (erase-buffer)
+      (insert text)
+      (save-buffer)))
+  (browse-url-of-file "pad-template.html"))
 
 (defun emacsconf-publish-format-files-as-playlist (playlist-name files)
 	(format "#EXTM3U\n#PLAYLIST: %s\n#EXTALB: %s\n#EXTGENRE: Speech\n%s"
@@ -2170,6 +2184,7 @@ ${resources-info}
                      (buffer-string))
             :title-info (emacsconf-surround "<h1>" (plist-get track :title) "</h1>" "")
             :year emacsconf-year
+						:base-url emacsconf-base-url
             :brief (emacsconf-publish-schedule-short
                     track-talks)
             :stream-nav (concat "Tracks: " (mapconcat (lambda (tr)
@@ -2199,7 +2214,7 @@ ${title-info}
 <hr size=\"1\">
 <div>"
       (emacsconf-publish-page-nav nav "watch")
-      " | ${stream-nav} | <a href=\"https://emacsconf.org/2022/watch/\">Tips for watching/participating</a></div>
+      " | ${stream-nav} | <a href=\"${base-url}${year}/watch/\">Tips for watching/participating</a></div>
 
 For better performance, we recommend watching <a href=\"${stream-hires}\">${stream-hires}</a> using a streaming media player. Examples:
 
@@ -2211,7 +2226,7 @@ For better performance, we recommend watching <a href=\"${stream-hires}\">${stre
 
 If you have limited bandwidth, you can watch the low-res stream <a href=\"${480p}\">${480p}</a>.
 
-If you don't have a streaming media player, you can watch using the player below.
+If you don't have a streaming media player, you might be able to watch using the player below. (Google Chrome seems to be having issues; Mozilla Firefox might work better. If watching from a phone, Google Chrome seems to work there, or download VLC from your phone's app store and use the URLs like ${stream-hires} .)
 
 <video controls class=\"reload\"><source src=\"${stream}\" type=\"video/webm\" /></video>
 
@@ -2316,9 +2331,6 @@ status page at <a href=\"https://status.emacsconf.org\">https://status.emacsconf
 status of various parts of our infrastructure, and instructions on how
 to get in touch with us about disruptions.</p>
 
-<p>If you prefer, you can watch the livestream via Toobnix:
-<a href=\"https://toobnix.org/w/7t9X8eXuSby8YpyEKTb4aj\">General track</a>,
-<a href=\"https://toobnix.org/w/w6K77y3bNMo8xsNuqQeCcD\">Development track</a>.
 Pre-recorded videos and replays will also be available on Toobnix in
 the <a href=\"https://toobnix.org/c/emacsconf\">EmacsConf channel</a>.</p>
 
