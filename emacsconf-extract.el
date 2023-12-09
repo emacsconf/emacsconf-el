@@ -1031,7 +1031,13 @@ Strategies:
 
 ;;; YouTube
 
-;; When the token needs refreshing, delete the associated lines from ~/.authinfo
+;; When the token needs refreshing, delete the associated lines from
+;; ~/.authinfo This code just sets the title and description. Still
+;; need to figure out how to properly set the license, visibility,
+;; recording date, and captions.
+;;
+;; To avoid being prompted for the client secret, it's helpful to have a line in ~/.authinfo or ~/.authinfo.gpg with
+;; machine https://oauth2.googleapis.com/token username CLIENT_ID password CLIENT_SECRET
 
 (defvar emacsconf-extract-google-client-identifier nil)
 (defvar emacsconf-extract-youtube-api-channels nil)
