@@ -20,6 +20,9 @@
 
 ;;; Commentary:
 
+;; - set BBB_REC to the published presentation URL. If keeping the presentation recording private, don't set BBB_REC; set BBB_MEETING_ID to just the meeting ID.
+;; - Use the command from emacsconf-extract-raw-recordings-download-command to download raw data.
+
 ;;; Code:
 
 (defun emacsconf-extract-chat (filename)
@@ -244,7 +247,9 @@
 			(gethash "sentences" data)))))
 ;; (emacsconf-extract-qa-from-assemblyai-sentences "~/proj/emacsconf/rms/sentences")
 
-(defun emacsconf-extract-copy-pad ()
+;;;###autoload
+(defun emacsconf-extract-copy-pad-to-wiki ()
+	"Copy the notes and questions from the current file to the wiki page for this talk."
 	(interactive)
 	(let ((slug (emacsconf-get-slug-from-string (file-name-base (buffer-file-name))))
 				(delimiter "\\\\-\\\\-\\\\-\\\\-\\\\-")
@@ -265,11 +270,10 @@
 			(forward-line -1)
 			(insert "# Discussion\n\n"))
 		(save-excursion
-			(unless (string= (or notes "") "")
-				(insert "## Notes\n\n" notes "\n\n"))
 			(unless (string= (or questions "") "")
 				(insert "## Questions and answers\n\n" questions "\n\n"))
-			)))
+			(unless (string= (or notes "") "")
+				(insert "## Notes\n\n" notes "\n\n")))))
 
 (defun emacsconf-extract-question-headings (slug)
 	(with-temp-buffer
@@ -439,10 +443,11 @@
 										(y-or-n-p "Continue? "))
 					;; keep going backwards
 					)))))
+
 (defun emacsconf-extract-irc-copy-line-to-other-window-as-list-item (&optional prefix indent)
 	(interactive)
 	(goto-char (line-beginning-position))
-	(when (looking-at "\\[[0-9:]+\\] <\\(.*?\\)> \\([^ ]+?:\\)?\\(.+\\)$")
+	(when (looking-at " *\\[[0-9:]+\\] <\\(.*?\\)> \\([^ ]+?:\\)?\\(.+\\)$")
 		(let ((line (string-trim (match-string 3)))
 					(prefix (or
 									 prefix
@@ -669,6 +674,472 @@ Would you like to help? See [[help_with_chapter_markers]] for more details. You 
 					(save-buffer))))))
 
 ;; (mapc #'emacsconf-extract-add-help-index-qa (emacsconf-prepare-for-display (emacsconf-get-talk-info)))
+
+;; (emacsconf-extract-download-published-recordings "bbb:/var/bigbluebutton/published/presentation/" "" ~/proj/emacsconf/2023/bbb-published/"")
+(defvar emacsconf-extract-bbb-raw-dir "~/proj/emacsconf/2023/bbb/" "End with a \"/\".")
+(defvar emacsconf-extract-bbb-published-dir "~/proj/emacsconf/2023/bbb-published/" "End with a \"/\".")
+(defvar emacsconf-extract-conference-username "emacsconf" "Name of the streaming user.")
+(defvar emacsconf-extract-bbb-path "/ssh:bbb@bbb.emacsverse.org:/var/bigbluebutton/")
+
+(defun emacsconf-extract-raw-recordings-download-command ()
+	"Copy the command for downloading raw recordings."
+	(interactive)
+	(let ((s (mapconcat (lambda (o) (if (plist-get o :bbb-meeting-id)
+																			(format "rsync -avzue ssh %s %s\n"
+																							(expand-file-name (plist-get o :bbb-meeting-id) emacsconf-extract-bbb-path)
+																							emacsconf-extract-bbb-raw-dir)
+																		""))
+											(emacsconf-get-talk-info))))
+		(when (called-interactively-p 'any) (kill-new s))
+		s))
+
+(defun emacsconf-extract-download-published-recordings (source dest)
+	"Copy the command for downloading published recordings from SOURCE to DEST."
+	(kill-new
+	 (mapconcat (lambda (o) (if (plist-get o :bbb-meeting-id)
+															(format "rsync -avzue ssh %s%s %s\n"
+																			source
+																			(match-string 1 (plist-get o :bbb-rec))
+																			dest)
+														""))
+							(emacsconf-get-talk-info))))
+
+(defun emacsconf-extract-bbb-parse-events-dir (&optional dir)
+	(mapcar (lambda (file)
+						(emacsconf-extract-bbb-parse-events file))
+					(directory-files-recursively (or dir emacsconf-extract-bbb-raw-dir) "events.xml")))
+
+(defun emacsconf-extract-bbb-raw-events-file-name (talk)
+	(setq talk (emacsconf-resolve-talk talk))
+	(expand-file-name "events.xml" (expand-file-name (plist-get talk :bbb-meeting-id) emacsconf-extract-bbb-raw-dir)))
+
+(defun emacsconf-extract-bbb-parse-events (talk)
+	"Parse events TALK from raw recordings.
+This works with the events.xml from /var/bigbluebutton/raw.
+Files should be downloaded to `emacsconf-extract-bbb-raw-dir'."
+	(setq talk (emacsconf-resolve-talk talk))
+	(let* ((xml-file (emacsconf-extract-bbb-raw-events-file-name talk))
+				 (dom (xml-parse-file xml-file))
+				 (meeting-name (dom-attr (dom-by-tag dom 'metadata) 'meetingName))
+				 (meeting-id (dom-attr dom 'meeting_id))
+				 (conf-joined (dom-search dom (lambda (o) (and (string= (dom-tag o) "name") (string= (dom-text o) emacsconf-extract-conference-username)))))
+				 (conf-joined-time
+					(and conf-joined
+							 (string-to-number (dom-text (dom-by-tag (dom-parent dom conf-joined) 'timestampUTC)))))
+				 recording-start
+				 recording-stop
+				 recording-spans
+				 chat
+				 talking
+				 participants
+				 talking-starts
+				 deskshare-info
+				 (meeting-date (dom-text (dom-by-tag (dom-parent dom (car conf-joined)) 'date))))
+		(dolist (event (dom-by-tag dom 'event))
+			(let ((timestamp (string-to-number (dom-text (dom-by-tag event 'timestampUTC)))))
+				(pcase (dom-attr event 'eventname)
+					("ParticipantJoinEvent"
+					 (push (cons (dom-text (dom-by-tag event 'userId))
+											 (dom-text (dom-by-tag event 'name)))
+								 participants))
+					("StartRecordingEvent"
+					 (setq recording-start timestamp
+								 recording-stop nil
+								 recording-file
+								 (file-name-nondirectory (dom-text (dom-by-tag event 'filename)))))
+					("StopRecordingEvent"
+					 (setq recording-stop timestamp)
+					 (push (cons recording-start recording-stop) recording-spans))
+					("PublicChatEvent"
+					 ;; only include events in the public recording
+					 (when (and recording-start
+											(null recording-stop)
+											(>= timestamp recording-start))
+						 (push (list
+										timestamp
+										(dom-text (dom-by-tag event 'sender))
+										(with-temp-buffer
+											(insert
+											 (replace-regexp-in-string
+												"&#39;" "'"
+												(replace-regexp-in-string "<.*?>" ""
+																									(dom-text (dom-by-tag event 'message)))))
+											(mm-url-decode-entities)
+											(buffer-string)))
+									 chat)))
+					("ParticipantTalkingEvent"
+					 (let* ((speaker (assoc-default
+														(dom-text (dom-by-tag event 'participant))
+														participants)))
+						 (if (string= (dom-text (dom-by-tag event 'talking)) "true")
+								 ;; started talking
+								 (if (assoc-default speaker talking-starts)
+										 (setcdr (assoc speaker talking-starts)
+														 timestamp)
+									 (push (cons speaker timestamp) talking-starts))
+							 (when (and recording-start
+													(>= timestamp recording-start)
+													(assoc-default speaker talking-starts)
+													(or (null recording-stop)
+															(<= (assoc-default speaker talking-starts)
+																	recording-stop)))
+								 (push (list speaker
+														 (- (max (assoc-default speaker talking-starts) recording-start)
+																recording-start)
+														 (- (if recording-stop (min recording-stop timestamp) timestamp)
+																recording-start)
+														 recording-file)
+											 talking)))))
+					("StartWebRTCDesktopShareEvent"
+					 (setq deskshare-info (cons (dom-text (dom-by-tag event 'filename))
+																			timestamp)))
+
+					)))
+		`((name . ,meeting-name)
+			(id . ,meeting-id)
+			(conf-joined . ,conf-joined-time)
+			(recording-start . ,recording-start)
+			(meeting-date . ,meeting-date)
+			(participants . ,participants)
+			(talking . ,(nreverse talking))
+			(chat . ,(nreverse chat)))))
+
+(defun emacsconf-extract-bbb-format-chat ()
+	(mapconcat
+		 (lambda (events)
+			 (format "- %s (%s)\n%s"
+							 (assoc-default 'name events)
+							 (assoc-default 'id events)
+							 (mapconcat
+								(lambda (message)
+									(format "  - %s: %s\n"
+													(elt message 1)
+													(with-temp-buffer
+														(insert
+														 (replace-regexp-in-string
+															"&#39;" "'"
+															(replace-regexp-in-string "<.*?>" ""
+																												(elt message 2))))
+														(mm-url-decode-entities)
+														(buffer-string))))
+								(assoc-default 'chat events)
+								"")))
+		 (emacsconf-extract-bbb-parse-events-dir)
+		 ""))
+
+(defun emacsconf-extract-spookfox-update-bbb-rec ()
+	(interactive)
+	(let* ((data
+					(spookfox-js-injection-eval-in-active-tab
+					 "row = [...document.querySelectorAll('.dropdown-toggle')].find((o) => o.textContent.match('Unlisted')).closest('tr'); [row.querySelector('#recording-text').getAttribute('title'), row.querySelector('a.btn-primary').getAttribute('href')]" t)
+					)
+				 (slug
+					(when (and data (string-match "^\\([^(]+\\) (" (elt data 0)))
+						(split-string
+						 (match-string 1 (elt data 0))
+						 ", "))))
+		(when data
+			(if (> (length slug) 1)
+					(setq slug (completing-read "Talk: " slug))
+				(setq slug (car slug)))
+			(emacsconf-with-talk-heading slug
+				(if (org-entry-get (point) "BBB_REC")
+						(progn
+							(kill-new (elt data 1))
+							(error "%s already has BBB_REC?" slug))
+					(org-entry-put (point) "BBB_REC" (elt data 1))))
+			(message "Updated BBB_REC for %s to %s" slug (elt data 1))
+			(spookfox-js-injection-eval-in-active-tab
+			 "row = [...document.querySelectorAll('.dropdown-toggle')].find((o) => o.textContent.match('Unlisted')).closest('tr'); row.querySelector('.button_to .dropdown-item .fa-globe').closest('button').click();" t))))
+
+
+(defun emacsconf-extract-chat (slug speaker)
+  (interactive (list
+                (emacsconf-complete-talk)
+                (completing-read "Speaker: "
+                                 (seq-uniq
+                                  (mapcar (lambda (node) (dom-attr node 'name))
+                                          (dom-by-tag (xml-parse-region (point-min) (point-max)) 'chattimeline)))
+                                 )))
+  (let ((text
+         (mapconcat (lambda (node)
+                      (when (string= (dom-attr node 'target) "chat")
+                        (let ((message
+                               (replace-regexp-in-string
+                                "\\(^[^ +]?\\): " ""
+                                (replace-regexp-in-string "<a href=\"\\(.+?\\)\" rel=\"nofollow\"><u>\\(.+?\\)</u></a>"
+                                                          "<\\1>" (dom-attr node 'message)))))
+                          (if (string-match speaker (dom-attr node 'name))
+                              (format "- %s: %s\n" speaker message)
+                            (format "- %s\n" message)))))
+                    (dom-by-tag (xml-parse-region (point-min) (point-max)) 'chattimeline)
+                    "")))
+    (emacsconf-edit-wiki-page slug)
+    (if (re-search-forward "# Discussion" nil t)
+        (progn
+          (goto-char (match-end 0))
+          (insert "\n\n"))
+      (goto-char (point-max)))
+    (kill-new text)))
+;; TODO: Combine lines from same nick, or identify speakers with anon1/2/etc.
+(defun emacsconf-extract-chat-from-dired ()
+  (interactive)
+  (find-file (expand-file-name "slides_new.xml" (dired-get-file-for-visit)))
+  (call-interactively 'emacsconf-extract-chat))
+
+(defun emacsconf-make-webcams-deskshare-spans (talk &optional start-ms stop-ms strategy)
+  (let* ((start-ms (or start-ms 0))
+				 (source-dir (expand-file-name (plist-get talk :bbb-meeting-id) emacsconf-extract-bbb-published-dir))
+				 (secs (/ start-ms 1000.0))
+				 (deskshare (xml-parse-file (expand-file-name "deskshare.xml" source-dir)))
+         (webcam-video (expand-file-name "video/webcams.webm" source-dir))
+         (deskshare-video (expand-file-name "deskshare/deskshare.webm" source-dir))
+				 (stop-ms (or stop-ms (emacsconf-get-file-duration-ms deskshare-video)))
+         spans)
+    (mapc (lambda (o)
+            (unless (or (= secs (string-to-number (dom-attr o 'start_timestamp)))
+                        (= (string-to-number (dom-attr o 'start_timestamp)) 0)
+                        (> secs (/ stop-ms 1000.0)))
+              (setq spans (cons (list :source webcam-video
+                                      :start-ms (* secs 1000)
+                                      :stop-ms
+                                      (* 1000
+                                         (if (eq strategy 'test)
+                                             (+ secs 3)
+                                           (max secs (string-to-number (dom-attr o 'start_timestamp))))))
+                                spans)))
+            (when (and (<= (string-to-number (dom-attr o 'start_timestamp))
+                           (/ stop-ms 1000.0))
+                       (>= (string-to-number (dom-attr o 'stop_timestamp))
+                           (/ start-ms 1000.0)))
+              (setq spans (cons (list :source deskshare-video
+                                      :start-ms (max (* 1000 (string-to-number (dom-attr o 'start_timestamp)))
+                                                     start-ms)
+                                      :stop-ms
+                                      (if (eq strategy 'test)
+                                          (* 1000 (+ (string-to-number (dom-attr o 'start_timestamp)) 3))
+                                        (min (* 1000 (string-to-number (dom-attr o 'stop_timestamp)))
+                                             stop-ms)))
+                                spans))
+              (setq secs (string-to-number (dom-attr o 'stop_timestamp)))))
+          (dom-by-tag deskshare 'event))
+    (unless (>= (floor (* secs 1000)) stop-ms)
+      (setq spans (cons (list :source webcam-video
+                              :start-ms (* 1000 secs)
+                              :stop-ms (if (eq strategy 'test)
+                                           (* 1000 (+ secs 3))
+                                         stop-ms))
+                        spans)))
+    (if (eq strategy 'test)
+        `((video ,@(nreverse spans))
+          (audio ,@(mapcar (lambda (o)
+                             (list :source webcam-video
+                                   :start-ms (plist-get o :start-ms)
+                                   :stop-ms (plist-get o :stop-ms)))
+                           (reverse spans))))
+      `((video ,@(nreverse spans))
+        (audio (:source ,webcam-video :start-ms ,start-ms :stop-ms ,stop-ms))))))
+
+(defun emacsconf-get-ffmpeg-to-splice-webcam-and-recording (talk &optional start-ms stop-ms info strategy)
+  "Return FFMPEG command for slicing.
+Strategies:
+- 'fast-cut-start-keyframe - find the keyframe before the start ms and cut from there, doing a fast copy.
+- 'start-keyframe-and-reencode - find the keyframe before the start ms and cut from there, reencoding.
+- 'cut-and-concat - seek to the keyframe before, slowly find the start-ms, reencode the snippet, and then do a fast copy of the remaining. May have encoding errors.
+- default: copy from start-ms to stop-ms, reencoding.
+"
+	(interactive (list (emacsconf-complete-talk-info)))
+	(setq talk (emacsconf-resolve-talk talk))
+  (let* ((slug (plist-get talk :slug))
+				 (start-ms (or start-ms 0))
+				 (source-dir (expand-file-name (plist-get talk :bbb-meeting-id) emacsconf-extract-bbb-published-dir))
+         (video-slug (plist-get (seq-find (lambda (o) (string= (plist-get o :slug) slug)) info) :video-slug))
+         (output (expand-file-name (concat (plist-get talk :file-prefix) "--answers.webm") emacsconf-cache-dir))
+         (webcam-video (expand-file-name "video/webcams.webm" source-dir))
+         (deskshare-video (expand-file-name "deskshare/deskshare.webm" source-dir))
+				 (stop-ms (or stop-ms (emacsconf-get-file-duration-ms webcam-video)))
+				 (command
+					(if (file-exists-p deskshare-video)
+							;; Has deskshare
+							(let* ((deskshare (xml-parse-file (expand-file-name "deskshare.xml" source-dir)))
+										 (final-size (compile-media-max-dimensions
+																	deskshare-video
+																	webcam-video))
+										 (duration (compile-media-get-file-duration-ms webcam-video))
+										 (spans (emacsconf-make-webcams-deskshare-spans talk start-ms stop-ms strategy))
+										 (compile-media-output-video-width (car final-size))
+										 (compile-media-output-video-height (cdr final-size)))
+								(compile-media-get-command spans output))
+						;; Just webcams
+						(compile-media-get-command
+						 (compile-media-split-tracks
+							(list (list :source webcam-video :start-ms start-ms :stop-ms stop-ms)))
+						 output))))
+		(when (called-interactively-p 'any)
+			(kill-new command))
+		command))
+
+;; (kill-new
+;;  (emacsconf-extract-replace-strings
+;;  `((,(expand-file-name emacsconf-extract-bbb-published-dir) . "bbb-published/")
+;; 	 (,(expand-file-name emacsconf-cache-dir) . "~/current/cache"))
+;;  (emacsconf-get-ffmpeg-to-splice-webcam-and-recording "emacsconf")))
+
+(defun emacsconf-extract-replace-strings (replacements s)
+	(with-temp-buffer
+		(insert s)
+		(dolist (pair replacements (buffer-string))
+			(goto-char (point-min))
+			(while (re-search-forward (car pair) nil t)
+				(replace-match (cdr pair))))
+		(buffer-string)))
+
+;; Works with a table of the form
+;; | Start | End | Slug | Notes | URL | Timestamp |
+;; |-------+-----+------+-------+-----+-----------|
+
+(defun emacsconf-process-qa-recordings (qa dir)
+	;; (setq conf-qa-recordings qa)
+	;; (memoize 'conf-ffmpeg-get-closest-keyframe-in-msecs)
+	;; (memoize 'conf-ffmpeg-get-keyframes-between)
+	;; (memoize 'conf-video-dimensions)
+	;; (memoize 'compile-media-get-file-duration-ms)
+	;; (memoize-restore 'conf-ffmpeg-get-keyframes-around)
+
+	(let ((info (emacsconf-get-talk-info)))
+		(replace-regexp-in-string
+		 "captions/" "answers-slow/"
+		 (replace-regexp-in-string
+			dir ""
+			(string-join
+			 (nreverse
+				(sort
+				 (delq nil
+							 (mapcar
+								(lambda (o)
+									(when (> (length (car o)) 0)
+										(emacsconf-get-ffmpeg-to-splice-webcam-and-recording
+										 (elt o 2)
+										 (compile-media-timestamp-to-msecs (elt o 0))
+										 (compile-media-timestamp-to-msecs (elt o 1))
+										 info)))
+																				;       (seq-take qa 2)
+								qa
+								))
+				 (lambda (a b) (string-match "trim" a))))
+			 "\n")))))
+
+;;; YouTube
+
+;; When the token needs refreshing, delete the associated lines from ~/.authinfo
+
+(defvar emacsconf-extract-google-client-identifier nil)
+(defvar emacsconf-extract-youtube-api-channels nil)
+(defvar emacsconf-extract-youtube-api-categories nil)
+
+(defun emacsconf-extract-oauth-browse-and-prompt (url)
+	"Open URL and wait for the redirected code URL."
+	(browse-url url)
+	(read-from-minibuffer "Paste the redirected code URL: "))
+
+(defun emacsconf-extract-youtube-api-setup ()
+	(interactive)
+	(require 'plz)
+	(require 'url-http-oauth)
+	(when (getenv "GOOGLE_APPLICATION_CREDENTIALS")
+		(let-alist (json-read-file (getenv "GOOGLE_APPLICATION_CREDENTIALS"))
+			(setq emacsconf-extract-google-client-identifier .web.client_id)))
+	(unless (url-http-oauth-interposed-p "https://youtube.googleapis.com/youtube/v3/")
+		(url-http-oauth-interpose
+		 `(("client-identifier" . ,emacsconf-extract-google-client-identifier)
+			 ("resource-url" . "https://youtube.googleapis.com/youtube/v3/")
+			 ("authorization-code-function" . emacsconf-extract-oauth-browse-and-prompt)
+			 ("authorization-endpoint" . "https://accounts.google.com/o/oauth2/v2/auth")
+			 ("authorization-extra-arguments" .
+				(("redirect_uri" . "http://localhost:8080")))
+			 ("access-token-endpoint" . "https://oauth2.googleapis.com/token")
+			 ("scope" . "https://www.googleapis.com/auth/youtube")
+			 ("client-secret-method" . prompt))))
+	(setq emacsconf-extract-youtube-api-channels
+				(plz 'get "https://youtube.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true"
+					:headers `(("Authorization" . ,(url-oauth-auth "https://youtube.googleapis.com/youtube/v3/")))
+					:as #'json-read))
+	(setq emacsconf-extract-youtube-api-categories
+				(plz 'get "https://youtube.googleapis.com/youtube/v3/videoCategories?part=snippet&regionCode=CA"
+					:headers `(("Authorization" . ,(url-oauth-auth "https://youtube.googleapis.com/youtube/v3/")))
+					:as #'json-read))
+	(setq emacsconf-extract-youtube-api-videos
+				(plz 'get (concat "https://youtube.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails,status&forMine=true&order=date&maxResults=50&playlistId="
+													(url-hexify-string
+													 (let-alist (elt (assoc-default 'items emacsconf-extract-youtube-api-channels) 0)
+														 .contentDetails.relatedPlaylists.uploads)
+													 ))
+					:headers `(("Authorization" . ,(url-oauth-auth "https://youtube.googleapis.com/youtube/v3/")))
+					:as #'json-read)))
+
+(defvar emacsconf-extract-youtube-tags '("emacs" "emacsconf"))
+(defun emacsconf-extract-youtube-object (video-id talk &optional privacy-status)
+	"Format the video object for VIDEO-ID using TALK details."
+	(setq privacy-status (or privacy-status "unlisted"))
+	(let ((properties (emacsconf-publish-talk-video-properties talk 'youtube)))
+		`((id . ,video-id)
+			(kind . "youtube#video")
+			(snippet
+			 (categoryId . "28")
+			 (title . ,(plist-get properties :title))
+			 (tags . ,emacsconf-extract-youtube-tags)
+			 (description . ,(plist-get properties :description))
+			 ;; Even though I set recordingDetails and status, it doesn't seem to stick.
+			 ;; I'll leave this in here in case someone else can figure it out.
+			 (recordingDetails (recordingDate . ,(format-time-string "%Y-%m-%dT%TZ" (plist-get talk :start-time) t))))
+			(status (privacyStatus . "unlisted")
+							(license . "creativeCommon")))))
+
+(defun emacsconf-extract-youtube-api-update-video (video-object)
+	"Update VIDEO-OBJECT."
+	(let-alist video-object
+		(let* ((slug (cond
+									;; not yet renamed
+									((string-match (rx (literal emacsconf-id) " " (literal emacsconf-year) " "
+																		 (group (1+ (or (syntax word) "-")))
+																		 "  ")
+																 .snippet.title)
+									 (match-string 1 .snippet.title))
+									;; renamed, match the description instead
+									((string-match (rx (literal emacsconf-base-url) (literal emacsconf-year) "/talks/"
+																		 (group (1+ (or (syntax word) "-"))))
+																 .snippet.description)
+									 (match-string 1 .snippet.description))
+									;; can't find, prompt
+									(t
+									 (when (string-match (rx (literal emacsconf-id) " " (literal emacsconf-year))
+																			 .snippet.title)
+										 (completing-read (format "Slug for %s: "
+																							.snippet.title)
+																			(seq-map (lambda (o) (plist-get o :slug))
+																							 (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))))))
+					 (video-id .snippet.resourceId.videoId)
+					 (id .id)
+					 result)
+			(when slug
+				;; set the YOUTUBE_URL property
+				(emacsconf-with-talk-heading slug
+					(org-entry-put (point) "YOUTUBE_URL" (concat "https://www.youtube.com/watch?v=" video-id))
+					(org-entry-put (point) "YOUTUBE_ID" id))
+				(plz 'put "https://www.googleapis.com/youtube/v3/videos?part=snippet,recordingDetails,status"
+					:headers `(("Authorization" . ,(url-oauth-auth "https://youtube.googleapis.com/youtube/v3/"))
+										 ("Accept" . "application/json")
+										 ("Content-Type" . "application/json"))
+					:body (json-encode (emacsconf-extract-youtube-object video-id (emacsconf-resolve-talk slug))))))))
+
+(defun emacsconf-extract-youtube-rename-videos (&optional videos)
+	"Rename videos and set the YOUTUBE_URL property in the Org heading."
+	(let ((info (emacsconf-get-talk-info)))
+		(mapc
+		 (lambda (video)
+			 (when (string-match (rx (literal emacsconf-id) " " (literal emacsconf-year)))
+				 (emacsconf-extract-youtube-api-update-video video)))
+		 (assoc-default 'items (or videos emacsconf-extract-youtube-api-videos)))))
 
 (provide 'emacsconf-extract)
 ;;; emacsconf-extract.el ends here
