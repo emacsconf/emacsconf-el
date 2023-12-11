@@ -1487,5 +1487,38 @@ If QA is non-nil, treat it as a Q&A video."
 	(emacsconf-extract-toobnix-store-url)
 	(shell-command "xdotool key Alt+Tab sleep 1 key Ctrl+w Alt+Tab"))
 
+(defun emacsconf-extract-youtube-spookfox-add-playlist-numbers ()
+	"Number the playlist for easier checking.
+Related: `emacsconf-extract-check-playlists'."
+	(interactive)
+	(spookfox-js-injection-eval-in-active-tab "[...document.querySelectorAll('ytd-playlist-video-renderer')].forEach((o, i) => { o.querySelector('.number')?.remove(); let div = document.createElement('div'); div.classList.add('number'); div.textContent = i; o.prepend(div) }))" t))
+
+(defun emacsconf-extract-check-playlists ()
+	"Return a table for checking playlist order."
+	(let ((pos 0))
+		(seq-mapcat (lambda (o)
+									(delq
+									 nil
+									 (list
+										(when (emacsconf-talk-file o "--main.webm")
+											(incf pos)
+											(list pos
+														(plist-get o :title)
+														(org-link-make-string
+														 (plist-get o :youtube-url)
+														 "YouTube")
+														(org-link-make-string
+														 (plist-get o :toobnix-url)
+														 "Toobnix")))
+										(when (emacsconf-talk-file o "--answers.webm")
+											(incf pos)
+											(list pos (concat "Q&A: " (plist-get o :title))
+														(org-link-make-string
+														 (plist-get o :qa-youtube-url)
+														 "YouTube")
+														(org-link-make-string
+														 (plist-get o :qa-toobnix-url)
+														 "Toobnix"))))))
+								(emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))
 (provide 'emacsconf-extract)
 ;;; emacsconf-extract.el ends here
