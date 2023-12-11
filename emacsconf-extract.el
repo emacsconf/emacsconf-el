@@ -1263,7 +1263,7 @@ If QA is non-nil, treat it as a Q&A video."
 ;; This still needed some tweaking, so maybe next time we'll try just inserting the items into the playlist
 (defvar emacsconf-extract-youtube-api-playlist nil)
 (defvar emacsconf-extract-youtube-api-playlist-items nil)
-(defun emacsconf-extract-youtube-sort-playlist ()
+(defun emacsconf-extract-youtube-api-sort-playlist ()
 	(interactive)
 	(setq emacsconf-extract-youtube-api-playlist (seq-find (lambda (o) (let-alist o (string= .snippet.title (concat emacsconf-name " " emacsconf-year))))
 																				(assoc-default 'items emacsconf-extract-youtube-api-playlists)))
