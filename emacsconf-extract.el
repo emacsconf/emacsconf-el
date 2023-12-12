@@ -1561,5 +1561,19 @@ Related: `emacsconf-extract-check-playlists'."
 														 (plist-get o :qa-toobnix-url)
 														 "Toobnix"))))))
 								(emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))
+
+(defun emacsconf-extract-update-task-status-after-copying-logs ()
+	"Mark non-BBB sessions as all done."
+	(interactive)
+	(mapc
+	 (lambda (o)
+		 (when (and (member (plist-get o :status) '("TO_ARCHIVE" "TO_EXTRACT"))
+								(emacsconf-talk-file o "--main.vtt")
+								(emacsconf-captions-edited-p (emacsconf-talk-file o "--main.vtt"))
+								(null (plist-get o :bbb-rec)))
+			 (emacsconf-with-talk-heading (plist-get o :slug)
+				 (org-todo "DONE"))))
+	 (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
+
 (provide 'emacsconf-extract)
 ;;; emacsconf-extract.el ends here
