@@ -120,8 +120,9 @@ document.querySelector('.create-room-button').click();"
 			(sleep-for 1))))
 
 (defun emacsconf-spookfox-wait-until (condition)
+	"Wait until CONDITION is non-nil and not false."
 	(while (member (spookfox-js-injection-eval-in-active-tab condition t)
-						 '(:null :false))
+								 '(:null :false))
 		(sit-for 1)))
 
 (provide 'emacsconf-spookfox)
