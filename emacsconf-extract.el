@@ -1263,7 +1263,8 @@ If QA is non-nil, treat it as a Q&A video."
 ;; This still needed some tweaking, so maybe next time we'll try just inserting the items into the playlist
 (defvar emacsconf-extract-youtube-api-playlist nil)
 (defvar emacsconf-extract-youtube-api-playlist-items nil)
-(defun emacsconf-extract-youtube-api-sort-playlist ()
+(defun emacsconf-extract-youtube-api-sort-playlist (&optional dry-run-only)
+	"Try to roughly sort the playlist."
 	(interactive)
 	(setq emacsconf-extract-youtube-api-playlist (seq-find (lambda (o) (let-alist o (string= .snippet.title (concat emacsconf-name " " emacsconf-year))))
 																				(assoc-default 'items emacsconf-extract-youtube-api-playlists)))
@@ -1271,66 +1272,72 @@ If QA is non-nil, treat it as a Q&A video."
 				(emacsconf-extract-youtube-api-paginated-request (concat "https://youtube.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails,status&forMine=true&order=date&maxResults=100&playlistId="
 																								(url-hexify-string (assoc-default 'id emacsconf-extract-youtube-api-playlist)))))
 	(let* ((playlist-info emacsconf-extract-youtube-api-playlists)
-				 (playlist-items
-					(assoc-default 'items emacsconf-youtube-api-playlist-items))
+				 (playlist-items emacsconf-extract-youtube-api-playlist-items)
 				 (info (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))
 				 (slugs (seq-map (lambda (o) (plist-get o :slug)) info))
-				 (position (1- (length playlist-items))))
+				 (position (1- (length playlist-items)))
+				 result)
 		;; sort items
-		(seq-map (lambda (talk)
-							 (when (plist-get talk :qa-youtube-id)
-								 ;; move the q & a
-								 (let ((video-object (seq-find (lambda (video) (string= (assoc-default 'id video)
-																																				(plist-get talk :qa-youtube-id)))
-																							 playlist-items)))
-									 (let-alist video-object
-										 (cond
-											((null video-object)
-											 (message "Could not find video for %s" (plist-get talk :slug)))
-											;; not in the right position, try to move it
-											((< .snippet.position position)
-											 (let ((video-id .id)
-														 (playlist-id .snippet.playlistId)
-														 (resource-id .snippet.resourceId))
-												 (message "Trying to move %s Q&A to %d from %d" (plist-get talk :slug) position .snippet.position)
-												 (plz 'put "https://www.googleapis.com/youtube/v3/playlistItems?part=snippet"
-													 :headers `(("Authorization" . ,(url-oauth-auth "https://youtube.googleapis.com/youtube/v3/"))
-																			("Accept" . "application/json")
-																			("Content-Type" . "application/json"))
-													 :body (json-encode
-																	`((id . ,video-id)
-																		(snippet
-																		 (playlistId . ,playlist-id)
-																		 (resourceId . ,resource-id)
-																		 (position . ,position)))))))))
-									 (setq position (1- position)))
-								 ;; move the talk if needed
-								 (let ((video-object (seq-find (lambda (video) (string-match
-																																(regexp-quote (let-alist video .resourceId.videoId))
-																																(plist-get talk :youtube-url)))
-																							 playlist-items)))
-									 (let-alist video-object
-										 (cond
-											((null video-object)
-											 (message "Could not find video for %s" (plist-get talk :slug)))
-											;; not in the right position, try to move it
-											((< .snippet.position position)
-											 (let ((video-id .id)
-														 (playlist-id .snippet.playlistId)
-														 (resource-id .snippet.resourceId))
-												 (message "Trying to move %s to %d from %d" (plist-get talk :slug) position .snippet.position)
-												 (plz 'put "https://www.googleapis.com/youtube/v3/playlistItems?part=snippet"
-													 :headers `(("Authorization" . ,(url-oauth-auth "https://youtube.googleapis.com/youtube/v3/"))
-																			("Accept" . "application/json")
-																			("Content-Type" . "application/json"))
-													 :body (json-encode
-																	`((id . ,video-id)
-																		(snippet
-																		 (playlistId . ,playlist-id)
-																		 (resourceId . ,resource-id)
-																		 (position . ,position)))))))))
-									 (setq position (1- position)))))
-						 (nreverse info))))
+		(mapc (lambda (talk)
+						(when (plist-get talk :qa-youtube-id)
+							;; move the q & a
+							(let ((video-object (emacsconf-extract-youtube-find-url-video-in-list
+																	 (plist-get talk :qa-youtube-url)
+																	 playlist-items)))
+								(let-alist video-object
+									(cond
+									 ((null video-object)
+										(message "Could not find video for %s" (plist-get talk :slug)))
+									 ;; not in the right position, try to move it
+									 ((< .snippet.position position)
+										(let ((video-id .id)
+													(playlist-id .snippet.playlistId)
+													(resource-id .snippet.resourceId))
+											(message "Trying to move %s Q&A to %d from %d" (plist-get talk :slug) position .snippet.position)
+											(add-to-list 'result (list (plist-get talk :slug) "answers" .snippet.position position))
+											(unless dry-run-only
+												(plz 'put "https://www.googleapis.com/youtube/v3/playlistItems?part=snippet"
+													:headers `(("Authorization" . ,(url-oauth-auth "https://youtube.googleapis.com/youtube/v3/"))
+																		 ("Accept" . "application/json")
+																		 ("Content-Type" . "application/json"))
+													:body (json-encode
+																 `((id . ,video-id)
+																	 (snippet
+																		(playlistId . ,playlist-id)
+																		(resourceId . ,resource-id)
+																		(position . ,position))))))))))
+								(setq position (1- position))))
+						;; move the talk if needed
+						(let ((video-object
+									 (emacsconf-extract-youtube-find-url-video-in-list
+										(plist-get talk :youtube-url)
+										playlist-items)))
+							(let-alist video-object
+								(cond
+								 ((null video-object)
+									(message "Could not find video for %s" (plist-get talk :slug)))
+								 ;; not in the right position, try to move it
+								 ((< .snippet.position position)
+									(let ((video-id .id)
+												(playlist-id .snippet.playlistId)
+												(resource-id .snippet.resourceId))
+										(message "Trying to move %s to %d from %d" (plist-get talk :slug) position .snippet.position)
+										(add-to-list 'result (list (plist-get talk :slug) "main" .snippet.position position))
+										(unless dry-run-only
+											(plz 'put "https://www.googleapis.com/youtube/v3/playlistItems?part=snippet"
+												:headers `(("Authorization" . ,(url-oauth-auth "https://youtube.googleapis.com/youtube/v3/"))
+																	 ("Accept" . "application/json")
+																	 ("Content-Type" . "application/json"))
+												:body (json-encode
+															 `((id . ,video-id)
+																 (snippet
+																	(playlistId . ,playlist-id)
+																	(resourceId . ,resource-id)
+																	(position . ,position))))))
+										))))
+							(setq position (1- position))))
+					(nreverse info))
+		result))
 
 (defun emacsconf-extract-youtube-get-video-details (&optional videos)
 	(let (result url)
@@ -1393,7 +1400,10 @@ If QA is non-nil, treat it as a Q&A video."
 (defvar emacsconf-extract-toobnix-api-channel-handle "emacsconf")
 
 (defun emacsconf-extract-toobnix-api-header ()
-	`(("Authorization" . ,(concat "Bearer " emacsconf-extract-toobnix-api-bearer-token))))
+	`(("Authorization" . ,(concat "Bearer "
+																(if (stringp emacsconf-extract-toobnix-api-bearer-token)
+																		emacsconf-extract-toobnix-api-bearer-token
+																	(assoc-default 'access_token emacsconf-extract-toobnix-api-bearer-token))))))
 
 (defun emacsconf-extract-toobnix-api-setup ()
 	(interactive)
@@ -1402,14 +1412,18 @@ If QA is non-nil, treat it as a Q&A video."
 	(setq emacsconf-extract-toobnix-api-client
 				(plz 'get "https://toobnix.org/api/v1/oauth-clients/local" :as #'json-read))
 	(setq emacsconf-extract-toobnix-api-bearer-token
-				(plz 'post "https://toobnix.org/api/v1/users/token"
-					:body (mm-url-encode-www-form-urlencoded
-								 `(("client_id" . ,(assoc-default 'client_id emacsconf-extract-toobnix-api-client))
-									 ("client_secret" . ,(assoc-default 'client_secret emacsconf-extract-toobnix-api-client))
-									 ("grant_type" . "password")
-									 ("username" . ,emacsconf-extract-toobnix-api-username)
-									 ("password" . ,(auth-info-password (car (auth-source-search :host "https://toobnix.org"))))))
-					:as #'json-read))
+				(assoc-default
+				 'access_token
+				 (plz 'post "https://toobnix.org/api/v1/users/token"
+					 :body (mm-url-encode-www-form-urlencoded
+									`(("client_id" . ,(assoc-default 'client_id emacsconf-extract-toobnix-api-client))
+										("client_secret" . ,(assoc-default 'client_secret emacsconf-extract-toobnix-api-client))
+										("grant_type" . "password")
+										("username" . ,emacsconf-extract-toobnix-api-username)
+										("password" . ,(auth-info-password (car (auth-source-search :host "https://toobnix.org"))))))
+					 :as #'json-read)
+				 )
+)
 	(setq emacsconf-extract-toobnix-api-channels
 				(plz 'get (format "https://toobnix.org/api/v1/accounts/%s/video-channels"
 													emacsconf-extract-toobnix-api-username)
@@ -1420,7 +1434,16 @@ If QA is non-nil, treat it as a Q&A video."
 					(format "https://toobnix.org/api/v1/accounts/%s/videos?count=100&sort=-createdAt"
 									emacsconf-extract-toobnix-api-username)
 					:headers (emacsconf-extract-toobnix-api-header)
-					:as #'json-read)))
+					:as #'json-read))
+	(setq emacsconf-extract-toobnix-api-playlists
+				(append
+				 (assoc-default 'data
+												(plz 'get
+													(format "https://toobnix.org/api/v1/video-channels/%s/video-playlists?sort=-createdAt"
+																	emacsconf-extract-toobnix-api-channel-handle)
+													:headers (emacsconf-extract-toobnix-api-header)
+													:as #'json-read))
+				 nil)))
 
 (defun emacsconf-extract-youtube-store-url (&optional prefix)
 	(interactive "p")
@@ -1487,6 +1510,24 @@ If QA is non-nil, treat it as a Q&A video."
 	(emacsconf-extract-toobnix-store-url)
 	(shell-command "xdotool key Alt+Tab sleep 1 key Ctrl+w Alt+Tab"))
 
+(defun emacsconf-extract-toobnix-set-up-playlist ()
+	(interactive)
+	(mapcar
+	 (lambda (o)
+		 (when (plist-get o :toobnix-url)
+			 (browse-url (plist-get o :toobnix-url))
+			 (read-key "press a key when page is loaded")
+			 (spookfox-js-injection-eval-in-active-tab "document.querySelector('.action-button-save').click()" t)
+			 (spookfox-js-injection-eval-in-active-tab "document.querySelector('my-peertube-checkbox').click()" t)
+			 (read-key "press a key when saved to playlist"))
+		 (when (plist-get o :qa-toobnix-url)
+			 (browse-url (plist-get o :qa-toobnix-url))
+			 (read-key "press a key when page is loaded")
+			 (spookfox-js-injection-eval-in-active-tab "document.querySelector('.action-button-save').click()" t)
+			 (spookfox-js-injection-eval-in-active-tab "document.querySelector('my-peertube-checkbox').click()" t)
+			 (read-key "press a key when saved to playlist")))
+	 (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
+
 (defun emacsconf-extract-youtube-spookfox-add-playlist-numbers ()
 	"Number the playlist for easier checking.
 Related: `emacsconf-extract-check-playlists'."
@@ -1501,7 +1542,7 @@ Related: `emacsconf-extract-check-playlists'."
 									 nil
 									 (list
 										(when (emacsconf-talk-file o "--main.webm")
-											(incf pos)
+											(cl-incf pos)
 											(list pos
 														(plist-get o :title)
 														(org-link-make-string
@@ -1511,7 +1552,7 @@ Related: `emacsconf-extract-check-playlists'."
 														 (plist-get o :toobnix-url)
 														 "Toobnix")))
 										(when (emacsconf-talk-file o "--answers.webm")
-											(incf pos)
+											(cl-incf pos)
 											(list pos (concat "Q&A: " (plist-get o :title))
 														(org-link-make-string
 														 (plist-get o :qa-youtube-url)
