@@ -118,5 +118,11 @@ document.querySelector('.create-room-button').click();"
 			 "document.querySelector('button.create-room-button[data-dismiss=\"modal\"]').click()"
 			 t)
 			(sleep-for 1))))
+
+(defun emacsconf-spookfox-wait-until (condition)
+	(while (member (spookfox-js-injection-eval-in-active-tab condition t)
+						 '(:null :false))
+		(sit-for 1)))
+
 (provide 'emacsconf-spookfox)
 ;;; emacsconf-spookfox.el ends here
