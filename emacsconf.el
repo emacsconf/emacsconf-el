@@ -75,14 +75,16 @@
 'program - don't include times
 'schedule - include times; use this leading up to the conference
 'conference - show IRC and watching info
-'resources - after EmacsConf, don't need status"
+'harvest - after EmacsConf, starting to process
+'resources - after EmacsConf, publish all the stuff"
   :group 'emacsconf
   :type '(choice
           (const :tag "CFP: include invitation" cfp)
           (const :tag "Program: Don't include times" program)
           (const :tag "Schedule: Include detailed times" schedule)
 					(const :tag "Conference: Show IRC and watching info" conference)
-          (const :tag "Resources: Don't include status" resources)))
+          (const :tag "Harvest: Extracting info" conference)
+          (const :tag "Resources: Don't include status, publish all Q&A" resources)))
 
 (defcustom emacsconf-backstage-phase 'prerec
 	"Contros what information to include backstage.
@@ -698,6 +700,8 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
 				 (time-less-p (plist-get o :start-time)
 											(current-time)))
     (plist-put o :public t))
+	(when (eq emacsconf-publishing-phase 'resource)
+		(plist-put o :qa-public t))
   o)
 
 (defun emacsconf-talk-live-p (talk)
@@ -746,7 +750,8 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
     emacsconf-add-checkin-time
     emacsconf-add-timezone-conversions
     emacsconf-add-speakers-with-pronouns
-    emacsconf-add-live-info)
+    emacsconf-add-live-info
+		emacsconf-add-video-info)
 	"Functions to collect information.")
 
 (defun emacsconf-add-speakers-with-pronouns (o)
@@ -793,6 +798,18 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
   o)
 
 (require 'emacsconf-pad)
+
+(defun emacsconf-add-video-info (o)
+	(mapc (lambda (field)
+					(when
+							(and (plist-get o (intern (concat ":" field "-url")))
+									 (string-match "\\(?:watch\\?v=\\|https://youtu\\.be/\\|/w/\\)\\(.+\\)\\(?:[?&]\\|$\\)"
+																 (plist-get o (intern (concat ":" field "-url")))))
+						(plist-put o (intern (concat ":" field "-id"))
+											 (match-string 1 (plist-get o (intern (concat ":" field "-url")))) )))
+				(list "youtube" "qa-youtube" "toobnix" "qa-toobnix"))
+	o)
+
 (defun emacsconf-add-live-info (o)
   (plist-put o :absolute-url (concat emacsconf-base-url (plist-get o :url)))
   (plist-put o :in-between-url (format "%s%s/in-between/%s.png"
@@ -804,6 +821,8 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
                                      emacsconf-year
                                      (plist-get o :slug)))
 	(plist-put o :intro-expanded (emacsconf-pad-expand-intro o))
+	(when (string-match "meetingId=\\(.+\\)" (or (plist-get o :bbb-rec) ""))
+		(plist-put o :bbb-meeting-id (match-string 1 (plist-get o :bbb-rec))))
   (let ((track (seq-find (lambda (track) (string= (plist-get o :track) (plist-get track :name)))
 												 emacsconf-tracks)))
     (when track
@@ -1716,7 +1735,7 @@ tracks with the ID in the cdr of that list."
   (find-file (expand-file-name filename emacsconf-cache-dir)))
 
 (defun emacsconf-format-seconds (seconds)
-	(concat (format-seconds "%.2m:%.2s" (floor seconds))
+	(concat (format-seconds "%.2h:%z%.2m:%.2s" (floor seconds))
 					"." (format "%03d" (% (floor (* 1000 seconds)) 1000))))
 
 (defun emacsconf-insert-time-for-speaker (talk)
@@ -1737,6 +1756,7 @@ tracks with the ID in the cdr of that list."
 	(mapcar (lambda (o) (plist-get o prop)) list))
 
 (defun emacsconf-talk-file (talk suffix &optional always source)
+	(setq talk (emacsconf-resolve-talk talk))
 	(let ((wiki-filename
 				 (expand-file-name (concat (plist-get talk :file-prefix) suffix)
 													 (expand-file-name "captions"
@@ -1746,9 +1766,9 @@ tracks with the ID in the cdr of that list."
 				 (expand-file-name (concat (plist-get talk :file-prefix) suffix)
 													 emacsconf-cache-dir)))
 		(cond
+		 (always cache-filename)
 		 ((and (file-exists-p wiki-filename) (not (eq source 'cache))) wiki-filename)
-		 ((and (file-exists-p cache-filename) (not (eq source 'wiki-captions))) cache-filename)
-		 (always cache-filename))))
+		 ((and (file-exists-p cache-filename) (not (eq source 'wiki-captions))) cache-filename))))
 
 (with-eval-after-load 'org
 	(defun emacsconf-el-complete ()

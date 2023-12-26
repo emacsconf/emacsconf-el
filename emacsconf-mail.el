@@ -968,7 +968,7 @@ ${captions}
       (if (string= (plist-get talk :captioner) "sachac")
           ""
         (format "%s: Thank you for editing the captions!\n\n" (assoc-default "NAME_SHORT" captioner-info)))
-      :captions (mapconcat (lambda (sub) (concat (emacsconf-surround "\n" (elt sub 4) "" "") (elt sub 3))) (subed-parse-file captions) "\n")))
+      :captions (mapconcat (lambda (sub) (concat (emacsconf-surround "\nNOTE " (elt sub 4) "\n\n" "") (elt sub 3))) (subed-parse-file captions) "\n")))
     (mml-attach-file captions "text/vtt" "Subtitles" "attachment")))
 
 (defun emacsconf-mail-upload-and-backstage-info (group)
@@ -1620,12 +1620,186 @@ Sacha")
      :base-url emacsconf-base-url
      :conf-name emacsconf-name
      :email (car group)
-		:user-email user-mail-address
+		 :user-email user-mail-address
      :speakers-short (plist-get (cadr group) :speakers-short)
      :url (mapconcat (lambda (o) (concat emacsconf-base-url (plist-get o :url)))
                      (cdr group) " , ")
 		 :email-notes (emacsconf-surround "ZZZ: " (plist-get (cadr group) :email-notes) "\n\n" ""))))
 
+(defun emacsconf-mail-template-speakers-thanks-after-conferences ()
+	(interactive)
+	(let* ((log-note "sent thanks to speaker after conference")
+				 (groups
+					(emacsconf-mail-groups
+					 (emacsconf-filter-talks-by-logbook
+						log-note
+						(seq-filter (lambda (o) (plist-get o :email))
+												(emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))))
+		(dolist (group groups)
+			(emacsconf-mail-prepare
+			 (list
+				:subject "Thanks for speaking at ${conf-name} ${year}!"
+				:reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+				:mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+				:log-note log-note
+				:body
+				"${email-notes}Hi, ${speakers-short}!
+
+Thank you so much for being part of ${conf-name} ${year}! Hundreds of people
+enjoyed it, and I'm sure even more will come across the videos in the
+days to follow.
+
+Your videos are available on the talk page at ${talk-urls} , and
+we've added the questions and comments that we've collected from
+IRC/BBB/Etherpad. For your convenience, I've also included them below.
+
+Your videos are also available on YouTube and Toobnix at:
+
+${video-urls}
+
+If you want to reupload the video to your own channel, feel free
+to do so.  If you let me know where you've uploaded it, I can
+switch our playlist to include your version of the video
+instead. That way, it might be easier for you to respond to
+comments on videos.
+
+If you would like to share more resources or add more answers to
+any of the questions, you can add them to the talk page or reply
+to this and we can add them for you.
+
+Thanks again for speaking at ${conf-name} ${year}!
+
+${signature}
+----
+${feedback}
+"
+				)
+			 (car group)
+			 (list
+				:email-notes (emacsconf-surround "ZZZ: " (string-join (seq-uniq (seq-map (lambda (talk) (plist-get talk :email-notes)) (cdr group)))
+																															", ") "\n\n" "")
+				:speakers-short (plist-get (cadr group) :speakers-short)
+				:conf-name emacsconf-name
+				:year emacsconf-year
+				:talk-urls
+				(mapconcat
+				 (lambda (talk)
+					 (plist-get talk :absolute-url))
+				 (cdr group)
+				 " , ")
+				:video-urls
+				(mapconcat
+				 (lambda (talk)
+					 (concat
+						(plist-get talk :title) "\n"
+						(emacsconf-surround "YouTube - talk: " (plist-get talk :youtube-url) "\n" "")
+						(emacsconf-surround "YouTube - Q&A: " (plist-get talk :qa-youtube-url) "\n" "")
+						(emacsconf-surround "Toobnix - talk: " (plist-get talk :toobnix-url) "\n" "")
+						(emacsconf-surround "Toobnix - Q&A: " (plist-get talk :qa-toobnix-url) "\n" "")))
+				 (cdr group)
+				 "\n")
+				:signature user-full-name
+				:email (car group)
+				:user-email user-mail-address
+				:feedback
+				(mapconcat
+				 (lambda (talk)
+					 (plist-get talk :absolute-url)
+					 (with-temp-buffer
+						 (insert (emacsconf-talk-markdown-from-wiki (plist-get talk :slug)))
+						 (goto-char (point-min))
+						 (re-search-forward "^# Discussion" nil t)
+						 (buffer-substring (point) (point-max))))
+				 (cdr group)
+				 "\n---------------------------\n")
+				)))))
+
+(defun emacsconf-mail-template-qa-permission (group)
+	"Ask for permission to post more of the Q&A."
+	(interactive (list (emacsconf-mail-complete-email-group
+                      (seq-filter
+                       (lambda (o)
+												 (and
+													(or
+                           (emacsconf-talk-file o "--answers--original.vtt")
+													 (emacsconf-talk-file o "--original.vtt"))
+													(not (string-match "Asked for permission regarding the rest of the Q&A"
+																						 (plist-get o :logbook)))))
+                       (emacsconf-get-talk-info)))))
+	(emacsconf-mail-prepare
+	 (list
+		:subject "${conf-name} ${year}: May we post the rest of the Q&A?"
+		:reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+		:mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+		:log-note "Asked for permission regarding the rest of the Q&A"
+		:body
+		"${email-notes}Hi, ${speakers-short}!
+
+We're experimenting with a new harvesting workflow for live and
+Q&A videos this year to make things more predictable for speakers
+and participants. Sometimes people have so much fun chatting
+after the talk that they might forget that the recording for the
+session Q&A will be posted for other people to learn from.
+
+I've trimmed your online videos to roughly when the host left the
+BigBlueButton room. There was lots of great discussion
+afterwards, though, so I'd love to include the rest of it if
+that's okay with you. To make it easier for you to review that
+part or reuse what you shared in the Q&A session, I've included
+an automatically-generated transcript for the whole Q&A
+session. I've indicated the section that got trimmed out of the
+published recording with \"NOTE Start of section to review\" in
+the transcript. You can watch the session at ${bbb-recording-url} .
+
+- Option A: We could post the rest of the Q&A as is, which lets
+  people listen to the conversation and learn from it
+
+- Option B: We can keep the published Q&A video to just the part
+  that the host was in, and either you or I can go over the
+  transcript to pull out interesting notes for the summary or for
+  other posts
+
+What do you think?
+
+${signature}
+----
+${transcript}
+")
+	 (car group)
+	 (list
+		:email-notes (emacsconf-surround "ZZZ: " (string-join (seq-uniq (seq-map (lambda (talk) (plist-get talk :email-notes)) (cdr group)))
+																													", ") "\n\n" "")
+		:speakers-short (plist-get (cadr group) :speakers-short)
+		:conf-name emacsconf-name
+		:year emacsconf-year
+		:bbb-recording-url
+		(mapconcat
+		 (lambda (talk)
+			 (plist-get talk :bbb-rec))
+		 (cdr group)
+		 " , ")
+		:signature user-full-name
+		:email (car group)
+		:transcript
+		(mapconcat
+		 (lambda (talk)
+			 (concat
+				(plist-get talk :title) "\n\n"
+				(mapconcat
+				 (lambda (sub)
+					 (concat (emacsconf-surround "\nNOTE " (elt sub 4) "\n\n" "")
+									 (elt sub 3)))
+				 (subed-parse-file (or (emacsconf-talk-file talk "--answers--original.vtt")
+															 (emacsconf-talk-file talk "--original.vtt"))) "\n")))
+		 (cdr group)
+		 "----")
+		:user-email user-mail-address))
+	(dolist (talk (cdr group))
+		(mml-attach-file (or (emacsconf-talk-file talk "--answers--original.vtt")
+												 (emacsconf-talk-file talk "--original.vtt"))
+										 "text/vtt"
+										 (concat "Automatic captions for " (plist-get talk :title))
+										 "attachment")))
 
 ;;; Other mail functions
 

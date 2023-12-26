@@ -753,6 +753,7 @@ Files should be downloaded to `emacsconf-extract-bbb-raw-dir'."
 				 recording-start
 				 recording-stop
 				 recording-spans
+				 stream-start
 				 chat
 				 talking
 				 participants
@@ -1092,7 +1093,9 @@ Strategies:
 			 ("authorization-code-function" . emacsconf-extract-oauth-browse-and-prompt)
 			 ("authorization-endpoint" . "https://accounts.google.com/o/oauth2/v2/auth")
 			 ("authorization-extra-arguments" .
-				(("redirect_uri" . "http://localhost:8080")))
+				(("redirect_uri" . "http://localhost:8080")
+				 ("access_type" . "offline")
+				 ("prompt" . "consent")))
 			 ("access-token-endpoint" . "https://oauth2.googleapis.com/token")
 			 ("scope" . "https://www.googleapis.com/auth/youtube")
 			 ("client-secret-method" . prompt))))
@@ -1389,6 +1392,55 @@ If QA is non-nil, treat it as a Q&A video."
 	(expect (emacsconf-extract-youtube-format-duration "PT1H9M22S") :to-equal "1:09:22")
 	(expect (emacsconf-extract-youtube-format-duration "PT9M22S") :to-equal "9:22"))
 
+(defun emacsconf-extract-youtube-publish-video-drafts-with-spookfox ()
+	"Look for drafts and publish them."
+	(while (not (eq (spookfox-js-injection-eval-in-active-tab
+									 "document.querySelector('.edit-draft-button div') != null" t) :false))
+		(progn
+			(spookfox-js-injection-eval-in-active-tab
+			 "document.querySelector('.edit-draft-button div').click()" t)
+			(sleep-for 2)
+			(spookfox-js-injection-eval-in-active-tab
+			 "document.querySelector('#step-title-3').click()" t)
+			(when (spookfox-js-injection-eval-in-active-tab
+						 "document.querySelector('tp-yt-paper-radio-button[name=\"PUBLIC\"] #radioLabel').click()" t)
+				(spookfox-js-injection-eval-in-active-tab
+				 "document.querySelector('#done-button').click()" t)
+				(while (not (eq  (spookfox-js-injection-eval-in-active-tab
+													"document.querySelector('#close-button .label') == null" t)
+												 :false))
+					(sleep-for 1))
+
+				(spookfox-js-injection-eval-in-active-tab
+				 "document.querySelector('#close-button .label').click()" t)
+				(sleep-for 1)))))
+
+(defun emacsconf-extract-youtube-store-url (&optional prefix)
+	(interactive "p")
+	(let* ((desc (spookfox-js-injection-eval-in-active-tab
+							 "document.querySelector('#description').innerHTML" t))
+				 (slug (if (and desc
+												(string-match (rx (literal emacsconf-base-url) (literal emacsconf-year) "/talks/"
+																		(group (1+ (not (or " " "/" "\"")))))
+																desc))
+									(match-string 1 desc)
+								(emacsconf-complete-slug)))
+				(url (spookfox-js-injection-eval-in-active-tab "window.location.href" t))
+				(qa (or (> (or prefix 1)
+									 1)
+								(string-match "Q&A" (or desc ""))))
+				(field (if qa
+									 "QA_YOUTUBE_URL"
+								 "YOUTUBE_URL")))
+		(save-window-excursion
+					(emacsconf-with-talk-heading slug
+						(org-entry-put (point)
+													 field
+													 url)
+						(message "Updating %s %s %s"
+										 slug
+										 field
+										 url)))))
 
 ;; (setq emacsconf-extract-youtube-api-video-details (emacsconf-extract-youtube-get-video-details emacsconf-extract-youtube-api-playlist-items))
 
@@ -1445,60 +1497,6 @@ If QA is non-nil, treat it as a Q&A video."
 													:as #'json-read))
 				 nil)))
 
-(defun emacsconf-extract-youtube-store-url (&optional prefix)
-	(interactive "p")
-	(let* ((desc (spookfox-js-injection-eval-in-active-tab
-							 "document.querySelector('#description').innerHTML" t))
-				 (slug (if (and desc
-												(string-match (rx (literal emacsconf-base-url) (literal emacsconf-year) "/talks/"
-																		(group (1+ (not (or " " "/" "\"")))))
-																desc))
-									(match-string 1 desc)
-								(emacsconf-complete-slug)))
-				(url (spookfox-js-injection-eval-in-active-tab "window.location.href" t))
-				(qa (or (> (or prefix 1)
-									 1)
-								(string-match "Q&A" (or desc ""))))
-				(field (if qa
-									 "QA_YOUTUBE_URL"
-								 "YOUTUBE_URL")))
-		(save-window-excursion
-					(emacsconf-with-talk-heading slug
-						(org-entry-put (point)
-													 field
-													 url)
-						(message "Updating %s %s %s"
-										 slug
-										 field
-										 url)))))
-
-(defun emacsconf-extract-toobnix-store-url (&optional prefix)
-	(interactive "p")
-	(let* ((desc (spookfox-js-injection-eval-in-active-tab
-							 "document.querySelector('.video-info-description').innerHTML" t))
-				 (slug (if (and desc
-												(string-match (rx (literal emacsconf-base-url) (literal emacsconf-year) "/talks/"
-																		(group (1+ (not (or " " "/" "\"")))))
-																desc))
-									(match-string 1 desc)
-								(emacsconf-complete-slug)))
-				(url (spookfox-js-injection-eval-in-active-tab "window.location.href" t))
-				(qa (or (> (or prefix 1)
-									 1)
-								(string-match "Q&A" (or desc ""))))
-				(field (if qa
-									 "QA_TOOBNIX_URL"
-								 "TOOBNIX_URL")))
-		(save-window-excursion
-					(emacsconf-with-talk-heading slug
-						(org-entry-put (point)
-													 field
-													 url)
-						(message "Updating %s %s %s"
-										 slug
-										 field
-										 url)))))
-
 (defun emacsconf-extract-toobnix-publish-video-from-edit-page ()
 	"Messy hack to set a video to public and store the URL."
 	(interactive)
@@ -1507,7 +1505,7 @@ If QA is non-nil, treat it as a Q&A video."
 	(spookfox-js-injection-eval-in-active-tab "document.querySelector('span[title=\"Anyone can see this video\"]').click()" t)
 	(sit-for 1)
 	(spookfox-js-injection-eval-in-active-tab "document.querySelector('button.orange-button').click()" t)(sit-for 3)
-	(emacsconf-extract-toobnix-store-url)
+	(emacsconf-extract-store-url)
 	(shell-command "xdotool key Alt+Tab sleep 1 key Ctrl+w Alt+Tab"))
 
 (defun emacsconf-extract-toobnix-set-up-playlist ()
@@ -1527,6 +1525,10 @@ If QA is non-nil, treat it as a Q&A video."
 			 (spookfox-js-injection-eval-in-active-tab "document.querySelector('my-peertube-checkbox').click()" t)
 			 (read-key "press a key when saved to playlist")))
 	 (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
+
+(defun emacsconf-extract-toobnix-view-qa (talk)
+	(interactive (list (emacsconf-complete-talk-info)))
+	(browse-url (plist-get (emacsconf-resolve-talk talk) :qa-toobnix-url)))
 
 (defun emacsconf-extract-youtube-spookfox-add-playlist-numbers ()
 	"Number the playlist for easier checking.
@@ -1574,6 +1576,44 @@ Related: `emacsconf-extract-check-playlists'."
 			 (emacsconf-with-talk-heading (plist-get o :slug)
 				 (org-todo "DONE"))))
 	 (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
+
+(defun emacsconf-extract-store-url (&optional qa)
+	"Store the URL for the currently-displayed field.
+Call with a prefix arg to store the URL as Q&A."
+	(interactive (list current-prefix-arg))
+	(let* ((url (spookfox-js-injection-eval-in-active-tab "window.location.href" t))
+				 (platform (if (string-match "toobnix" url)
+											 'toobnix
+										 'youtube))
+				 (desc (spookfox-js-injection-eval-in-active-tab
+								(format "document.querySelector('%s').innerHTML"
+												(if (eq platform 'toobnix)
+														".video-info-description"
+													"#description"))
+								t))
+				 (slug (if (and desc
+												(string-match (rx (literal emacsconf-base-url) (literal emacsconf-year) "/talks/"
+																					(group (1+ (not (or " " "/" "\"")))))
+																			desc))
+									 (match-string 1 desc)
+								 (emacsconf-complete-slug)))
+				 (qa (or qa (string-match "Q&A" (or desc ""))))
+				 (field
+					(concat
+					 (if qa "QA_" "")
+					 (if (eq platform 'toobnix) "TOOBNIX" "YOUTUBE")
+					 "_URL"
+					 )))
+		(save-window-excursion
+			(emacsconf-with-talk-heading slug
+				(org-entry-put (point)
+											 field
+											 url)
+				(message "Updating %s %s %s"
+								 slug
+								 field
+								 url)))))
+
 
 (provide 'emacsconf-extract)
 ;;; emacsconf-extract.el ends here
