@@ -93,12 +93,12 @@ You can find it in $ETHERPAD_PATH/APIKEY.txt"
 
 (defun emacsconf-pad-append-text (pad-id text)
   (interactive "MPad ID: \nMText: ")
-  (emacsconf-pad-json-request (format "%sapi/1/appendText?apikey=%s&padID=%s&text=%s"
-                                      emacsconf-pad-base
-                                      (url-hexify-string emacsconf-pad-api-key)
-                                      (url-hexify-string pad-id)
-                                      (url-hexify-string text))
-                              (called-interactively-p 'any)))
+  (emacsconf-pad-json-request (format "%sapi/1.2.13/appendText?apikey=%s&padID=%s&text=%s"
+                         emacsconf-pad-base
+                         (url-hexify-string emacsconf-pad-api-key)
+                         (url-hexify-string pad-id)
+                         (url-hexify-string text))
+                 (called-interactively-p 'any)))
 
 (defun emacsconf-pad-get-html (pad-id)
   (interactive "MPad ID: ")
