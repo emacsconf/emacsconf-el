@@ -1503,19 +1503,19 @@ answers without needing to listen to everything again. You can see <a href=\"htt
 															f)
 						;; further tests
 						(pcase f
-							((rx (seq "vtt" string-end))
+							((rx "--original")
+							 ;; include original only if --main or does not exist
+							 (and
+								(not (string-match "--answers" f))
+								(not (member (concat (plist-get talk :file-prefix)
+																		 "--main.webm")
+														 files))))							((rx (seq "vtt" string-end))
 							 (or (plist-get talk :captions-edited)
 									 (emacsconf-captions-edited-p (expand-file-name f emacsconf-cache-dir))))
 							((rx (seq "--"
 												(or "reencoded" "normalized" "final" "old" "bbb")))
 							 nil)
-							((rx "--original")
-							 ;; include original only if --main or --answers does not exist
-							 (not (member (concat (plist-get talk :file-prefix)
-																		(if (string-match "--answers-original" f)
-																				"--answers.webm"
-																			"--main.webm"))
-														files)))
+
 							((rx (or "--main.txt" "--after-zaeph")) nil)
 							(_ t))))
 				files)))
