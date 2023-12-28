@@ -720,6 +720,63 @@ Would you like to help? See [[help_with_chapter_markers]] for more details. You 
 	(setq talk (emacsconf-resolve-talk talk))
 	(expand-file-name "events.xml" (expand-file-name (plist-get talk :bbb-meeting-id) emacsconf-extract-bbb-raw-dir)))
 
+(defun emacsconf-extract-bbb-report ()
+	(let* ((max 0)
+				 (participant-count 0)
+				 (meeting-count 0)
+				 (max-meetings 0)
+				 (max-participants 0)
+				 meeting-participants
+				 (meeting-events
+					(sort
+					 (seq-mapcat
+						(lambda (talk)
+							(when (plist-get talk :bbb-meeting-id)
+								(let ((dom (xml-parse-file (emacsconf-extract-bbb-raw-events-file-name talk)))
+											participants talking meeting-events)
+									(mapc (lambda (o)
+													(pcase (dom-attr o 'eventname)
+														("ParticipantJoinEvent"
+														 (cl-pushnew (cons (dom-text (dom-by-tag o 'userId))
+																							 (dom-text (dom-by-tag o 'name)))
+																				 participants)
+														 (push (cons (string-to-number (dom-text (dom-by-tag o 'timestampUTC)))
+																				 (dom-attr o 'eventname))
+																	 meeting-events))
+														("ParticipantLeftEvent"
+														 (when (string= (dom-attr o 'module) "PARTICIPANT")
+															 (push (cons (string-to-number (dom-text (dom-by-tag o 'timestampUTC)))
+																					 (dom-attr o 'eventname))
+																		 meeting-events)))
+														("ParticipantTalkingEvent"
+														 (cl-pushnew (assoc-default (dom-text (dom-by-tag o 'participant)) participants) talking))
+														((or
+															"CreatePresentationPodEvent"
+															"EndAndKickAllEvent")
+														 (push (cons (string-to-number (dom-text (dom-by-tag o 'timestampUTC)))
+																				 (dom-attr o 'eventname))
+																	 meeting-events))))
+												(dom-search dom (lambda (o) (dom-attr o 'eventname))))
+									(cl-pushnew (list :slug (plist-get talk :slug)
+																		:participants participants
+																		:talking talking)
+															meeting-participants)
+									meeting-events)))
+						(emacsconf-get-talk-info))
+					 (lambda (a b) (< (car a) (car b))))))
+		(dolist (event meeting-events)
+			(pcase (cdr event)
+				("CreatePresentationPodEvent" (cl-incf meeting-count) (when (> meeting-count max-meetings) (setq max-meetings meeting-count)))
+				("ParticipantJoinEvent" (cl-incf participant-count) (when (> participant-count max-participants) (setq max-participants participant-count)))
+				("ParticipantLeftEvent" (cl-decf participant-count))
+				("EndAndKickAllEvent" (cl-decf meeting-count))))
+		`(("Number of meetings analyzed" ,(length meeting-participants))
+			("Max number of simultaneous users" ,max-participants)
+			("Max number of simultaneous meetings" ,max-meetings)
+			("Max number of people in one meeting" ,(apply 'max (mapcar (lambda (o) (length (plist-get o :participants))) meeting-participants)))
+			("Total unique users" ,(length (seq-uniq (seq-mapcat (lambda (o) (mapcar #'car (plist-get o :participants))) meeting-participants))))
+			("Total unique talking" ,(length (seq-uniq (seq-mapcat (lambda (o) (plist-get o :talking)) meeting-participants)))))))
+
 (defun emacsconf-extract-bbb-dired-raw (talk)
 	(interactive (list (emacsconf-complete-talk-info)))
 	(setq talk (emacsconf-resolve-talk talk))
