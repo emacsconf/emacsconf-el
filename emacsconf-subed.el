@@ -329,6 +329,8 @@ Create it if necessary."
 		(define-key map (kbd "M-.") #'emacsconf-subed-merge-and-unfill)
 		(define-key map "q" #'emacsconf-subed-unfill-paragraph)
 		(define-key map "p" #'subed-backward-subtitle-text)
+		(define-key map "n" #'subed-forward-subtitle-text)
+		(define-key map "k" #'subed-kill-subtitle)
 		(define-key map "." #'emacsconf-subed-merge-and-unfill)
 		(define-key map "u" #'undo)
 		(define-key map (kbd "SPC") #'scroll-up)
