@@ -540,6 +540,7 @@ With a prefix argument (\\[universal-argument]), clear the overlay."
 				)))))
 
 (defun emacsconf-stream-generate-in-between-pages (&optional info)
+	"Generate the title images."
   (interactive)
   (setq info (or emacsconf-schedule-draft (emacsconf-publish-prepare-for-display (emacsconf-filter-talks (or info (emacsconf-get-talk-info))))))
   (let* ((by-track (seq-group-by (lambda (o) (plist-get o :track)) info))
