@@ -903,6 +903,14 @@ This page is for easy reference and recording. Please make sure any changes here
 								(expand-file-name (concat (plist-get talk :file-prefix) "--pad.html")
 																	emacsconf-cache-dir)))
 
+(defun emacsconf-pad-insert-as-org (pad-id)
+	(interactive "MPad ID: ")
+	(let ((filename (make-temp-file "pandoc" nil ".html" (emacsconf-pad-get-html pad-id))))
+		(insert
+		 (shell-command-to-string
+			(concat "pandoc -t org " (shell-quote-argument filename))))
+		(delete-file filename)))
+
 (defun emacsconf-pad-backup-talks ()
 	(interactive)
 	(mapc
