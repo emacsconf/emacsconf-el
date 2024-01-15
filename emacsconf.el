@@ -1076,9 +1076,7 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
 		(cons 'emacsconf (org-element-property :path (org-element-context))))
 	 ((and (derived-mode-p 'org-mode)
 				 (org-entry-get-with-inheritance "SLUG"))
-		(cons 'emacsconf (org-entry-get-with-inheritance "SLUG")))
-	 ((emacsconf-resolve-talk (symbol-name (symbol-at-point)))
-		(cons 'emacsconf (symbol-name (symbol-at-point))))))
+		(cons 'emacsconf (org-entry-get-with-inheritance "SLUG")))))
 
 (defun emacsconf-insert-talk-title (search)
 	"Insert the talk title matching SEARCH."
