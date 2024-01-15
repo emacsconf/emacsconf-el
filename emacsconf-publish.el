@@ -351,8 +351,10 @@
 									(or (plist-get talk :captions-edited)
 											(and
 											 (plist-get talk :caption-file)
-											 (emacsconf-captions-edited-p
-												(expand-file-name (plist-get talk :caption-file) emacsconf-cache-dir))))
+											 ;; Let's try always including the captions even if they're not edited
+											 ;; (emacsconf-captions-edited-p
+											 ;; 	(expand-file-name (plist-get talk :caption-file) emacsconf-cache-dir))
+											 ))
 									(let ((tracks
                          (emacsconf-video-subtitle-tracks
 													(or (plist-get talk :caption-file)
@@ -410,9 +412,7 @@
                                (plist-get talk :toobnix-url))
                             "")
             :transcript-link
-            (if (and
-                 (plist-get talk :public)
-                 (plist-get talk :captions-edited))
+            (if (plist-get talk :public)
                 (format "[View transcript](%s#%s-transcript)  \n" (plist-get talk :absolute-url) video-id)
               ""))
            talk)))
@@ -733,7 +733,7 @@ This includes the intro note, the schedule, and talk resources."
 				 (emacsconf-surround " lang=\"" lang "\"" "")))))
    subtitles "\n"))
 
-(defun emacsconf-publish-format-transcript (talk &optional video-id lang)
+(defun emacsconf-publish-format-transcript (talk &optional video-id lang title)
   "Format the transcript for TALK, adding paragraph markers when possible."
 	(require 'subed)
   (let* ((subtitles
@@ -745,7 +745,7 @@ This includes the intro note, the schedule, and talk resources."
 															(plist-get talk :caption-file)))))
     (if subtitles
         (format "<a name=\"%s-%s-transcript%s\"></a>
-# %s
+# %s%s
 
 %s
 
@@ -753,40 +753,45 @@ This includes the intro note, the schedule, and talk resources."
 								(plist-get talk :slug)
                 (or video-id "mainVideo")
                 (emacsconf-surround "-" lang "" "")
-								(if lang (assoc-default lang emacsconf-publish-subtitle-languages) "Transcript")
+								(if lang (assoc-default lang emacsconf-publish-subtitle-languages) (or title "Transcript"))
+								(if (emacsconf-captions-edited-p (plist-get talk :caption-file))
+										""
+									" (unedited)")
 								(emacsconf-format-transcript-from-list
                  subtitles (concat video-id "-" (plist-get talk :slug))))
       "")))
 
 (defun emacsconf-publish-format-captions (talk)
 	(let ((transcripts
-								(mapconcat
-								 (lambda (lang)
-									 (let ((filename
-													(emacsconf-talk-file
-													 talk
-													 (if lang
-															 (format "--main_%s.vtt" lang)
-														 "--main.vtt"))))
-										 (if (and filename (emacsconf-captions-edited-p filename)) ; todo: cache this somewhere
-												 (emacsconf-publish-format-transcript
-													(append
-													 (list :chapter-file (emacsconf-talk-file talk "--main--chapters.vtt")
-																 :caption-file (emacsconf-talk-file talk "--main.vtt"))
-													 talk)
-													"mainVideo" lang)
-											 "")))
-								 (cons nil (mapcar 'car emacsconf-publish-subtitle-languages))
-								 "")))
-					 (if (> (length transcripts) 0)
-							 (concat transcripts
-											 (emacsconf-surround
-												(if (string-match "[,;]" (or (plist-get talk :captioner) ""))
-														"\n\nCaptioners: "
-													"\n\nCaptioner: ")
-												(plist-get talk :captioner)
-												"\n\n"))
-						 "")))
+				 (mapconcat
+					(lambda (lang)
+						(let ((filename
+									 (emacsconf-talk-file
+										talk
+										(if lang
+												(format "--main_%s.vtt" lang)
+											"--main.vtt"))))
+							(if filename
+									;; (and filename (emacsconf-captions-edited-p filename))
+																				; todo: cache this somewhere
+									(emacsconf-publish-format-transcript
+									 (append
+										(list :chapter-file (emacsconf-talk-file talk "--main--chapters.vtt")
+													:caption-file (emacsconf-talk-file talk "--main.vtt"))
+										talk)
+									 "mainVideo" lang)
+								"")))
+					(cons nil (mapcar 'car emacsconf-publish-subtitle-languages))
+					"")))
+		(if (> (length transcripts) 0)
+				(concat transcripts
+								(emacsconf-surround
+								 (if (string-match "[,;]" (or (plist-get talk :captioner) ""))
+										 "\n\nCaptioners: "
+									 "\n\nCaptioner: ")
+								 (plist-get talk :captioner)
+								 "\n\n"))
+			"")))
 
 (defun emacsconf-publish-after-page (talk &optional info)
   "Generate the page with info included after the abstract.
@@ -800,6 +805,14 @@ This includes captions, contact, and an invitation to participate."
      "\n\n"
 		 ;; main transcript
      (if (plist-get talk :public) (emacsconf-publish-format-captions talk) "")
+		 (if (emacsconf-talk-file talk "--answers.vtt")
+				 (emacsconf-publish-format-transcript
+					(append
+					 (list :chapter-file (emacsconf-talk-file talk "--answers--chapters.vtt")
+								 :caption-file (emacsconf-talk-file talk "--answers.vtt"))
+					 talk)
+					"qanda" nil "Q&A transcript")
+			 "")
      (emacsconf-publish-format-email-questions-and-comments talk) "\n"
 		 (if (eq emacsconf-publishing-phase 'cfp)
 				 (format "\n----\nGot an idea for an EmacsConf talk or session? We'd love to hear from you! Check out the [[Call for Participation|/%s/cfp]] for details.\n" emacsconf-year)
@@ -1503,18 +1516,25 @@ answers without needing to listen to everything again. You can see <a href=\"htt
 															f)
 						;; further tests
 						(pcase f
+							((rx (seq "--"
+												(or "reencoded" "normalized" "final" "old" "bbb")))
+							 nil)
+							((rx ".diff") nil)
 							((rx "--original")
+
 							 ;; include original only if --main or does not exist
 							 (and
 								(not (string-match "--answers" f))
 								(not (member (concat (plist-get talk :file-prefix)
 																		 "--main.webm")
-														 files))))							((rx (seq "vtt" string-end))
-							 (or (plist-get talk :captions-edited)
-									 (emacsconf-captions-edited-p (expand-file-name f emacsconf-cache-dir))))
-							((rx (seq "--"
-												(or "reencoded" "normalized" "final" "old" "bbb")))
-							 nil)
+														 files))))
+							((rx (seq "vtt" string-end))
+							 t
+							 ;; Let's try always posting captions even if they're not edited
+							 ;; (or (plist-get talk :captions-edited)
+							 ;; 		 (emacsconf-captions-edited-p (expand-file-name f emacsconf-cache-dir)))
+							 )
+
 
 							((rx (or "--main.txt" "--after-zaeph")) nil)
 							(_ t))))
@@ -1710,13 +1730,17 @@ ${include}
 	(seq-map
 	 (lambda (file)
 		 (let ((cache-file (expand-file-name (file-name-nondirectory file) emacsconf-cache-dir)))
-			 (format "<a href=\"%s%s\">Download %s%s</a>"
+			 (format "<a href=\"%s%s\">Download %s%s</a>%s"
 							 (or (plist-get talk :base-url) "")
 							 (file-name-nondirectory file)
 							 (replace-regexp-in-string (concat "^" (regexp-quote (plist-get talk :file-prefix))) "" (file-name-nondirectory file))
 							 (if (and (file-exists-p cache-file)
 												(> (file-attribute-size (file-attributes cache-file)) 1000000))
 									 (format " (%sB)" (file-size-human-readable (file-attribute-size (file-attributes cache-file))))
+								 "")
+							 (if (and (string-match "--\\(main\\|answers\\)\\.vtt" file)
+												(not (emacsconf-captions-edited-p (expand-file-name file emacsconf-cache-dir))))
+									 " (unedited)"
 								 ""))))
 	 (or (plist-get talk :files)
 			 (if (plist-get talk :backstage)
