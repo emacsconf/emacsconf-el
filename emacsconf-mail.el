@@ -1801,6 +1801,61 @@ ${transcript}
 										 (concat "Automatic captions for " (plist-get talk :title))
 										 "attachment")))
 
+(defvar emacsconf-sticker-mailer nil "E-mail address of person who sends out stickers.")
+
+(defun emacsconf-mail-template-mailing-address-to-all ()
+	"Ask for mailing address."
+	(interactive)
+	(let* ((log-note "asked for mailing address")
+				 (groups
+					(emacsconf-mail-groups
+					 (emacsconf-filter-talks-by-logbook
+						log-note
+						(seq-filter (lambda (o) (plist-get o :email))
+												(emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))))
+		(dolist (group groups)
+			(emacsconf-mail-prepare
+			 (list
+				:subject "${conf-name} ${year}: Can we send you a sticker of appreciation?"
+				:reply-to "${user-email}, ${sticker-mailer}, ${email}"
+				:mail-followup-to "${user-email}, ${sticker-mailer}, ${email}"
+				:log-note "Asked for mailing address"
+				:body
+				"${email-notes}Hi, ${speakers-short}!
+
+Thank you again for participating in EmacsConf 2023. It was a lot
+of fun. We hope we captured some of that energy and awesomeness
+in this short conference report at ${base-url}${year}/report/ .
+Unedited transcripts are now up for the rest of the talks and Q&A
+sessions at ${base-url}${year}/talks - more ways to enjoy the
+conference.
+
+We're thinking of experimenting with ways to show our appreciation for
+speakers. Actually, it's also part of an evil plan to see if other
+people might see the sticker on your laptop/whatever and then talk to
+you about Emacs, mwahahaha! Would you consider sending us your mailing
+address so that we can send you an ${conf-name} logo sticker? If you
+would like one, please reply to this e-mail with the details. We
+promise to use your address only for sending the sticker. (Or
+stickers, depending on what else Corwin rustles up.)
+
+Thanks again!
+
+${signature}
+")
+			 (car group)
+			 (list
+				:email-notes (emacsconf-surround "ZZZ: " (string-join (seq-uniq (seq-map (lambda (talk) (plist-get talk :email-notes)) (cdr group)))
+																															", ") "\n\n" "")
+				:speakers-short (plist-get (cadr group) :speakers-short)
+				:conf-name emacsconf-name
+				:year emacsconf-year
+				:email (car group)
+				:base-url emacsconf-base-url
+				:signature user-full-name
+				:user-email user-mail-address
+				:sticker-mailer emacsconf-sticker-mailer)))))
+
 ;;; Other mail functions
 
 (defun emacsconf-mail-verify-delivery (groups subject)
