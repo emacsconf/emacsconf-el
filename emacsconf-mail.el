@@ -1830,10 +1830,16 @@ Unedited transcripts are now up for the rest of the talks and Q&A
 sessions at ${base-url}${year}/talks - more ways to enjoy the
 conference.
 
-We're thinking of experimenting with ways to show our appreciation for
-speakers. Actually, it's also part of an evil plan to see if other
-people might see the sticker on your laptop/whatever and then talk to
-you about Emacs, mwahahaha! Would you consider sending us your mailing
+We're thinking of experimenting with ways to show our
+appreciation for speakers. Actually, it's also part of an evil
+plan to see if other people might see the sticker on your
+laptop/whatever and then talk to you about Emacs, mwahahaha! And
+even if you don't hang out with other people, it could be a
+continuing source of warm-and-fuzzy feelings and a
+not-so-subliminal nudge to consider doing a talk at next year's
+${conf-name}. ;)
+
+Would you consider sending us your mailing
 address so that we can send you an ${conf-name} logo sticker? If you
 would like one, please reply to this e-mail with the details. We
 promise to use your address only for sending the sticker. (Or
