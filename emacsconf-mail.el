@@ -817,8 +817,8 @@ ${signature}
 					 (append
 						(list :renamed-timezone (emacsconf-schedule-rename-etc-timezone (plist-get (cadr group) :timezone)))
 						(cadr group))
-					 "Just let me know if you want us to use a different timezone for translating times in future e-mails. ")
-				"I don't think I have a timezone noted for you yet. If you want, I can translate times into your local timezone for you in future e-mails. Just let me know what you would like. ")))))
+					 "Just let me know if you want us to use a different time zone for translating times in future e-mails. ")
+				"I don't think I have a time zone noted for you yet. If you want, I can translate times into your local time zone for you in future e-mails. Just let me know what you would like. ")))))
 
 (defun emacsconf-mail-acknowledge-upload (talk)
 	"Acknowledge uploaded files for TALK."

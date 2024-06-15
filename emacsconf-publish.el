@@ -213,7 +213,7 @@
     "\n")))
 
 (defun emacsconf-publish-schedule-org-for-timezone (timezone &optional info)
-  (interactive (list (completing-read "Timezone: " emacsconf-timezones)))
+  (interactive (list (completing-read "Time zone: " emacsconf-timezones)))
   (let ((new-filename (expand-file-name
                        (concat "schedule-"
                                (replace-regexp-in-string
@@ -228,7 +228,7 @@
     (with-temp-file new-filename
       (insert
        "* " emacsconf-name " " emacsconf-year "\n\nTimes are in "
-			 (emacsconf-schedule-rename-etc-timezone timezone) " timezone. You can find this file and other calendars at "
+			 (emacsconf-schedule-rename-etc-timezone timezone) " time zone. You can find this file and other calendars at "
        emacsconf-media-base-url emacsconf-year "/schedules/ .\n\n"
        (mapconcat (lambda (track)
                     (emacsconf-publish-format-track-as-org track timezone info))
@@ -608,7 +608,7 @@ resources."
 																 (org-timestamp-split-range
 																	(org-timestamp-from-string (plist-get o :scheduled))))))
                     (format
-                     "<div>Times in different timezones:</div><div class=\"times\" start=\"%s\" end=\"%s\"><div class=\"conf-time\">%s</div><div class=\"others\"><div>which is the same as:</div>%s</div></div><div><strong><a href=\"/%s/watch/%s/\">Find out how to watch and participate</a></strong></div>"
+                     "<div>Times in different time zones:</div><div class=\"times\" start=\"%s\" end=\"%s\"><div class=\"conf-time\">%s</div><div class=\"others\"><div>which is the same as:</div>%s</div></div><div><strong><a href=\"/%s/watch/%s/\">Find out how to watch and participate</a></strong></div>"
                      (format-time-string "%Y-%m-%dT%H:%M:%SZ" start t)
                      (format-time-string "%Y-%m-%dT%H:%M:%SZ" end t)
                      (emacsconf-timezone-string o emacsconf-timezone)
@@ -933,7 +933,7 @@ Back to the [[talks]]  \n"
 
 Times below are in %{timezone} (GMT${gmt-offset}). If you have Javascript enabled, clicking on talk pages should include times in your computer's local time setting.
 
-You can also get this schedule as iCalendar files: ${icals}. Importing that into your calendar should translate things into your local timezone. Alternatively, you can use these timezone-translated Org files: <${schedule-directory}>")))
+You can also get this schedule as iCalendar files: ${icals}. Importing that into your calendar should translate things into your local time zone. Alternatively, you can use these time-zone-translated Org files: <${schedule-directory}>")))
 		;; By track
     (let* ((by-day (mapcar (lambda (o))
 													 (seq-group-by (lambda (o)
@@ -1099,7 +1099,7 @@ Entries are sorted chronologically, with different tracks interleaved."
 
 Times below are in ${timezone} (GMT${gmt-offset}). If you have Javascript enabled, clicking on talk pages should include times in your computer's local time setting.
 
-You can also get this schedule as iCalendar files: ${icals}. Importing that into your calendar should translate things into your local timezone. Alternatively, you can use these timezone-translated Org files: <${schedule-directory}>
+You can also get this schedule as iCalendar files: ${icals}. Importing that into your calendar should translate things into your local time zone. Alternatively, you can use these time-zone-translated Org files: <${schedule-directory}>
 
 ")))
     (insert
