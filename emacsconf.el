@@ -34,20 +34,20 @@
   "Name of conference"
   :group 'emacsconf
   :type 'string)
-(defcustom emacsconf-year "2023"
+(defcustom emacsconf-year "2024"
   "Conference year. String for easy inclusion."
   :group 'emacsconf
   :type 'string)
-(defcustom emacsconf-cfp-deadline "2023-09-14" "Deadline for proposals."
+(defcustom emacsconf-cfp-deadline "2024-09-20" "Deadline for proposals."
 	:group 'emacsconf
 	:type 'string)
-(defcustom emacsconf-date "2023-12-02" "Starting date of EmacsConf."
+(defcustom emacsconf-date "2024-12-07" "Starting date of EmacsConf."
 	:group 'emacsconf
 	:type 'string)
-(defcustom emacsconf-video-target-date "2023-11-04" "Target date for receiving talk videos from the speakers."
+(defcustom emacsconf-video-target-date "2024-11-08" "Target date for receiving talk videos from the speakers."
 	:group 'emacsconf
 	:type 'string)
-(defcustom emacsconf-schedule-announcement-date "2023-10-25" "Date for publishing the schedule."
+(defcustom emacsconf-schedule-announcement-date "2024-10-25" "Date for publishing the schedule."
 	:group 'emacsconf
 	:type 'string)
 (defcustom emacsconf-directory "~/vendor/emacsconf-wiki"
@@ -70,7 +70,7 @@
 (defcustom emacsconf-base-url "https://emacsconf.org/" "Includes trailing slash"
   :group 'emacsconf
   :type 'string)
-(defcustom emacsconf-publishing-phase 'program
+(defcustom emacsconf-publishing-phase 'cfp
   "Controls what information to include.
 'program - don't include times
 'schedule - include times; use this leading up to the conference
@@ -125,7 +125,7 @@
 (defvar emacsconf-chat-base "https://chat.emacsconf.org/")
 (defvar emacsconf-backstage-dir "/ssh:orga@media.emacsconf.org:/var/www/media.emacsconf.org/2022/backstage")
 (defvar emacsconf-upload-dir "/ssh:orga@media.emacsconf.org:/srv/upload")
-(defvar emacsconf-res-dir (format "/ssh:orga@res.emacsconf.org:/data/emacsconf/%s" emacsconf-year))
+(defvar emacsconf-res-dir (format "/ssh:orga@res.emacsconf.org:/data/emacsconf/shared/%s" emacsconf-year))
 (defvar emacsconf-media-extensions '("webm" "mkv" "mp4" "webm" "mov" "avi" "ts" "ogv" "wav" "ogg" "mp3" ))
 (defvar emacsconf-ftp-upload-dir "/ssh:orga@media.emacsconf.org:/srv/ftp/anon/upload-here")
 (defvar emacsconf-backstage-user "emacsconf")
@@ -173,6 +173,7 @@
   (interactive)
   (dired emacsconf-backstage-dir "-tl"))
 (defun emacsconf-res-dired () (interactive) (dired emacsconf-res-dir "-tl"))
+(defun emacsconf-res-cache-dired () (interactive) (dired (expand-file-name "cache" emacsconf-res-dir) "-tl"))
 (defun emacsconf-media-dired () (interactive) (dired emacsconf-public-media-directory "-tl"))
 (defun emacsconf-cache-dired ()
   (interactive)
@@ -489,7 +490,9 @@ If INFO is specified, limit it to that list."
      ,@body))
 
 (defvar emacsconf-status-types
-  '(("WAITING_FOR_PREREC" . "Waiting for video from speaker")
+  '(("TO_ACCEPT" . "Waiting for video from speaker")
+		("TO_CONFIRM" . "Waiting for video from speaker")
+		("WAITING_FOR_PREREC" . "Waiting for video from speaker")
     ("TO_PROCESS" . "Processing uploaded video")
     ("PROCESSING" . "Processing uploaded video")
     ("TO_AUTOCAP" . "Processing uploaded video")
@@ -685,7 +688,10 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
                      ")")))
 
 (defun emacsconf-get-abstract-from-wiki (o)
-  (plist-put o :markdown (emacsconf-talk-markdown-from-wiki (plist-get o :slug))))
+  (plist-put o :markdown (emacsconf-talk-markdown-from-wiki (plist-get o :slug)))
+	(when (plist-get o :markdown)
+		(plist-put o :org-description
+							 (pandoc-convert-stdio (plist-get o :markdown) "markdown" "org"))))
 
 
 (defun emacsconf-add-talk-status (o)
@@ -1083,6 +1089,11 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
   (interactive (list (emacsconf-complete-talk)))
   (insert (plist-get (emacsconf-search-talk-info search) :title)))
 
+(defun emacsconf-insert-talk-schedule (search)
+	"Insert the schedule for SEARCH."
+	(interactive (list (emacsconf-complete-talk)))
+	(insert (emacsconf-mail-format-talk-schedule (emacsconf-search-talk-info search))))
+
 (defun emacsconf-insert-talk-email (search)
 	"Insert the talk email matching SEARCH."
   (interactive (list (emacsconf-complete-talk)))
@@ -1090,8 +1101,8 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
 
 (defun emacsconf-backstage-url (&optional base-url)
 	"Return or insert backstage URL with credentials."
-	(setq base-url (or base-url (concat emacsconf-media-base-url emacsconf-year "/backstage/")))
 	(interactive)
+	(setq base-url (or base-url (concat emacsconf-media-base-url emacsconf-year "/backstage/")))
 	(let ((url (format
 							"https://%s:%s@%s"
 							emacsconf-backstage-user
@@ -1116,6 +1127,7 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
     "a" #'emacsconf-announce
 		"i e" #'emacsconf-insert-talk-email
 		"i t" #'emacsconf-insert-talk-title
+		"i s" #'emacsconf-insert-talk-schedule
 		"I" #'emacsconf-message-talk-info
     "c" #'emacsconf-find-captions-from-slug
     "d" #'emacsconf-find-caption-directives-from-slug
@@ -1538,10 +1550,12 @@ Filter by TRACK if given.  Use INFO as the list of talks."
     alternative))
 
 ;;; Volunteer management
-(defun emacsconf-get-volunteer-info ()
+(defun emacsconf-get-volunteer-info (&optional tag)
   (with-current-buffer (find-file-noselect emacsconf-org-file)
     (org-map-entries (lambda () (org-entry-properties))
-                     "volunteer+EMAIL={.}")))
+                     (format "volunteer+EMAIL={.}%s"
+														 (if tag (concat "+" tag)
+															 "")))))
 
 (defun emacsconf-volunteer-emails-for-completion (&optional info)
   (mapcar (lambda (o)
@@ -1704,6 +1718,7 @@ tracks with the ID in the cdr of that list."
   "Add NOTE as a logbook entry for the current subtree."
   (move-marker org-log-note-return-to (point))
   (move-marker org-log-note-marker (point))
+	(setq org-log-note-window-configuration (current-window-configuration))
   (with-temp-buffer
     (insert note)
     (let ((org-log-note-purpose 'note))
