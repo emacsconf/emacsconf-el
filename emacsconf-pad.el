@@ -729,10 +729,11 @@ ${bbb-checklist}</li>")
     (let ((pronoun (pcase (plist-get talk :pronouns)
                      ((rx "she") "She")
 										 ((rx "\"ou\"" "Ou"))
-                     ((or 'nil "nil" (rx string-start "he") (rx "him")) "He")
+										 ((or 'nil "nil") "They")
+                     ((or (rx string-start "he") (rx "him")) "He")
                      ((rx "they") "They")
                      (_ (or (plist-get talk :pronouns) "")))))
-      (format "Next, we have \"%s\", by %s%s.%s"
+      (format "Next, we have \"%s\",\nby %s%s.%s"
 							(plist-get talk :title)
               (replace-regexp-in-string ", \\([^,]+\\)$"
                                         ", and \\1"
@@ -740,17 +741,17 @@ ${bbb-checklist}</li>")
 							(emacsconf-surround " (" (plist-get talk :pronunciation) ")" "")
               (pcase (plist-get talk :q-and-a)
                 ((or 'nil "") "")
-                ((rx "after") " You can ask questions via Etherpad and IRC. We'll send them to the speaker, and we'll post the answers on the talk page afterwards.")
+                ((rx "after") "\nYou can ask questions via Etherpad and IRC.\nWe'll send them to the speaker,\nand we'll post the answers on the talk page afterwards.")
                 ((rx "live")
-                 (format " %s will answer questions via BigBlueButton. You can join using the URL from the talk page or ask questions through Etherpad or IRC."
+                 (format "\n%s will answer questions via BigBlueButton.\nYou can join using the URL from the talk page\nor ask questions through Etherpad or IRC."
                          pronoun
                          ))
 								((rx "pad")
-                 (format " %s will answer questions via Etherpad."
+                 (format "\n%s will answer questions via Etherpad."
                          pronoun
                          ))
 								((rx "IRC")
-                 (format " %s will answer questions via IRC in the #%s channel."
+                 (format "\n%s will answer questions via IRC in the #%s channel."
                          pronoun
                          (plist-get talk :channel)))))))))
 
