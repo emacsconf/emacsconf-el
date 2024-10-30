@@ -1876,5 +1876,19 @@ tracks with the ID in the cdr of that list."
        (concat "ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "
                (shell-quote-argument (expand-file-name filename)))))))
 
+(defun emacsconf-delete-from-all (files)
+	"Delete FILES from all the directories."
+	(interactive (list (dired-get-marked-files)))
+	(dolist (dir (list emacsconf-cache-dir emacsconf-backstage-dir
+										 (expand-file-name "cache" emacsconf-res-dir)
+										 emacsconf-public-media-directory))
+		(dolist (file files)
+			(when (and dir (file-exists-p (expand-file-name (file-name-nondirectory file)
+																											dir)))
+				(delete-file (expand-file-name (file-name-nondirectory file)
+																			 dir))
+				(message "Deleting %s from %s"
+								 (file-name-nondirectory file) dir)))))
+
 (provide 'emacsconf)
 ;;; emacsconf.el ends here
