@@ -72,7 +72,7 @@ If the element doesn't have a tspan child, use the element itself."
         (when node
           (dom-set-attribute node 'style "visibility: hidden")
           (dom-set-attribute (dom-child-by-tag node 'tspan) 'style "fill: none; stroke: none")))
-    (setq text (svg--encode-text text))
+    ;; (setq text (svg--encode-text text))
     (let ((node (or (dom-child-by-tag
                      (car (dom-by-id dom id))
                      'tspan)
