@@ -46,7 +46,9 @@
   (interactive (list (emacsconf-complete-talk-info)))
   (let ((info (emacsconf-get-talk-info)))
     (emacsconf-publish-before-page talk info)
-    (emacsconf-publish-after-page talk info)))
+    (emacsconf-publish-after-page talk info)
+		(unless (emacsconf-publish-talk-p talk)
+			(emacsconf-publish-cancelled-nav-page talk))))
 
 (defun emacsconf-publish-update-talk (talk)
   "Publish the schedule page and the page for this talk."
@@ -65,6 +67,7 @@
   (interactive)
   (emacsconf-publish-talk-page (emacsconf-get-talk-info-for-subtree))
   (emacsconf-publish-info-pages)
+	(emacsconf-publish-schedule)
   (magit-status-setup-buffer emacsconf-directory))
 
 (defun emacsconf-publish-update-conf-html ()
@@ -163,7 +166,8 @@
 ;; (emacsconf-publish-format-track-as-org (car emacsconf-tracks) "US/Eastern")
 ;; (emacsconf-get-talk-info)
 (defun emacsconf-publish-format-track-as-org (track tz &optional info)
-  (setq info (or info (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
+	(let ((emacsconf-talk-info-functions (append emacsconf-talk-info-functions (list 'emacsconf-get-abstract-from-wiki))))
+		(setq info (or info (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))
   (concat
    "** " (plist-get track :name) "  :" (plist-get track :id) ":\n:PROPERTIES:\n:CATEGORY: " (plist-get track :id) "\n:END:\n"
    (mapconcat
@@ -208,7 +212,13 @@
 																(plist-get talk :qa-info))
 														 (plist-get talk :qa-info))
 													 "\n" "")
-       (emacsconf-surround "\n" (plist-get talk :intro-note) "\n" "")))
+       (emacsconf-surround "\n" (plist-get talk :intro-note) "\n" "")
+			 (emacsconf-surround "\nDescription:\n\n"
+													 (when (plist-get talk :org-description)
+														 (with-temp-buffer
+															 (org-paste-subtree 3 (plist-get talk :org-description))
+															 (buffer-string)))
+													 "\n" "")))
     (emacsconf-filter-talks-by-track track info)
     "\n")))
 
@@ -237,7 +247,8 @@
 
 (defun emacsconf-publish-schedule-org-files (&optional info)
   (interactive)
-  (setq info (or info (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
+	(let ((emacsconf-talk-info-functions (append emacsconf-talk-info-functions (list 'emacsconf-get-abstract-from-wiki))))
+		(setq info (or info (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))
   (mapc (lambda (tz) (emacsconf-publish-schedule-org-for-timezone tz info))
 				(append
 				 emacsconf-timezones
@@ -506,7 +517,7 @@ Talks that are pending review will not be published yet."
 		('nil nil)
 		("TODO" nil)
 		("TO_REVIEW" nil)
-		("TO_ACCEPT" nil)
+		;; ("TO_ACCEPT" nil)
 		("CANCELLED" nil)
 		(_ t)))
 
@@ -564,24 +575,28 @@ resources."
 (defun emacsconf-publish-format-talk-schedule-info (o)
 	"Format schedule information for O."
   (let ((friendly (concat "/" emacsconf-year "/talks/" (plist-get o :slug) ))
-        (timestamp (org-timestamp-from-string (plist-get o :scheduled))))
+        (timestamp (org-timestamp-from-string (plist-get o :scheduled)))
+				(talk-p (emacsconf-publish-talk-p o)))
     (emacsconf-replace-plist-in-string
      (append o
              (list
 							:format
-							(concat (or (plist-get o :video-time)
-													(plist-get o :time))
-											"-min talk; Q&A: "
-											(pcase (plist-get o :qa-type)
-												("none" "ask questions via Etherpad/IRC; we'll e-mail the speaker and post answers on this wiki page after the conference")
-												("live" "BigBlueButton conference room")
-												("pad" "Etherpad")
-												("irc" "IRC")
-												(_ (plist-get o :qa-type)))
-											(emacsconf-surround " <" (and (member emacsconf-publishing-phase '(schedule conference))
-																										(plist-get o :qa-url)) ">" ""))
+							(if talk-p
+								(concat (or (plist-get o :video-time)
+														(plist-get o :time))
+												"-min talk; Q&A: "
+												(pcase (plist-get o :qa-type)
+													("none" "ask questions via Etherpad/IRC; we'll e-mail the speaker and post answers on this wiki page after the conference")
+													("live" "BigBlueButton conference room")
+													("pad" "Etherpad")
+													("irc" "IRC")
+													(_ (plist-get o :qa-type)))
+												(emacsconf-surround " <" (and (member emacsconf-publishing-phase '(schedule conference))
+																											(plist-get o :qa-url)) ">" ""))
+								(concat (or (plist-get o :video-time)
+														(plist-get o :time)) "-min talk cancelled"))
 							:pad-info
-							(if (and emacsconf-publish-include-pads (not (and (member emacsconf-publishing-phase '(schedule conference))
+							(if (and talk-p emacsconf-publish-include-pads (not (and (member emacsconf-publishing-phase '(schedule conference))
 																							 (string= (plist-get o :qa-type) "etherpad"))))
 									(format "Etherpad: <https://pad.emacsconf.org/%s-%s>  \n" emacsconf-year (plist-get o :slug))
 								"")
@@ -659,7 +674,7 @@ ${alternate-apac-info}\n")))
 	 "\nThe following image shows where the talk is in the schedule for "
 	 (format-time-string "%a %Y-%m-%d" (plist-get talk :start-time) emacsconf-timezone) ". Solid lines show talks with Q&A via BigBlueButton. Dashed lines show talks with Q&A via IRC or Etherpad."
 	 (format "<div class=\"schedule-in-context schedule-svg-container\" data-slug=\"%s\">\n" (plist-get talk :slug))
-	 (let* ((width 800) (height 150)
+	 (let* ((width 700) (height 150)
 					(talk-date (format-time-string "%Y-%m-%d" (plist-get talk :start-time) emacsconf-timezone))
 					(start (date-to-time (concat talk-date "T" emacsconf-schedule-start-time emacsconf-timezone-offset)))
 					(end (date-to-time (concat talk-date "T" emacsconf-schedule-end-time emacsconf-timezone-offset)))
@@ -699,8 +714,9 @@ This includes the intro note, the schedule, and talk resources."
     (insert (emacsconf-surround "" (plist-get talk :intro-note) "\n\n" ""))
     (let ((is-live (emacsconf-talk-live-p talk)))
       (when is-live (emacsconf-publish-captions-in-wiki talk))
-			(when (member emacsconf-publishing-phase '(schedule conference))
-				(insert (emacsconf-publish-format-talk-schedule-image talk info)))
+			(when (emacsconf-publish-talk-p talk)
+				(when (member emacsconf-publishing-phase '(schedule conference))
+					(insert (emacsconf-publish-format-talk-schedule-image talk info))))
 			(insert (emacsconf-publish-format-talk-schedule-info talk) "\n\n")
 			(insert
 			 (if (plist-get talk :public) (emacsconf-wiki-talk-resources talk) "")
@@ -834,6 +850,12 @@ This includes captions, contact, and an invitation to participate."
                  (plist-get b :start-time)) t)
    (t nil)))
 
+(defun emacsconf-publish-cancelled-nav-page (talk)
+	(with-temp-file (expand-file-name (format "%s-nav.md" (plist-get talk :slug))
+                                    (expand-file-name "info" (expand-file-name emacsconf-year emacsconf-directory)))
+          (insert "\n<div class=\"talk-nav\">
+Back to the [[talks]]  \n</div>")))
+
 (defun emacsconf-publish-nav-pages (&optional talks)
 	"Generate links to the next and previous talks.
 During the schedule and conference phase, the talks are sorted by time.
@@ -898,7 +920,10 @@ Back to the [[talks]]  \n"
   (emacsconf-publish-with-wiki-change
     (mapc (lambda (o)
             (emacsconf-publish-before-page o info))
-          info)))
+          info)
+		(mapc (lambda (o) (emacsconf-publish-before-page o info))
+					(seq-filter (lambda (o) (string= (plist-get o :status) "CANCELLED"))
+											(emacsconf-filter-talks info)))))
 
 (defun emacsconf-generate-main-schedule-with-tracks (&optional info)
   (interactive (list nil))
@@ -1012,8 +1037,12 @@ You can also get this schedule as iCalendar files: ${icals}. Importing that into
   "Return a list with the schedule for INFO.
 Entries are sorted chronologically, with different tracks interleaved."
   (setq info (or info (emacsconf-get-talk-info)))
-  (let* ((by-day (emacsconf-by-day (emacsconf-publish-prepare-for-display info)))
-         (cancelled (seq-filter (lambda (o) (string= (plist-get o :status) "CANCELLED")) info))
+  (let* ((by-day (emacsconf-by-day (seq-remove (lambda (o)
+																								 (or
+																									(not (plist-get o :scheduled))
+																									(member (plist-get o :status) '("TODO" "TO_REVIEW" "TO_ACCEPT"))))
+																							 (emacsconf-publish-prepare-for-display info))))
+         (cancelled (seq-filter (lambda (o) (string= (plist-get o :status) "CANCELLED")) (emacsconf-get-talk-info)))
          (dates (seq-map (lambda (o) (plist-get (cadr o) :start-time)) by-day))
          (links (mapcar (lambda (o)
                           (format "<a href=\"#date-%s\">%s</a>"
@@ -1056,61 +1085,59 @@ Entries are sorted chronologically, with different tracks interleaved."
        "")
      )))
 
-(defun emacsconf-publish-schedule (&optional info)
-	"Generate the schedule or program."
-  (interactive)
-  (emacsconf-publish-schedule-svg-snippets)
-	(setq info (or info (emacsconf-publish-prepare-for-display info)))
-  (with-temp-file (expand-file-name "schedule-details.md"
-																		(expand-file-name emacsconf-year emacsconf-directory))
-		(when (member emacsconf-publishing-phase '(schedule conference))
-				(insert
-				 (emacsconf-replace-plist-in-string
-					(list
-					 :timezone emacsconf-timezone
-					 :gmt-offset emacsconf-timezone-offset
-					 :alternative-timezones
-					 (string-join (emacsconf-timezone-strings
-												 (format "<%s %s-%s>"
-																 emacsconf-date
-																 (plist-get (car emacsconf-tracks) :start)
-																 (plist-get (car emacsconf-tracks) :end))
-												 nil "~%-l:%M %p")
-												" / ")
-					 :icals
-					 (concat
-						(format "<a href=\"%s%s/%s.ics\">%s.ics</a> - "
-										emacsconf-media-base-url
-										emacsconf-year
-										emacsconf-id
-										emacsconf-id)
-						(mapconcat (lambda (track)
-												 (format "<a href=\"%s%s/%s-%s.ics\">%s-%s.ics</a>"
-																 emacsconf-media-base-url
-																 emacsconf-year
-																 emacsconf-id
-																 (plist-get track :id)
-																 emacsconf-id
-																 (plist-get track :id)))
-											 emacsconf-tracks " - "))
-					 :schedule-directory
-					 (concat emacsconf-media-base-url emacsconf-year "/schedules/"))
-					"The conference is from ${alternative-timezones}.
+(defun emacsconf-publish-schedule-with-times (&optional info)
+	(insert
+	 (emacsconf-replace-plist-in-string
+		(list
+		 :timezone emacsconf-timezone
+		 :year emacsconf-year
+		 :gmt-offset emacsconf-timezone-offset
+		 :alternative-timezones
+		 (string-join (emacsconf-timezone-strings
+									 (format "<%s %s-%s>"
+													 emacsconf-date
+													 (plist-get (car emacsconf-tracks) :start)
+													 (plist-get (car emacsconf-tracks) :end))
+									 nil "~%-l:%M %p")
+									" / ")
+		 :icals
+		 (concat
+			(format "<a href=\"%s%s/%s.ics\">%s.ics</a> - "
+							emacsconf-media-base-url
+							emacsconf-year
+							emacsconf-id
+							emacsconf-id)
+			(mapconcat (lambda (track)
+									 (format "<a href=\"%s%s/%s-%s.ics\">%s-%s.ics</a>"
+													 emacsconf-media-base-url
+													 emacsconf-year
+													 emacsconf-id
+													 (plist-get track :id)
+													 emacsconf-id
+													 (plist-get track :id)))
+								 emacsconf-tracks " - "))
+		 :schedule-directory
+		 (concat emacsconf-media-base-url emacsconf-year "/schedules/"))
+		"Times below are in ${timezone} (GMT${gmt-offset}). If you have Javascript enabled, clicking on talk pages should include times in your computer's local time setting.
 
-Times below are in ${timezone} (GMT${gmt-offset}). If you have Javascript enabled, clicking on talk pages should include times in your computer's local time setting.
+[[!inline pages=\"internal(${year}/schedule-image)\" raw=\"yes\"]]
+
+The conference is from ${alternative-timezones}.
 
 You can also get this schedule as iCalendar files: ${icals}. Importing that into your calendar should translate things into your local time zone. Alternatively, you can use these time-zone-translated Org files: <${schedule-directory}>
 
-")))
-    (insert
-     (if (member emacsconf-publishing-phase '(cfp program))
-         (let ((sorted (emacsconf-publish-prepare-for-display (or info (emacsconf-get-talk-info)))))
-					 (mapconcat
-						(lambda (track)
-							(concat
-							 "Jump to: "
-							 ;; links to other tracks
-							 (string-join (seq-keep (lambda (track-link)
+")
+	 (emacsconf-publish-format-interleaved-schedule info)))
+
+(defun emacsconf-publish-program-without-times (&optional info)
+	(insert
+	 (let ((sorted (emacsconf-publish-prepare-for-display (or info (emacsconf-get-talk-info)))))
+		 (mapconcat
+			(lambda (track)
+				(concat
+				 "Jump to: "
+				 ;; links to other tracks
+				 (string-join (seq-keep (lambda (track-link)
 																				(unless (string= (plist-get track-link :id)
 																												 (plist-get track :id))
 																					(format "<a href=\"#%s\">%s</a>"
@@ -1118,28 +1145,42 @@ You can also get this schedule as iCalendar files: ${icals}. Importing that into
 																									(plist-get track-link :name))))
 																			emacsconf-tracks)
 														" | ")
-							 "\n\n"
-							 (let ((track-talks (seq-filter (lambda (o) (string= (plist-get o :track)
+				 "\n\n"
+				 (let ((track-talks (seq-filter (lambda (o) (string= (plist-get o :track)
 																																	 (plist-get track :name)))
-																							sorted)))
-								 (format
-									"<h1 id=\"%s\" class=\"sched-track %s\">%s (%d talks)</h1>\n%s"
-									(plist-get track :id)
-									(plist-get track :name)
-									(plist-get track :name)
-									(length track-talks)
-									(emacsconf-publish-format-main-schedule track-talks)))))
-						emacsconf-tracks "\n\n"))
-       (emacsconf-publish-format-interleaved-schedule info))))
-  (when (member emacsconf-publishing-phase '(cfp program))
-    (with-temp-file (expand-file-name
+																				sorted)))
+					 (format
+						"<h1 id=\"%s\" class=\"sched-track %s\">%s (%d talk%s)</h1>\n%s"
+						(plist-get track :id)
+						(plist-get track :name)
+						(plist-get track :name)
+						(length track-talks)
+						(if (= (length track-talks) 1) "" "s")
+						(emacsconf-publish-format-main-schedule track-talks)))))
+			emacsconf-tracks "\n\n"))))
+
+(defun emacsconf-publish-schedule (&optional info)
+	"Generate the schedule or program."
+  (interactive)
+  (unless (eq emacsconf-publishing-phase 'cfp) (emacsconf-publish-schedule-svg-snippets))
+	(setq info (or info (emacsconf-publish-prepare-for-display info)))
+  (pcase emacsconf-publishing-phase
+		((or 'schedule 'conference)
+		 (with-temp-file (expand-file-name "schedule-details.md"
+																			 (expand-file-name emacsconf-year emacsconf-directory))
+			 (emacsconf-publish-schedule-with-times info)))
+		((or 'cfp 'program)
+		 (with-temp-file (expand-file-name "schedule-details.md"
+																			 (expand-file-name emacsconf-year emacsconf-directory))
+			 (emacsconf-publish-program-without-times info))
+		 (with-temp-file (expand-file-name
 										 "draft-schedule.md"
 										 (expand-file-name emacsconf-year emacsconf-directory))
       (insert
 			 "[[!sidebar content=\"\"]]\n\n"
        "This is a *DRAFT* schedule.\n"
        (let ((emacsconf-publishing-phase 'schedule))
-         (emacsconf-publish-format-interleaved-schedule info))))))
+         (emacsconf-publish-format-interleaved-schedule info)))))))
 
 (defun emacsconf-format-talk-link (talk)
   (and talk (if (plist-get talk :slug)
@@ -1174,7 +1215,8 @@ You can also get this schedule as iCalendar files: ${icals}. Importing that into
                         (pcase emacsconf-publishing-phase
 													('program
 													 (list
-														:time (plist-get o :time)))
+														:time (plist-get o :time)
+														:note (plist-get o :sched-note)))
 													((or 'schedule 'conference)
 													 (list
 														:status (pcase (plist-get o :status)
@@ -1283,7 +1325,7 @@ Use FILES as the file list, or look in the cache directory."
 	 (assoc-default "TO_ASSIGN" by-status)
 	 files
 	 "to be captioned, waiting for volunteers"
-	 "<p>You can e-mail <a href=\"mailto:sacha@sachachua.com\">sacha@sachachua.com</a> to call dibs on editing the captions for one of these talks. We use OpenAI Whisper to provide auto-generated VTT that you can use as a starting point, but you can also write the captions from scratch if you like. The starting point for the main video ends in --main.vtt. If you're writing the captions from scratch, you can choose to include timing information, or we can probably figure them out afterwards with a forced alignment tool. More info: <a href=\"https://emacsconf.org/captioning/\">captioning tips</a></p>"
+	 "<p>You can e-mail <a href=\"mailto:sacha@sachachua.com\">sacha@sachachua.com</a> to call dibs on editing the captions for one of these talks. We use OpenAI Whisper to provide auto-generated VTT that you can use as a starting point, but you can also write the captions from scratch if you like. The VTT file has timing information and the TXT file has the plain text; you can work with either. If you're writing the captions from scratch, you can choose to include timing information, or we can figure them out afterwards with a forced alignment tool. More info: <a href=\"https://emacsconf.org/captioning/\">captioning tips</a></p>"
 	 (lambda (f)
 		 (append
 			f
@@ -1380,7 +1422,7 @@ If MODIFY-FUNC is specified, use it to modify the talk."
           (lambda (status)
             (format "<li>%s - %d talk(s), %d minutes: %s</li>"
 										(if (string= status "TO_ASSIGN")
-												"TO_ASSIGN (waiting for captioning volunteers)"
+												"<strong>TO_ASSIGN (waiting for captioning volunteers)</strong>"
 											status)
 										(length (assoc-default status by-status))
 										(emacsconf-sum '(:video-time :time) (assoc-default status by-status))
@@ -1392,7 +1434,7 @@ If MODIFY-FUNC is specified, use it to modify the talk."
                                ", ")))
 					(pcase emacsconf-publishing-phase
 						((or 'program 'schedule 'conference)
-						 '("WAITING_FOR_PREREC" "PROCESSING" "TO_ASSIGN" "TO_CAPTION" "TO_CHECK" "TO_STREAM"))
+						 '("TO_CONFIRM" "WAITING_FOR_PREREC" "PROCESSING" "TO_ASSIGN" "TO_CAPTION" "TO_CHECK" "TO_STREAM"))
 						((or 'harvest 'resources)
 						 '("TO_ARCHIVE" "TO_REVIEW_QA" "TO_INDEX_QA" "TO_CAPTION_QA" "DONE")))
 					"")
@@ -1407,7 +1449,7 @@ If MODIFY-FUNC is specified, use it to modify the talk."
 										", ")
 				 "</div>"
 				 (pcase emacsconf-publishing-phase
-					 ((or 'program 'schedule 'conference)
+					 ((or 'program 'schedule 'conference 'cfp)
 						(concat
 						 (emacsconf-publish-backstage-list
 							(append
@@ -1428,7 +1470,11 @@ If MODIFY-FUNC is specified, use it to modify the talk."
 							files
 							"ready to be streamed")
 						 (emacsconf-publish-backstage-list
-							(assoc-default "WAITING_FOR_PREREC" by-status) files
+							(seq-sort
+							 #'emacsconf-sort-by-scheduled
+							 (append (assoc-default "WAITING_FOR_PREREC" by-status)
+											 (assoc-default "TO_CONFIRM" by-status)))
+							files
 							"we're waiting for"
 							"Speakers might submit these, do them live, or cancel the talks.")))
 					 ((or 'harvest 'resources)
@@ -2891,5 +2937,16 @@ Tends to be quota-limited, though."
 																			emacsconf-backstage-dir)
 							 t)
 		(emacsconf-publish-update-talk slug)))
+
+(defun emacsconf-publish-intros-to-backstage ()
+	(interactive)
+	(dolist (talk (emacsconf-get-talk-info))
+		(when (file-exists-p (expand-file-name (concat (plist-get talk :slug) ".webm")
+																					 (expand-file-name "intros" emacsconf-stream-asset-dir)))
+			(copy-file (expand-file-name (concat (plist-get talk :slug) ".webm")
+																	 (expand-file-name "intros" emacsconf-stream-asset-dir))
+								 (expand-file-name (concat (plist-get talk :file-prefix) "--intro.webm")
+																	 emacsconf-backstage-dir)
+								 t))))
 ;;
 (provide 'emacsconf-publish)
