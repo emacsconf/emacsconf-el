@@ -357,12 +357,12 @@ Create it if necessary."
 				 nil
 				 (* i 5000)
 				 (1- (* i 5000))
-				 (format "#+OUTPUT: %s.webm\n[[file:%s]]\n%s"
+				 (emacsconf-pad-expand-intro talk)
+				 (format "#+OUTPUT: %s.webm\n[[file:%s]]"
 								 (plist-get talk :slug)
 								 (expand-file-name
-									(concat (plist-get talk :slug) ".svg.png")
-									(expand-file-name "in-between" emacsconf-stream-asset-dir))
-								 (emacsconf-pad-expand-intro talk))))
+									(concat (plist-get talk :slug) ".png")
+									(expand-file-name "in-between" emacsconf-stream-asset-dir)))))
 			(emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))))
 
 (defvar-local emacsconf-subed-subtitle-source nil "Buffer with the intended subtitles.")
