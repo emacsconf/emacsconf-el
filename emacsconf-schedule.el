@@ -662,29 +662,45 @@ Talks with a FIXED_TIME property are not moved."
         (message "%s" (string-join results "\n"))
       results)))
 
-(defun emacsconf-schedule-check-time (label o &optional from-time to-time day)
+(defun emacsconf-schedule-check-time (label o &rest args)
   "FROM-TIME and TO-TIME should be nil strings like HH:MM in EST.
-DAY should be YYYY-MM-DD if specified.
+DAY should be YYYY-MM-DD or Sat/Sun if specified.
 Both start and end time are tested."
   (let* ((start-time (format-time-string "%H:%M" (plist-get o :start-time)))
          (end-time (format-time-string "%H:%M" (plist-get o :end-time)))
-         result)
-    (setq result
-          (or
-           (and (null o) (format "%s: Not found" label))
-           (and from-time (string< start-time from-time)
-                (format "%s: Starts at %s before %s" label start-time from-time))
-           (and to-time (string< to-time end-time)
-                (format "%s: Ends at %s after %s" label end-time to-time))
-					 (and day
-								(not (string= (format-time-string "%Y-%m-%d" (plist-get o :start-time))
-															day))
-								(format "%s: On %s instead of %s"
-												label
-												(format-time-string "%Y-%m-%d" (plist-get o :start-time))
-												day))))
-    (when result (plist-put o :invalid result))
-    result))
+				 (date (format-time-string "%Y-%m-%d" (plist-get o :start-time)))
+				 (day (format-time-string "%a" (plist-get o :start-time)))
+         (result t) error)
+		(if (null o)
+				(setq error (format "%s: Not found" label))
+			(while args
+				(pcase (car args)
+					('or										 ; skip the rest
+					 (if error
+							 (setq args (cdr args)
+										 error nil)
+						 (setq args nil)))
+					('and 												; skip the rest if nil
+					 (setq args (if error nil (cdr args))))
+					(_
+					 (let ((from-time (pop args))
+								 (to-time (pop args))
+								 (limit-day (pop args)))
+						 (cond
+							((and from-time (string< start-time from-time))
+							 (setq error (format "%s: Starts at %s before %s" label start-time from-time)))
+							((and to-time (string< to-time end-time))
+							 (setq error (format "%s: Ends at %s after %s" label end-time to-time)))
+							((and limit-day (string-match "Sat\\|Sun" limit-day))
+							 (when (not (string= day limit-day))
+								 (setq error (format "%s: On %s instead of %s"
+																		 label day limit-day))))
+							(limit-day
+							 (when (not (string= date limit-day))
+								 (setq error (format "%s: On %s instead of %s"
+																		 label date limit-day))))))))))
+    (when error (plist-put o :invalid error))
+    error))
 
 (defun emacsconf-schedule-q-and-a-p (talk)
 	"Return non-nil if TALK has a Q&A scheduled for the event."
@@ -696,16 +712,30 @@ Both start and end time are tested."
 					hours
 					start
 					(pos 0)
-					(result (list nil nil nil)))
-			(while (string-match "\\([<>]\\)=? *\\([0-9]+:[0-9]+\\) *EST" avail pos)
-				(setf (elt result (if (string= (match-string 1 avail) ">")
-															0
-														1))
-							(match-string 2 avail))
-					(setq pos (match-end 0)))
-			(when (string-match "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]" avail)
-				(setf (elt result 2) (match-string 0 avail)))
-			result)))
+					result)
+			(with-temp-buffer
+				(insert avail)
+				(goto-char (point-min))
+				(while (not (eobp))
+					(cond
+					 ((looking-at "\\([<>]\\)=? *\\([0-9]+:[0-9]+\\) *EST \\([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\\|Sat\\|Sun\\)?")
+						(push (and (string= (match-string 1) ">") ; start time
+											 (match-string 2))
+									result)
+						(push (and (string= (match-string 1) "<") ; end time
+											 (match-string 2))
+									result)
+						(push (match-string 3) result)
+						(goto-char (match-end 0)))
+					 ((looking-at " or ")
+						(push 'or result)
+						(goto-char (match-end 0)))
+					 ((looking-at " and ")
+						(push 'and result)
+						(goto-char (match-end 0)))
+					 (t (goto-char (point-max))))))
+			(reverse result))))
+;; (emacsconf-schedule-get-time-constraint '(:q_and_a "live" :availability ">= 12:00 EST Sat or <= 12:00 EST Sun - more info"))
 
 (defun emacsconf-schedule-rename-etc-timezone (s)
 	"Change Etc/GMT-3 etc. to UTC+3 etc., since Etc uses negative signs and this is confusing."
@@ -713,52 +743,62 @@ Both start and end time are tested."
 				((string-match "Etc/GMT\\+\\(.*\\)" s) (concat "UTC-" (match-string 1 s)))
 				(t s)))
 
+;; (emacsconf-schedule-format-time-constraint (emacsconf-schedule-get-time-constraint '(:q_and_a "live" :availability ">= 12:00 EST Sat or <= 12:00 EST Sun - more info")) t "America/Vancouver")
 (defun emacsconf-schedule-format-time-constraint (constraints &optional include-offset local-timezone)
 	"Format CONSTRAINTS for display."
 	;; actually a talk object, extract constraints from it instead
-	(when (not (= (length constraints) 3))
+	(when (plist-get constraints :title)
 		(setq constraints (emacsconf-schedule-get-time-constraint constraints)))
-	(string-join
-	 (delq nil
-				 (list
-					(let ((start-time (car constraints))
-								(end-time (cadr constraints))
-								(start-local (and (car constraints)
-																	local-timezone
-																	(format-time-string
-																	 "%H:%M"
-																	 (date-to-time (concat emacsconf-date " " (car constraints) ":00 " emacsconf-timezone-offset))
-																	 local-timezone)))
-								(end-local (and (cadr constraints)
-																local-timezone
-																(format-time-string
-																 "%H:%M"
-																 (date-to-time (concat emacsconf-date " " (cadr constraints) ":00 " emacsconf-timezone-offset))
-																 local-timezone))))
-						(cond
-						 ((and start-time end-time)
-							(concat
-							 (format "between %s-%s" start-time end-time)
-							 (emacsconf-surround " " (and include-offset emacsconf-timezone-offset) "" "")
-							 (if local-timezone
-									 (format " (%s-%s %s)" start-local end-local (emacsconf-schedule-rename-etc-timezone local-timezone))
-								 "")))
-						 (start-time
-							(concat
-							 (format ">= %s" start-time)
-							 (emacsconf-surround " " (and include-offset emacsconf-timezone-offset) "" "")
-							 (if local-timezone
-									 (format " (%s %s)" start-local (emacsconf-schedule-rename-etc-timezone local-timezone))
-								 "")))
-						 (end-time
-							(concat
-							 (format "<= %s" end-time)
-							 (emacsconf-surround " " (and include-offset emacsconf-timezone-offset) "" "")
-							 (if local-timezone
-									 (format " (%s %s)" end-local (emacsconf-schedule-rename-etc-timezone local-timezone))
-								 "")))))
-					(if (elt constraints 2) (format "on %s" (elt constraints 2)))))
-	 " and "))
+	(let (results)
+		(while constraints
+			(push (pcase (car constraints)
+							('or (pop constraints)
+									 "or")
+							('and (pop constraints)
+										"and")
+							(_
+							 (let* ((from-time (pop constraints))
+											(to-time (pop constraints))
+											(from-local (and from-time local-timezone
+																			 (format-time-string
+																				"%H:%M"
+																				(date-to-time (concat emacsconf-date " " from-time ":00 " emacsconf-timezone-offset))
+																				local-timezone)))
+											(to-local (and to-time local-timezone
+																		 (format-time-string
+																			"%H:%M"
+																			(date-to-time (concat emacsconf-date " " to-time ":00 "
+																														emacsconf-timezone-offset))
+																			local-timezone)))
+											(limit-day (pop constraints)))
+								 (string-trim
+									(concat
+									 (cond
+										((and from-time to-time)
+										 (concat
+											(format "between %s-%s" from-time to-time)
+											(emacsconf-surround " " (and include-offset emacsconf-timezone-offset) "" "")
+											(if local-timezone
+													(format "(%s-%s %s) " from-local to-local (emacsconf-schedule-rename-etc-timezone local-timezone))
+												"")))
+										(from-time
+										 (concat
+											(format ">= %s" from-time)
+											(emacsconf-surround " " (and include-offset emacsconf-timezone-offset) "" "")
+											(if local-timezone
+													(format " (%s %s)" from-local (emacsconf-schedule-rename-etc-timezone local-timezone))
+												"")))
+										(to-time
+										 (concat
+											(format "<= %s " to-time)
+											(emacsconf-surround "" (and include-offset emacsconf-timezone-offset) "" "")
+											(if local-timezone
+													(format " (%s %s)" to-local (emacsconf-schedule-rename-etc-timezone local-timezone))
+												"")))
+										(t ""))
+									 (if limit-day (concat " " limit-day "")))))))
+						results))
+		(string-join (reverse results) " ")))
 
 (defun emacsconf-schedule-validate-all-talks-present (sched &optional list)
 	(let* ((sched-slugs (mapcar (lambda (o) (plist-get o :slug))
