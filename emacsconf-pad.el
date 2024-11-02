@@ -729,10 +729,10 @@ ${bbb-checklist}</li>")
     (let ((pronoun (pcase (plist-get talk :pronouns)
                      ((rx "she") "She")
 										 ((rx "\"ou\"" "Ou"))
-										 ((or 'nil "nil") "They")
+										 ((or 'nil "nil") nil)
                      ((or (rx string-start "he") (rx "him")) "He")
                      ((rx "they") "They")
-                     (_ (or (plist-get talk :pronouns) "")))))
+                     (_ (plist-get talk :pronouns)))))
       (format "Next, we have \"%s\",\nby %s%s.%s"
 							(plist-get talk :title)
               (replace-regexp-in-string ", \\([^,]+\\)$"
@@ -743,17 +743,21 @@ ${bbb-checklist}</li>")
                 ((or 'nil "") "")
                 ((rx "after") "\nYou can ask questions via Etherpad and IRC.\nWe'll send them to the speaker,\nand we'll post the answers on the talk page afterwards.")
                 ((rx "live")
-                 (format "\n%s will answer questions via BigBlueButton.\nYou can join using the URL from the talk page\nor ask questions through Etherpad or IRC."
-                         pronoun
-                         ))
+								 (if pronoun
+										 (format "\n%s will answer questions via web conference.\nYou can join using the URL from the talk page\nor ask questions through Etherpad or IRC."
+														 pronoun)
+									 "\nYou can ask questions via web conference by joining from the talk page\nor ask questions through Etherpad or IRC."))
 								((rx "pad")
-                 (format "\n%s will answer questions via Etherpad."
-                         pronoun
-                         ))
+								 (if pronoun
+										 (format "\n%s will answer questions via Etherpad." pronoun)
+									 "\nYou can ask questions via Etherpad."))
 								((rx "IRC")
-                 (format "\n%s will answer questions via IRC in the #%s channel."
-                         pronoun
-                         (plist-get talk :channel)))))))))
+								 (if pronoun
+										 (format "\n%s will answer questions via IRC in the #%s channel."
+														 pronoun
+														 (plist-get talk :channel))
+									 (format "\nYou can ask questions via IRC in the #%s channel."
+													 (plist-get talk :channel))))))))))
 
 ;; Related: emacsconf-talk-hyperlist
 (defun emacsconf-pad-talk-hyperlist (talk &optional do-insert)
