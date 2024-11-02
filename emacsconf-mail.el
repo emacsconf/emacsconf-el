@@ -238,10 +238,15 @@ Group by e-mail.  With prefix argument (e.g. \\[universal-argument]),
 insert into the current buffer instead of drafting e-mails."
   (interactive "P")
   (let* ((mail-func (emacsconf-mail-complete-template-function))
-         (grouped (emacsconf-mail-group-by-email))
+         (grouped (emacsconf-filter-talks-by-logbook
+									 (symbol-name mail-func)
+									 (emacsconf-mail-group-by-email)))
 				 (emacsconf-mail-prepare-behavior (if arg t 'new-message)))
     (mapc (lambda (group)
-            (funcall mail-func group))
+            (funcall mail-func group)
+						(mapc (lambda (talk)
+										(emacsconf-mail-log-message-when-sent talk (symbol-name mail-func)))
+									(cdr group)))
           grouped)))
 
 (defun emacsconf-mail-log-message-when-sent (o message)
@@ -356,6 +361,7 @@ insert into the current buffer instead of drafting e-mails."
 
 (defun emacsconf-mail-parse-submission (body)
 	"Extract data from EmacsConf submissions in BODY."
+	(when (listp body) (setq body (plist-get (car body) :content)))
 	(when (listp body) (setq body (plist-get (car body) :content)))
 	(let* ((data (list :body body))
 				 (fields '((:title "^[* ]*Talk title")
@@ -534,6 +540,14 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
 								(kill-buffer buffer)))))
         (buffer-list)))
 
+(defun emacsconf-mail-merge-send-all ()
+	"Send all the unsent messages."
+  (interactive)
+  (mapc (lambda (buffer)
+          (with-current-buffer buffer
+						(message-send-and-exit)))
+				(match-buffers "unsent")))
+
 ;;; Notmuch
 
 ;;;###autoload
@@ -617,6 +631,99 @@ ${signature}
 						 :year emacsconf-year
 						 :notification-date (plist-get talk :date-to-notify))))
 
+(defun emacsconf-mail-send-grouped-acceptance (group &optional arg)
+	"Send acceptance letter to speakers.
+GROUP is (email . (talk talk talk)).
+If called with ARG, insert into current buffer instead of composing or updating a message."
+	(interactive (list (emacsconf-mail-complete-email-group
+											(seq-filter (lambda (o) (and
+																							 (plist-get o :email)
+																							 (string= (plist-get o :status) "TO_ACCEPT")))
+																	(emacsconf-get-talk-info)))
+										 current-prefix-arg))
+	(let ((emacsconf-mail-prepare-behavior (if arg t emacsconf-mail-prepare-behavior)))
+		(emacsconf-mail-prepare
+		 '(:subject "${conf-name} ${year} acceptance${plural}: ${titles}"
+								:cc "emacsconf-submit@gnu.org"
+								:reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+								:mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+								:body
+								"
+Hi, ${speakers-short}!
+
+Looks like all systems are a go for your talk${plural}. Thanks!
+
+${info}
+Please feel free to update the wiki with more information or e-mail us
+if you'd like help with any changes.${fill}
+
+If you want to get started on your talk early, we have some
+instructions at ${base}${year}/prepare/ that might help.
+We strongly encourage speakers to prepare talk videos by
+${video-target-date} in order to reduce technical risks and make
+things flow more smoothly. Plus, we might be able to get it captioned
+by volunteers, just like the talks last year.${wrap}
+
+Don't sweat it if you're a few minutes over or under your proposed
+time${plural}.  If it looks like a much shorter or longer talk once you
+start getting into it, let us know and we might be able to
+adjust.${wrap}
+
+${todos}
+I'll follow up with the specific schedule for your talk once things
+settle down. In the meantime, please let us know if you have any
+questions or if there's anything we can do to help out!
+
+${signature}"
+								:log-note "accepted talk")
+		 (plist-get (cadr group) :email)
+		 (list
+			:base emacsconf-base-url
+			:user-email user-mail-address
+			:year emacsconf-year
+			:signature user-full-name
+			:conf-name emacsconf-name
+			:email (plist-get (cadr group) :email)
+			:titles (mapconcat (lambda (o) (plist-get o :title)) (cdr group) "; ")
+			:info
+			(mapconcat
+			 (lambda (o)
+				 (emacsconf-replace-plist-in-string
+					(list :title (plist-get o :title)
+								:url (concat emacsconf-base-url (plist-get o :url))
+								:time (plist-get o :time))
+					"  ${title}\n  ${url}\n  ${time} minutes\n"))
+			 (cdr group)
+			 "\n")
+			:todos
+			(concat
+			 (if (= 1 (length (cdr group))) "Here's a handy TODO you can use if you want:" "Here are handy TODOs you can use if you want:")
+			 "\n\n"
+			 (mapconcat
+				(lambda (o)
+					(emacsconf-replace-plist-in-string
+					 (list :title (plist-get o :title)
+								 :conf-name emacsconf-name
+								 :year emacsconf-year
+								 :video-target-date (format-time-string "%Y-%m-%d %a" (date-to-time emacsconf-video-target-date))
+								 :submit-email emacsconf-submit-email
+								 :base emacsconf-base-url
+								 :q-and-a (if (emacsconf-schedule-q-and-a-p o) " (+ time afterwards for Q&A)" "")
+								 :time (plist-get o :time)
+								 :url (plist-get o :url))
+					 "** TODO Prepare \"${title}\" for ${conf-name} ${year}
+   DEADLINE: <${video-target-date}>
+   (feel free to send it in earlier; let us know at ${submit-email} you're running late)
+   Reserved time: ${time} minutes${q-and-a}
+   Instructions: ${base}${year}/prepare/
+   Talk page: ${base}${url}
+   (remember to use large text for your video!)
+"))
+				(cdr group) "\n\n"))
+			:plural (if (= 1 (length (cdr group))) "" "s")
+			:video-target-date (format-time-string "%Y-%m-%d %a" (date-to-time emacsconf-video-target-date))
+			:speakers-short (plist-get (cadr group) :speakers-short)))))
+
 (defun emacsconf-mail-accept-talk (talk)
 	"Send acceptance letter."
   (interactive (list (emacsconf-complete-talk-info)))
@@ -651,19 +758,19 @@ questions or if there's anything we can do to help out!
 ${signature}"
 											 :function emacsconf-mail-accept-talk
 											 :log-note "accepted talk")
-   (plist-get talk :email)
-   (list
-		:base emacsconf-base-url
-		:user-email user-mail-address
-		:year emacsconf-year
-		:signature user-full-name
-		:conf-name emacsconf-name
-		:title (plist-get talk :title)
-		:email (plist-get talk :email)
-		:time (plist-get talk :time)
-		:speakers-short (plist-get talk :speakers-short)
-		:url (concat emacsconf-base-url (plist-get talk :url))
-		:video-target-date emacsconf-video-target-date)))
+						(plist-get talk :email)
+						(list
+						 :base emacsconf-base-url
+						 :user-email user-mail-address
+						 :year emacsconf-year
+						 :signature user-full-name
+						 :conf-name emacsconf-name
+						 :title (plist-get talk :title)
+						 :email (plist-get talk :email)
+						 :time (plist-get talk :time)
+						 :speakers-short (plist-get talk :speakers-short)
+						 :url (concat emacsconf-base-url (plist-get talk :url))
+						 :video-target-date emacsconf-video-target-date)))
 
 (defvar emacsconf-mail-bcc-email "*Extra e-mail address to Bcc for delivery confirmation.")
 
@@ -721,6 +828,7 @@ background in the notes that follow.${wrap}
 As of the time I write this e-mail, your tentative schedule is:
 
 ${schedule}
+
 ${availability-note}${timezone-note}I might also be able to move things around if you want to
 attend any conflicting Q&A sessions or if your availability
 changes.${wrap}
@@ -733,11 +841,11 @@ the updated schedule along with check-in instructions before the
 conference.${wrap}
 
 We plan to announce the schedule to the general public on
-${schedule-announcement-date}, so we'd love to incorporate any
-schedule feedback before then.${wrap}
+${schedule-announcement-date}, so we'd love to incorporate any schedule
+feedback before then. Does this schedule work for you, or would something else be better?${wrap}
 
-In the meantime, good luck working on your presentation. ${todos}
-Looking forward to ${conf-name} with you!
+In the meantime, good luck working on your presentation${plural}.
+Feel free to reach out if you have any questions. Looking forward to ${conf-name} with you!${wrap}
 
 ${signature}
 "
@@ -751,6 +859,8 @@ so that's totally all right. You don't have to make it to the
 time your talk is scheduled; this e-mail is just to keep you up
 to date. =)
 
+${schedule}
+
 You can see the draft schedule at
 ${base}${year}/organizers-notebook/?highlight=${slugs}#draft-schedule
 .  If you use a Javascript-enabled browser, your talk${plural}
@@ -761,7 +871,7 @@ We'll also update the schedule as we get closer to the
 conference, but I'll let you know if things change a lot. Anyway,
 that's how things are shaping up.
 
-In the meantime, good luck working on your presentation. ${todos}
+In the meantime, good luck working on your presentation${plural}.
 Looking forward to ${conf-name} with you!
 
 ${signature}
@@ -778,33 +888,14 @@ ${signature}
 			:conf-name emacsconf-name
 			:speakers-short (plist-get (cadr group) :speakers-short)
 			:plural (if (= 1 (length (cdr group))) "" "s")
-			:todos
-			(concat
-			 (if (= 1 (length (cdr group))) "Here's a handy TODO you can use if you want:" "Here are handy TODOs you can use if you want:")
-			 "\n\n"
-			 (mapconcat
-				(lambda (o)
-					(emacsconf-replace-plist-in-string
-					 (list :title (plist-get o :title)
-								 :conf-name emacsconf-name
-								 :year emacsconf-year
-								 :video-target-date (format-time-string "%Y-%m-%d %a" (date-to-time emacsconf-video-target-date))
-								 :submit-email emacsconf-submit-email
-								 :base emacsconf-base-url
-								 :q-and-a (if (emacsconf-schedule-q-and-a-p o) " (+ time afterwards for Q&A)" "")
-								 :time (plist-get o :time)
-								 :url (plist-get o :url))
-					 "** TODO Prepare \"${title}\" for ${conf-name} ${year}
-   DEADLINE: <${video-target-date}>
-   (feel free to send it in earlier; let us know at ${submit-email} you're running late)
-   Reserved time: ${time} minutes${q-and-a}
-   Instructions: ${base}${year}/prepare/
-   Talk page: ${base}${url}
-"))
-				(cdr group) "\n\n"))
 			:email-notes (emacsconf-surround "ZZZ: " (plist-get (cadr group) :email-notes) "\n\n" "")
 			:schedule
-			(emacsconf-indent-string (mapconcat #'emacsconf-mail-format-talk-schedule (cdr group) "\n") 2)
+			(emacsconf-indent-string (mapconcat #'emacsconf-mail-format-talk-schedule
+																					(sort (cdr group)
+																								:key (lambda (o) (plist-get o :start-time))
+																							  :lessp	#'time-less-p)
+																					"\n\n")
+															 2)
 			:availability-note
 			(if (delq nil (emacsconf-schedule-get-time-constraint (cadr group)))
 					(emacsconf-replace-plist-in-string
@@ -825,7 +916,7 @@ ${signature}
   (interactive (list (emacsconf-complete-talk-info)))
 	(emacsconf-mail-prepare
 	 '(:subject "${conf-name} ${year}: received uploaded file${plural} for ${title}"
-							:cc "emacsconf-submit@gnu.org"
+							;; :cc "emacsconf-submit@gnu.org"
 							:reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
 							:mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
 							:body
@@ -836,12 +927,13 @@ Now we have the following file${plural} starting with ${file-prefix}:
 
 ${file-list}
 
-I've added the video to the processing queue. You can see how
-things are going backstage at ${backstage-url-with-auth} . We'll
-be working on captioning your talk over the next few weeks. We'll
-e-mail again a little closer to the conference with schedule
-updates and other useful information. If you want to upload a new
-version, you can upload it the same way you did the previous
+I've added the video to the processing queue. You can see how things are
+going backstage at ${backstage-url-with-auth} . I or another captioning
+volunteer will work on captioning your talk over the next few weeks. The
+VTT and TXT file are in the backstage area if you want to try editing it
+yourself. =) We'll e-mail again a little closer to the conference with
+schedule updates and other useful information. If you want to upload a
+new version, you can upload it the same way you did the previous
 one.${fill}
 
 Please feel free to e-mail us at ${submit-email} if you need help updating the talk wiki page at ${base}${url} or if you have other questions.
@@ -1114,10 +1206,7 @@ people's talks too."))
 (defun emacsconf-mail-backstage-info-to-captioning-volunteers ()
 	"E-mail backstage info to captioning volunteers."
 	(interactive)
-	(dolist (volunteer (seq-filter
-											(lambda (o)
-												(string-match ":captions:" (assoc-default "ALLTAGS" o 'string= "")))
-											(emacsconf-get-volunteer-info)))
+	(dolist (volunteer (emacsconf-get-volunteer-info "caption"))
 		(emacsconf-mail-backstage-info
 		 (list
 			(assoc-default "EMAIL" volunteer)
@@ -1988,11 +2077,13 @@ This minimizes the risk of mail delivery issues and radio silence."
 			(read-string (format "Note for %s: "
 													 (mapconcat (lambda (o) (plist-get o :slug))
 																			talks", "))))))
-	(save-window-excursion
-		(mapc
-		 (lambda (talk)
-			 (emacsconf-add-to-talk-logbook talk note))
-		 (emacsconf-mail-talks email))))
+	(condition-case e
+			(save-window-excursion
+				(mapc
+				 (lambda (talk)
+					 (emacsconf-add-to-talk-logbook talk note))
+				 (emacsconf-mail-talks email)))
+		(error (message "Error %s" e))))
 
 (defun emacsconf-mail-notmuch-save-attachments-to-cache (talk)
 	"Save the attached files to the cache and backstage dir for TALK."
@@ -2016,6 +2107,11 @@ This minimizes the risk of mail delivery issues and radio silence."
 					(mm-save-part-to-file
 					 part (expand-file-name new-filename emacsconf-backstage-dir)))))
 		(mm-dissect-buffer))))
+
+(defun emacsconf-notmuch-submissions ()
+	"Search for recent submissions."
+	(interactive)
+	(notmuch-search emacsconf-submit-email))
 
 (provide 'emacsconf-mail)
 ;;; emacsconf-mail.el ends here
