@@ -63,12 +63,12 @@
 (defcustom emacsconf-erc-org "#emacsconf-org" "Channel for organizers")
 
 (defcustom emacsconf-topic-templates
-  '(("#emacsconf" "Welcome to EmacsConf 2023 | please join our track-specific channels #emacsconf-gen and #emacsconf-dev as well | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
-    ("#emacsconf-gen" "General track | https://emacsconf.org/2023/watch/gen/ | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
-    ("#emacsconf-dev" "Development track | https://emacsconf.org/2023/watch/dev/ | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
-    ("#emacsconf-accessible" "EmacsConf 2023 accessibility - help by describing what's happening | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
-    ("#emacsconf-org" "EmacsConf 2023 | Dedicated channel for EmacsConf organizers and speakers | this is intended as an internal, low-traffic channel; for main discussion around EmacsConf, please join #emacsconf | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
-    ("#emacsconf-questions" "EmacsConf 2023 | Low-traffic channel for questions if speakers prefer IRC and need help focusing; for main discussion around EmacsConf, please join #emacsconf | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates"))
+  '(("#emacsconf" "Welcome to EmacsConf 2024 | please join our track-specific channels #emacsconf-gen and #emacsconf-dev as well | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
+    ("#emacsconf-gen" "General track | https://emacsconf.org/2024/watch/gen/ | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
+    ("#emacsconf-dev" "Development track | https://emacsconf.org/2024/watch/dev/ | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
+    ("#emacsconf-accessible" "EmacsConf 2024 accessibility - help by describing what's happening | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
+    ("#emacsconf-org" "EmacsConf 2024 | Dedicated channel for EmacsConf organizers and speakers | this is intended as an internal, low-traffic channel; for main discussion around EmacsConf, please join #emacsconf | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
+    ("#emacsconf-questions" "EmacsConf 2024 | Low-traffic channel for questions if speakers prefer IRC and need help focusing; for main discussion around EmacsConf, please join #emacsconf | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates"))
   "List of (channel topic-template) entries for mass-setting channel topics."
   :group 'emacsconf
   :type '(repeat (list (string :tag "Channel")
