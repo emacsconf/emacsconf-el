@@ -369,9 +369,8 @@
 									(let ((tracks
                          (emacsconf-video-subtitle-tracks
 													(or (plist-get talk :caption-file)
-															(concat (replace-regexp-in-string "reencoded\\|original" "main"
-																																video-base)
-																			".vtt"))
+															(emacsconf-talk-file talk "--main.vtt")
+															(emacsconf-talk-file talk "--reencoded.vtt"))
 													(or (plist-get talk :track-base-url)
 															(plist-get talk :base-url))
 													(plist-get talk :files))))
@@ -1752,22 +1751,24 @@ ${include}
 
 (defun emacsconf-video-subtitle-tracks (filename track-base-url &optional files)
   (setq files (or files (directory-files emacsconf-cache-dir)))
-  (concat
-   (if (member (file-name-nondirectory filename) files)
-       (format "<track label=\"English\" kind=\"captions\" srclang=\"en\" src=\"%s\" default />"
-               (concat (or track-base-url "") (file-name-nondirectory filename)))
-     "")
-   (mapconcat
-    (lambda (lang)
-      (let ((lang-file (concat (file-name-sans-extension filename) "_" (car lang) "." (file-name-extension filename))))
-        (if (member lang-file files)
-            (format "<track label=\"%s\" kind=\"captions\" srclang=\"%s\" src=\"%s\" />"
-                    (cdr lang)
-                    (car lang)
-                    (concat (or track-base-url "") (file-name-nondirectory lang-file)))
-          "")))
-		emacsconf-publish-subtitle-languages
-    "")))
+	(if filename
+			(concat
+			 (if (member (file-name-nondirectory filename) files)
+					 (format "<track label=\"English\" kind=\"captions\" srclang=\"en\" src=\"%s\" default />"
+									 (concat (or track-base-url "") (file-name-nondirectory filename)))
+				 "")
+			 (mapconcat
+				(lambda (lang)
+					(let ((lang-file (concat (file-name-sans-extension filename) "_" (car lang) "." (file-name-extension filename))))
+						(if (member lang-file files)
+								(format "<track label=\"%s\" kind=\"captions\" srclang=\"%s\" src=\"%s\" />"
+												(cdr lang)
+												(car lang)
+												(concat (or track-base-url "") (file-name-nondirectory lang-file)))
+							"")))
+				emacsconf-publish-subtitle-languages
+				""))
+		""))
 
 (defun emacsconf-publish-link-file-formats (file-prefix)
   (string-join (emacsconf-publish-link-file-formats-as-list file-prefix) " "))
