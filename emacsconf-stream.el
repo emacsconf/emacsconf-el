@@ -414,10 +414,11 @@ With a prefix argument (\\[universal-argument]), clear the overlay."
 									 i
 									 (substring "123456789 123456789 123456789 123456789 123456789 123456789 "
 															(1+ (length (format "%s %02d" (plist-get talk :slug) i))))))))
-			(copy-file
-			 (expand-file-name "template.webm" dir)
-			 (expand-file-name (concat (plist-get talk :file-prefix) "--main.webm") dir)
-			 t))))
+			(unless (file-exists-p (expand-file-name (concat (plist-get talk :file-prefix) "--main.webm") dir))
+				(copy-file
+				 (expand-file-name "template.webm" dir)
+				 (expand-file-name (concat (plist-get talk :file-prefix) "--main.webm") dir)
+				 t)))))
 
 (defun emacsconf-stream-display-talk-info (talk)
   (interactive (list (emacsconf-complete-talk-info)))
