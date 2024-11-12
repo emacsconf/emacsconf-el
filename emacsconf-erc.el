@@ -26,6 +26,15 @@
 ;;
 ;; Commands:
 ;;
+;; /opall
+;; /deopall
+;;
+;; general
+;; - /broadcast message
+;; - /conftopic message
+;;
+;; - /checkin nick
+;;
 ;; announcements only
 ;; - /nowplaying slug
 ;; - /nowclosedq slug
@@ -42,10 +51,6 @@
 ;; - /markunstreamedq slug
 ;; - /markdone slug
 ;;
-;; general
-;; - /broadcast message
-;; - /conftopic message
-;; - /checkin nick
 ;;
 ;;; Code:
 
@@ -183,10 +188,10 @@ If MESSAGE is not specified, reset the topic to the template."
 			(emacsconf-erc-with-channels (list (concat "#" (plist-get talk :channel)))
 				(erc-cmd-TOPIC
 				 (format
-					"%s: %s (%s) pad: %s Q&A: %s | %s"
+					"%s: %s%s pad: %s Q&A: %s | %s"
 					(plist-get talk :slug)
 					(plist-get talk :title)
-					(plist-get talk :speakers)
+					(emacsconf-surround " (" (plist-get talk :speakers) ")" " -")
 					(plist-get talk :pad-url)
 					(plist-get talk :qa-info)
 					(car (assoc-default
@@ -195,7 +200,7 @@ If MESSAGE is not specified, reset the topic to the template."
 				(erc-send-message (format "---- %s: %s - %s ----"
 																	(plist-get talk :slug)
 																	(plist-get talk :title)
-																	(plist-get talk :speakers-with-pronouns)))
+																	(emacsconf-surround " - " (plist-get talk :speakers-with-pronouns) "" "")))
 				(erc-send-message
 				 (concat "Add your notes/questions to the pad: " (plist-get talk :pad-url)))
 				(cond
