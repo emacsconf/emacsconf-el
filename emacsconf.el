@@ -331,6 +331,61 @@ Return the list of new filenames."
 												 dir)
 			 t))))
 
+(defun emacsconf-upload-scp-from-json (talk key filename)
+	"Parse PsiTransfer JSON files and copy the uploaded file to the res directory.
+The file is associated with TALK. KEY identifies the file in a multi-file upload.
+FILENAME specifies an extra string to add to the file prefix if needed."
+  (interactive (let-alist (json-parse-string (buffer-string) :object-type 'alist)
+                 (list (emacsconf-complete-talk-info)
+                       .metadata.key
+                       (read-string (format "Filename: ")))))
+  (let* ((source-dir (file-name-directory (buffer-file-name)))
+				 (new-filename (concat (plist-get talk :file-prefix)
+                               (if (string= filename "")
+                                   filename
+                                 (concat "--" filename))
+                               "."
+                               (let-alist (json-parse-string (buffer-string) :object-type 'alist)
+                                 (file-name-extension .metadata.name))))
+				 (default-directory (expand-file-name "cache" emacsconf-res-dir))
+				 (command (emacsconf-upload-scp-command-from-json talk key filename))
+				 process)
+		(with-current-buffer (get-buffer-create (format "*scp %s*" (plist-get talk :slug)))
+			(insert (string-join command " ") "\n")
+			(set-process-sentinel
+			 (apply #'start-process (concat "scp-" (plist-get talk :slug))
+											(current-buffer) nil
+											command)
+			 (lambda (process event)
+				 (when (string= event "finished")
+					 (message "Finished copying %s"
+										new-filename)))))))
+
+(defun emacsconf-upload-scp-command-from-json (talk key filename)
+	"Parse PsiTransfer JSON files and get the SCP command for copying the uploaded file to the res directory.
+The file is associated with TALK. KEY identifies the file in a multi-file upload.
+FILENAME specifies an extra string to add to the file prefix if needed."
+  (interactive (let-alist (json-parse-string (buffer-string) :object-type 'alist)
+                 (list (emacsconf-complete-talk-info)
+                       .metadata.key
+                       (read-string (format "Filename: ")))))
+  (let* ((source-dir (file-name-directory (buffer-file-name)))
+				 (new-filename (concat (plist-get talk :file-prefix)
+                               (if (string= filename "")
+                                   filename
+                                 (concat "--" filename))
+                               "."
+                               (let-alist (json-parse-string (buffer-string) :object-type 'alist)
+                                 (file-name-extension .metadata.name))))
+				 (default-directory (expand-file-name "cache" emacsconf-res-dir))
+				 (command (list
+									 "scp"
+									 (replace-regexp-in-string "^/ssh:" "" (expand-file-name key source-dir))
+									 new-filename)))
+		(when (called-interactively-p 'any)
+			(kill-new (string-join command " ")))
+		command))
+
 (defun emacsconf-upload-copy-from-json (talk key filename)
 	"Parse PsiTransfer JSON files and copy the uploaded file to the res directory.
 The file is associated with TALK. KEY identifies the file in a multi-file upload.
@@ -1641,13 +1696,15 @@ Filter by TRACK if given.  Use INFO as the list of talks."
 (defun emacsconf-add-org-after-todo-state-change-hook ()
   "Add FUNC to `org-after-todo-stage-change-hook'."
   (interactive)
-  (with-current-buffer (find-buffer-visiting emacsconf-org-file)
+  (with-current-buffer (or (find-buffer-visiting emacsconf-org-file)
+													 (find-file-noselect emacsconf-org-file))
     (add-hook 'org-after-todo-state-change-hook #'emacsconf-org-after-todo-state-change nil t)))
 
 (defun emacsconf-remove-org-after-todo-state-change-hook ()
   "Remove FUNC from `org-after-todo-stage-change-hook'."
   (interactive)
-  (with-current-buffer (find-buffer-visiting emacsconf-org-file)
+  (with-current-buffer (or (find-buffer-visiting emacsconf-org-file)
+													 (find-file-noselect emacsconf-org-file))
     (remove-hook 'org-after-todo-state-change-hook
                  #'emacsconf-org-after-todo-state-change  t)))
 
