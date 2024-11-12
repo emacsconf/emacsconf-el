@@ -918,6 +918,7 @@ ${signature}
 	 '(:subject "${conf-name} ${year}: received uploaded file${plural} for ${title}"
 							;; :cc "emacsconf-submit@gnu.org"
 							:reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+							:log-note "acknowledged submission"
 							:mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
 							:body
 							"Hi, ${speakers-short}!
@@ -994,6 +995,7 @@ ${signature}")
 			 files
 			 "\n")))))
 
+;;;###autoload
 (defun emacsconf-mail-captions-for-review (talk)
 	"E-mail captions for TALK so that the speakers can review them."
   (interactive (list (emacsconf-complete-talk-info
@@ -1012,6 +1014,7 @@ ${signature}")
 			:subject "${conf-name} ${year}: Captions for ${title}"
 			:to "${email}"
 			:cc "${captioner-email}"
+			:log-note "sent captions for review"
 			:body "${email-notes}Hi ${speakers-short}!
 
 Because you sent in your video before the conference, we were able to
