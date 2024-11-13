@@ -817,6 +817,12 @@ Both start and end time are tested."
 		(when diff
 			(list (concat "Missing talks: " (string-join diff ", "))))))
 
+(defun emacsconf-schedule-validate-no-cancelled-talks (sched &optional list)
+	(let ((cancelled (seq-keep (lambda (o) (when (string= (plist-get o :status) "CANCELLED") (plist-get o :slug)))
+														 sched)))
+		(when cancelled
+			(list (concat "Cancelled talks: " (string-join cancelled ", "))))))
+
 (defun emacsconf-schedule-validate-no-duplicates (sched &optional info)
   (let* ((sched-slugs (mapcar (lambda (o) (plist-get o :slug))
                               (emacsconf-filter-talks sched)))
