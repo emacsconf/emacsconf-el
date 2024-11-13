@@ -1483,6 +1483,42 @@ ${signature}"))
 		(dolist (group (emacsconf-mail-groups (assoc-default t by-attendance)))
 			(emacsconf-mail-checkin-instructions-for-attending-speakers group))))
 
+(defun emacsconf-mail-interim-schedule-update (talk)
+	"E-mail a quick update about the schedule."
+	(interactive (list (emacsconf-complete-talk-info)))
+	(emacsconf-mail-prepare
+	 (list
+		:subject "${conf-name} ${year}: Schedule update ${sched-one-line}"
+		:reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+		:mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+		:log-note "sent updated schedule"
+		:body
+		"Hello, ${speakers-short}!
+
+We tweaked the schedule a bit. Your new schedule is:
+
+${schedule}
+
+Let us know if you need to reschedule!
+
+${signature}")
+	 (plist-get talk :email)
+	 (list
+		:year emacsconf-year
+		:base-url emacsconf-base-url
+		:conf-name emacsconf-name
+		:user-email user-mail-address
+		:email (plist-get talk :email)
+		:speakers-short (plist-get talk :speakers-short)
+		:signature user-full-name
+		:schedule
+		(emacsconf-indent-string (emacsconf-mail-format-talk-schedule talk) 2)
+		:sched-one-line
+		(emacsconf-timezone-strings-combined
+		 (plist-get talk :start-time)
+		 (plist-get talk :timezone)
+		 "%b %-e %a %-I:%M %#p %Z"))))
+
 (defun emacsconf-mail-schedule-update ()
 	"E-mail day-of schedule updates"
 	(interactive)
