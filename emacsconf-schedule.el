@@ -267,7 +267,8 @@ Pairs with `emacsconf-schedule-dump-sexp'."
               (org-entry-put (point) "SCHEDULED" (plist-get talk :scheduled))
               (org-entry-put (point) "TRACK" (plist-get talk :track))
               (org-entry-put (point) "TIME" (plist-get talk :time)))
-            (emacsconf-filter-talks info)))))
+            (emacsconf-filter-talks info))
+			(setq emacsconf-schedule-draft nil))))
 
 (defun emacsconf-schedule-save-emailed-times (info &optional field force)
 	(interactive (list (or emacsconf-schedule-draft (emacsconf-get-talk-info))
@@ -435,9 +436,9 @@ Pairs with `emacsconf-schedule-dump-sexp'."
 	"Set talk color based on status.
 Processing: palegoldenrod,
 Waiting to be assigned a captioner: yellow,
-Captioning in progress: lightgreen,
-To check: green,
-Ready to stream: blue,
+Captioning in progress: lightblue,
+To check: lightgreen,
+Ready to stream: green,
 Other status: gray"
   (unless (plist-get o :invalid)
     (dom-set-attribute node 'fill
@@ -449,11 +450,11 @@ Other status: gray"
                          ("TO_ASSIGN"
                           "yellow")
                          ("TO_CAPTION"
-                          "lightgreen")
-                         ("TO_CHECK"
-                          "green")
-                         ("TO_STREAM"
                           "lightblue")
+                         ("TO_CHECK"
+                          "#90ee90")
+                         ("TO_STREAM"
+                          "green")
 												 ("TODO"
 													"lightgray")
                          (_ "gray")))))

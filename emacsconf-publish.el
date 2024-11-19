@@ -1394,7 +1394,7 @@ If MODIFY-FUNC is specified, use it to modify the talk."
 				 (if (file-exists-p (expand-file-name "include-in-index.html" emacsconf-cache-dir))
              (with-temp-buffer (insert-file-contents (expand-file-name "include-in-index.html" emacsconf-cache-dir)) (buffer-string))
            "")
-				 "<p>Schedule by status: (gray: waiting, light yellow: processing, yellow: to assign, light green: captioning, green: to check, light blue: captioned and ready)<br />Updated by conf.org and the wiki repository</br />"
+				 "<p>Schedule by status: (gray: waiting, light yellow: processing, yellow: to assign, light blue: captioning, light green: to check, green: captioned and ready)<br />Updated by conf.org and the wiki repository</br />"
 				 (let* ((emacsconf-schedule-svg-modify-functions '(emacsconf-schedule-svg-color-by-status))
 								(img (emacsconf-schedule-svg 800 200 info)))
 					 (with-temp-buffer
