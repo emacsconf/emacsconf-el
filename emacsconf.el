@@ -1598,6 +1598,39 @@ Filter by TRACK if given.  Use INFO as the list of talks."
          (seq-group-by (lambda (o) (plist-get o :speakers))
                        (or info (emacsconf-active-talks (emacsconf-filter-talks (emacsconf-get-talk-info))))))))
 
+(defun emacsconf-load-rooms (string)
+	"Split STRING and load them as ROOM properties.
+STRING should be a list of rooms, one room per line, like this:
+friendly-id speaker - slugs
+friendly-id speaker - slugs
+"
+	(let ((rooms
+				 (mapcar (lambda (row) (when (string-match "^\\(.+?\\) \\(.+\\)" row)
+																 (list (match-string 1 row) (match-string 2 row))))
+								 (split-string string "\n"))))
+		(mapc (lambda (talk)
+						(emacsconf-go-to-talk talk)
+						(when (plist-get talk :speakers)
+							(org-entry-put
+							 (point)
+							 "ROOM"
+							 (concat
+								emacsconf-bbb-base-url
+								"rooms/"
+								(car
+								 (seq-find
+									(lambda (o)
+										(string-match
+										 (concat
+											"^"
+											(regexp-quote
+											 (plist-get talk :speakers))
+											" - ")
+										 (cadr o)))
+									rooms))
+								"/join"))))
+					(emacsconf-active-talks (emacsconf-get-talk-info)))))
+
 (defun emacsconf-surround (before text after &optional alternative)
   "Concat BEFORE, TEXT, and AFTER if TEXT is specified, or return ALTERNATIVE."
   (if (and text (not (string= text "")))
