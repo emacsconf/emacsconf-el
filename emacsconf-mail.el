@@ -548,6 +548,14 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
 						(message-send-and-exit)))
 				(match-buffers "unsent")))
 
+(defun emacsconf-mail-merge-clean-up ()
+	"Kill all the sent messages."
+  (interactive)
+  (mapc (lambda (buffer)
+          (when (string-match "^\\*sent mail" (buffer-name buffer))
+						(kill-buffer buffer)))
+        (buffer-list)))
+
 ;;; Notmuch
 
 ;;;###autoload
@@ -1931,6 +1939,54 @@ ${transcript}
 
 (defvar emacsconf-sticker-mailer nil "E-mail address of person who sends out stickers.")
 
+(defun emacsconf-mail-template-mailing-address (group)
+	(interactive (list (emacsconf-mail-complete-email-group)))
+	(emacsconf-mail-prepare
+	 (list
+		:subject "${conf-name} ${year}: Can we send you a sticker or pin of appreciation?"
+		:reply-to "${user-email}, ${sticker-mailer}, ${email}"
+		:mail-followup-to "${user-email}, ${sticker-mailer}, ${email}"
+		:log-note "Asked for mailing address"
+		:body
+		"${email-notes}Hi, ${speakers-short}!
+
+We have swag again this year, thanks to Corwin
+Brust! Would you like a sticker or a pin as a
+small token of our appreciation? This is what they
+look like:
+
+https://bru.st/i/ecswag.jpg
+
+(It's also part of our Evil Plan: maybe people
+will see the sticker or the pin and talk to you
+about Emacs! =) )
+
+If you want one, please e-mail your mailing
+address and your preference* (sticker or pin) to
+corwin@bru.st . We promise to use your address
+only for sending it.
+
+(* While supplies last; Corwin thinks there should
+be plenty, but just in case, feel free to send us
+your second choice too.)
+
+Thank you so much for contributing to ${conf-name} ${year}!
+
+${signature}
+")
+	 (car group)
+	 (list
+		:email-notes (emacsconf-surround "ZZZ: " (string-join (seq-uniq (seq-map (lambda (talk) (plist-get talk :email-notes)) (cdr group)))
+																													", ") "\n\n" "")
+		:speakers-short (plist-get (cadr group) :speakers-short)
+		:conf-name emacsconf-name
+		:year emacsconf-year
+		:email (car group)
+		:base-url emacsconf-base-url
+		:signature user-full-name
+		:user-email user-mail-address
+		:sticker-mailer emacsconf-sticker-mailer)))
+
 (defun emacsconf-mail-template-mailing-address-to-all ()
 	"Ask for mailing address."
 	(interactive)
@@ -1942,53 +1998,8 @@ ${transcript}
 						(seq-filter (lambda (o) (plist-get o :email))
 												(emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))))
 		(dolist (group groups)
-			(emacsconf-mail-prepare
-			 (list
-				:subject "${conf-name} ${year}: Can we send you a sticker of appreciation?"
-				:reply-to "${user-email}, ${sticker-mailer}, ${email}"
-				:mail-followup-to "${user-email}, ${sticker-mailer}, ${email}"
-				:log-note "Asked for mailing address"
-				:body
-				"${email-notes}Hi, ${speakers-short}!
-
-Thank you again for participating in EmacsConf 2023. It was a lot
-of fun. We hope we captured some of that energy and awesomeness
-in this short conference report at ${base-url}${year}/report/ .
-Unedited transcripts are now up for the rest of the talks and Q&A
-sessions at ${base-url}${year}/talks - more ways to enjoy the
-conference.
-
-We're thinking of experimenting with ways to show our
-appreciation for speakers. Actually, it's also part of an evil
-plan to see if other people might see the sticker on your
-laptop/whatever and then talk to you about Emacs, mwahahaha! And
-even if you don't hang out with other people, it could be a
-continuing source of warm-and-fuzzy feelings and a
-not-so-subliminal nudge to consider doing a talk at next year's
-${conf-name}. ;)
-
-Would you consider sending us your mailing
-address so that we can send you an ${conf-name} logo sticker? If you
-would like one, please reply to this e-mail with the details. We
-promise to use your address only for sending the sticker. (Or
-stickers, depending on what else Corwin rustles up.)
-
-Thanks again!
-
-${signature}
-")
-			 (car group)
-			 (list
-				:email-notes (emacsconf-surround "ZZZ: " (string-join (seq-uniq (seq-map (lambda (talk) (plist-get talk :email-notes)) (cdr group)))
-																															", ") "\n\n" "")
-				:speakers-short (plist-get (cadr group) :speakers-short)
-				:conf-name emacsconf-name
-				:year emacsconf-year
-				:email (car group)
-				:base-url emacsconf-base-url
-				:signature user-full-name
-				:user-email user-mail-address
-				:sticker-mailer emacsconf-sticker-mailer)))))
+			(emacsconf-mail-template-mailing-address group))
+		(message "Drafted %d messages" (length groups))))
 
 ;;; Other mail functions
 
@@ -2151,6 +2162,33 @@ This minimizes the risk of mail delivery issues and radio silence."
 	"Search for recent submissions."
 	(interactive)
 	(notmuch-search emacsconf-submit-email))
+
+(defun emacsconf-notmuch-check-sent (query &optional groups)
+	(interactive "MSubject: ")
+	(setq groups
+				(or groups
+						(emacsconf-mail-groups
+						 (seq-filter (lambda (o) (plist-get o :email))
+												 (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))))
+	(let* ((files
+					(with-temp-buffer
+						(notmuch-call-notmuch--helper
+						 t
+						 (list "search" "--output" "files" (format "\"%s\"" query)))
+						(split-string (string-trim (buffer-string)) "\n")))
+				 (sent-to
+					(cl-loop for f in files
+									 collect
+									 (with-temp-buffer
+										 (insert-file-contents f)
+										 (goto-char (point-min))
+										 (when (re-search-forward "To: \\(.+\\)" nil t)
+											 (match-string 1)))))
+				 (missing (seq-difference (mapcar 'car groups)
+																	sent-to)))
+		(if missing
+				(message "Missing: %s" (string-join missing "; "))
+			(message "All sent."))))
 
 (provide 'emacsconf-mail)
 ;;; emacsconf-mail.el ends here
