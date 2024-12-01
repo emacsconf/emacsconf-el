@@ -33,7 +33,7 @@
 ;; - /broadcast message
 ;; - /conftopic message
 ;;
-;; - /checkin nick
+;; - /checkin nick talk
 ;;
 ;; announcements only
 ;; - /nowplaying slug
@@ -99,19 +99,20 @@ If MESSAGE is not specified, reset the topic to the template."
                              (cadr template)))))
         emacsconf-topic-templates))
 
-(defun erc-cmd-CHECKIN (nick)
-  (let* ((talk (emacsconf-complete-talk-info))
-         (q-and-a (plist-get talk :q-and-a) ""))
-    (save-excursion
-      (emacsconf-with-talk-heading (plist-get talk :slug)
-        (org-entry-put (point) "IRC" nick)
-        (org-entry-put (point) "CHECK_IN" (format-time-string "%H:%M"))))
+(defun erc-cmd-CHECKIN (nick &optional talk)
+  (let* ((talk (if (stringp talk) (emacsconf-resolve-talk talk) (or talk (emacsconf-complete-talk-info))))
+         (q-and-a (or (plist-get talk :q-and-a) "")))
+		(save-window-excursion
+			(save-excursion
+				(emacsconf-with-talk-heading (plist-get talk :slug)
+					(org-entry-put (point) "IRC" nick)
+					(org-entry-put (point) "CHECK_IN" (format-time-string "%H:%M")))))
     (cond
      ((string-match "live" q-and-a)
       (erc-send-message (format "%s: Thanks for checking in! I'll send you some private messages with instructions, so please check there. Let me know if you don't get them." nick))
       (erc-cmd-ROOM nick talk))
      ((string-match "pad" q-and-a)
-      (erc-send-message (format "%s: Thanks for checking in! The collaborative pad we'll be using for questions is at %s . We'll collect questions and put them there. If you'd like to open it, you can keep  an eye on questions. Please let us know if you need help, or if you want to switch to live Q&A." nick (plist-get talk :pad-url))))
+      (erc-send-message (format "%s: Thanks for checking in! The collaborative pad we'll be using for questions is at %s . We'll collect questions and put them there. If you'd like to open it, you can keep  an eye on questions. You can answer questions in any order or skip anything you want to save for later. Please let us know if you need help, or if you want to switch to live Q&A." nick (plist-get talk :pad-url))))
      ((string-match "IRC" q-and-a)
       (erc-send-message (format "#%s: Thanks for checking in! Feel free to keep an eye on %s for questions and discussion, and we'll copy things from the pad to there. If the volume gets overwhelming, let us know and we can /msg you questions or add them to the pad. If you'd like to try Q&A over live video or the collaborative pad instead, or if you need help, please let us know." nick
                                 (plist-get (emacsconf-get-track (plist-get talk :track)) :channel))))
@@ -120,11 +121,37 @@ If MESSAGE is not specified, reset the topic to the template."
       (emacsconf-with-talk-heading (plist-get talk :slug)
         (emacsconf-upcoming-insert-or-update nil t)))))
 
-(defun erc-cmd-BBB (nick &optional talk)
+(defun erc-cmd-BACKSTAGE (nick)
+	"Send NICK emergency backstage information."
+	(erc-send-message (format "%s: I'll send you a private message on IRC with the backstage details."))
+	(erc-message
+	 "PRIVMSG"
+	 (format "%s You can access the backstage area at %s%s/backstage/ with the username \"%s\" and the password \"%s\" (please keep them secret, thanks!). The general talk index is at %s%s/backstage/index-gen.html and the dev talk index is at %s%s/backstage/index-dev.html"
+					 nick
+					 emacsconf-media-base-url
+					 emacsconf-year
+					 emacsconf-backstage-user
+					 emacsconf-backstage-password
+					 emacsconf-media-base-url
+					 emacsconf-year
+					 emacsconf-media-base-url
+					 emacsconf-year
+					 )))
+
+(defun erc-cmd-PAD (nick &optional talk)
+  (setq talk (if (stringp talk) (emacsconf-resolve-talk talk)
+							 (or talk (emacsconf-complete-talk-info))))
+	(erc-message "PRIVMSG" (format "%s The collaborative pad we'll be using for questions is at %s . We'll collect questions from %s and put them there. When you're live, you can answer questions in any order or skip anything you want to save for later. Alternatively, we can read questions to you. Let us know what you'd prefer!" nick (plist-get talk :pad-url) (plist-get talk :channel))))
+
+(defun erc-cmd-ROOM (nick &optional talk)
   "Send live Q&A instructions to NICK."
-  (setq talk (or talk (emacsconf-complete-talk-info)))
-  (erc-message "PRIVMSG" (format "%s You can use this BBB room: %s . We'll join you there shortly to set up the room and do the last-minute tech check." nick (plist-get talk :bbb-room)))
-  (erc-message "PRIVMSG" (format "%s The collaborative pad we'll be using for questions is at %s . We'll collect questions from #emacsconf and put them there. If you'd like to jump to your part of the document, you might be able to keep an eye on questions. Alternatively, we can read questions to you." nick (plist-get talk :pad-url)))
+  (setq talk (if (stringp talk) (emacsconf-resolve-talk talk)
+							 (or talk (emacsconf-complete-talk-info))))
+	(erc-message
+	 "PRIVMSG"
+	 (if (plist-get talk :bbb-mod-code)
+			 (format "%s You can use this BBB room: %s . If you use the moderator access code \"%s\" when you log in, you can get all set up to share your screen if you want. We'll join you there shortly to do the last-minute tech check." nick (plist-get talk :bbb-room) (plist-get talk :bbb-mod-code))
+		 (format "%s You can use this BBB room: %s . We'll join you there shortly to set up the room and do the last-minute tech check." nick (plist-get talk :bbb-room))))
   (erc-message "PRIVMSG" (format "%s The host will join and give you the go-ahead when you go on air. See you in the BBB room!" nick)))
 
 (defun erc-cmd-READY (&rest filter)
