@@ -25,7 +25,7 @@
 ;;; Code:
 
 (defvar emacsconf-schedule-strategies
-  '(emacsconf-schedule-allocate-video-time-rounded-to-five)
+  '(emacsconf-schedule-allocate-video-time-round-up-to-five)
   "List of scheduling functions.
 Each function should take the info and manipulate it as needed, returning the new info.")
 
