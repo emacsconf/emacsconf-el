@@ -2293,11 +2293,11 @@ We recommend using a streaming player like mpv to watch the livestreams. Example
 								(concat "mpv " (plist-get track :stream) "\n"))
 							emacsconf-tracks
 							"")
-   "</pre><table width=\"100%\"><tr><th>Watch page</th><th>IRC channel (libera.chat)</th><th>URL for streaming player (ex: mpv, vlc, ffplay)</th><th>Low res</th></tr>\n"
+   "</pre><table width=\"100%\"><tr><th>Watch page</th><th>Watch page (low-res)</th><th>IRC channel (libera.chat)</th><th>URL for streaming player (ex: mpv, vlc, ffplay)</th><th>Low res</th></tr>\n"
    (mapconcat (lambda (track)
                 (emacsconf-replace-plist-in-string
                  (append (list :year emacsconf-year) track)
-                 "<tr><td><div class=\"sched-track ${name}\"><a href=\"/${year}/watch/${id}/\">${name}</a></div></td><td><a href=\"${webchat-url}\">${channel}</a></td><td><a href=\"${stream}\">${stream}</a></td><td><a href=\"${480p}\">${id}-480p.webm</a></tr>"))
+                 "<tr><td><div class=\"sched-track ${name}\"><a href=\"/${year}/watch/${id}/\">${name}</a></div></td><td><a href=\"/${year}/watch/${id}-480p/\">${name} (low-res)</a></td><td><a href=\"${webchat-url}\">${channel}</a></td><td><a href=\"${stream}\">${stream}</a></td><td><a href=\"${480p}\">${id}-480p.webm</a></tr>"))
               emacsconf-tracks
               "\n")
    "</table>\n\n"
