@@ -571,6 +571,11 @@ If INFO is specified, limit it to that list."
       (setq list (cons (match-string-no-properties 0) list)))
     (plist-put o :categories (reverse list))))
 
+(defun emacsconf-talk-recorded-p (talk)
+	"Returns non-nil if TALK will start with a recorded video."
+	(and (not (plist-get talk :prefer-live))
+			 (plist-get talk :video-file)))
+
 (defun emacsconf-get-talk-info-from-properties (o)
   (let ((heading (org-heading-components))
         (field-props '(
@@ -602,6 +607,7 @@ If INFO is specified, limit it to that list."
                        (:prerec-info "PREREC_INFO")
                        ;; Prep
                        (:bbb-room "ROOM")
+                       (:bbb-mod-code "BBB_MOD_CODE")
                        ;; Processing
                        (:file-prefix "FILE_PREFIX")
                        (:video-file "VIDEO_FILE")
@@ -612,6 +618,7 @@ If INFO is specified, limit it to that list."
                        (:youtube-url "YOUTUBE_URL")
                        (:toobnix-url "TOOBNIX_URL")
 											 (:intro-time "INTRO_TIME")
+											 (:prefer-live "PREFER_LIVE")
                        ;; Captioning
                        (:captioner "CAPTIONER")
                        (:caption-note "CAPTION_NOTE")
@@ -632,7 +639,7 @@ If INFO is specified, limit it to that list."
                        (:present "PRESENT")
                        (:talk-id "TALK_ID") ; use slug instead
                        (:qa-public "QA_PUBLIC") ; now tracked by the OPEN_Q and UNSTREAMED_Q status
-                       (:uuid "UUID")           ; Pentabarf export
+                       (:uuid "UUID")	; Pentabarf export
                        )))
     (apply
      'append
@@ -940,10 +947,7 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
         (plist-put o :qa-link "none")
 				(plist-put o :qa-backstage-url (plist-get o :pad-url))))
     (plist-put o :recorded-intro
-               (let ((filename
-                      (expand-file-name (concat (plist-get o :slug) ".webm")
-                                        (expand-file-name "intros" emacsconf-stream-asset-dir))))
-                 (and (file-exists-p filename) filename)))
+							 (emacsconf-talk-file o "--intro.webm"))
     o))
 
 (defun emacsconf-search-talk-info (search &optional info)
@@ -1044,6 +1048,12 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
 (defun emacsconf-resolve-talk (talk &optional info)
   "Return the plist for TALK."
   (if (stringp talk) (emacsconf-find-talk-info talk info) talk))
+
+(defun emacsconf-resolve-shift (shift)
+  "Return the plist for SHIFT."
+  (if (stringp shift) (seq-find (lambda (o) (string= (plist-get o :id) shift))
+																emacsconf-shifts)
+		shift))
 
 (defun emacsconf-find-talk-info (filter &optional info)
   (setq info (or info (emacsconf-filter-talks (emacsconf-get-talk-info))))
@@ -1446,7 +1456,7 @@ If TIMEZONES is a string, split it by commas."
            :vnc-display ":5"
            :vnc-port "5905"
 					 :autopilot crontab
-           :status "online")
+           :status "offline")
    (:name "Development" :color "skyblue" :id "dev" :channel "emacsconf-dev"
           :watch  ,(format "https://live.emacsconf.org/%s/watch/dev/" emacsconf-year)
 				  :webchat-url "https://chat.emacsconf.org/?join=emacsconf,emacsconf-org,emacsconf-accessible,emacsconf-gen,emacsconf-dev"
@@ -1461,7 +1471,7 @@ If TIMEZONES is a string, split it by commas."
           :vnc-display ":6"
           :vnc-port "5906"
 					:autopilot crontab
-          :status "online")))
+          :status "offline")))
 
 (defun emacsconf-get-track (name)
 	"Get the track for NAME.
@@ -1526,7 +1536,7 @@ NAME could be a track name, a talk name, or a list."
 		info))
 
 (defvar emacsconf-shifts
-	(list (list :id "sat-am-gen" :track "General" :start "2023-12-02T08:00:00-0500" :end "2023-12-02T12:00:00-0500" :host "zaeph" :streamer "sachac" :checkin "FlowyCoder" :coord "sachac") (list :id "sat-pm-gen" :track "General" :start "2023-12-02T13:00:00-0500" :end "2023-12-02T18:00:00-0500" :host "zaph" :streamer "sachac" :checkin "FlowyCoder" :coord "sachac") (list :id "sat-am-dev" :track "Development" :start "2023-12-02T08:00:00-0500" :end "2023-12-02T12:00:00-0500" :host "bandali" :streamer "sachac" :checkin "FlowyCoder" :coord "sachac") (list :id "sat-pm-dev" :track "Development" :start "2023-12-02T13:00:00-0500" :end "2023-12-02T18:00:00-0500" :host "bandali" :streamer "sachac" :checkin "FlowyCoder" :coord "sachac") (list :id "sun-am-gen" :track "General" :start "2023-12-03T08:00:00-0500" :end "2023-12-03T12:00:00-0500" :host "zaeph" :streamer "sachac" :checkin "FlowyCoder" :coord "sachac") (list :id "sun-pm-gen" :track "General" :start "2023-12-03T13:00:00-0500" :end "2023-12-03T18:00:00-0500" :host "zaeph" :streamer "sachac" :checkin "FlowyCoder" :coord "sachac") (list :id "sun-am-dev" :track "Development" :start "2023-12-03T08:00:00-0500" :end "2023-12-03T12:00:00-0500" :host "bandali" :streamer "sachac" :checkin "FlowyCoder" :coord "sachac") (list :id "sun-pm-dev" :track "Development" :start "2023-12-03T13:00:00-0500" :end "2023-12-03T18:00:00-0500" :host "bandali" :streamer "sachac" :checkin "FlowyCoder" :coord "sachac")))
+	(list (list :id "sat-am-gen" :track "General" :start "2024-12-07T09:00:00-0500" :end "2024-12-07T12:00:00-0500" :host "zaeph" :streamer "sachac" :checkin "sachac" :coord "sachac") (list :id "sat-pm-gen" :track "General" :start "2024-12-07T13:00:00-0500" :end "2024-12-07T17:00:00-0500" :host "zaeph" :streamer "sachac" :checkin "sachac" :coord "sachac") (list :id "sat-am-dev" :track "Development" :start "2024-12-07T10:00:00-0500" :end "2024-12-07T12:00:00-0500" :host "corwin" :streamer "sachac" :checkin "sachac" :coord "sachac") (list :id "sat-pm-dev" :track "Development" :start "2024-12-07T13:00:00-0500" :end "2024-12-07T17:00:00-0500" :host "corwin" :streamer "sachac" :checkin "sachac" :coord "sachac") (list :id "sun-am-gen" :track "General" :start "2024-12-08T09:00:00-0500" :end "2024-12-08T12:00:00-0500" :host "zaeph" :streamer "sachac" :checkin "corwin" :coord "sachac") (list :id "sun-pm-gen" :track "General" :start "2024-12-08T13:00:00-0500" :end "2024-12-08T17:00:00-0500" :host "zaeph" :streamer "sachac" :checkin "corwin" :coord "sachac")))
 
 (defun emacsconf-filter-talks-by-time (start-time end-time info)
   "Return talks that are between START-TIME and END-TIME (inclusive) in INFO."
@@ -1817,9 +1827,10 @@ tracks with the ID in the cdr of that list."
 (defun emacsconf-add-to-talk-logbook (talk note)
   "Add NOTE as a logbook entry for TALK."
   (interactive (list (emacsconf-complete-talk) (read-string "Note: ")))
-  (save-excursion
-    (emacsconf-with-talk-heading talk
-      (emacsconf-add-to-logbook note))))
+	(save-window-excursion
+		(save-excursion
+			(emacsconf-with-talk-heading talk
+				(emacsconf-add-to-logbook note)))))
 
 (defun emacsconf-reload ()
   "Reload the emacsconf-el modules."

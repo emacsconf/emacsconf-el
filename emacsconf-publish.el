@@ -261,12 +261,32 @@
   (mapconcat
    (lambda (o)
      (concat
-      "<tr>"
-      (format
-       "<td><a name=\"%s\"></a>"
-       (plist-get o :slug))
-      (plist-get o :qa-link)
-      "</td>"
+      (format "<tr id=\"%s\">" (plist-get o :slug))
+      "<td>" (format-time-string "%-l:%M" (plist-get o :start-time) emacsconf-timezone) "</td>"
+      "<td><strong>"
+			(cond
+			 ((not (emacsconf-talk-recorded-p o))
+				(format-time-string "%-l:%M" (plist-get o :start-time) emacsconf-timezone))
+			 ((string-match "live" (plist-get o :qa-type))
+				(format-time-string "%-l:%M" (plist-get o :qa-time) emacsconf-timezone))
+			 (t ""))
+			"</strong></td>"
+      "<td>" (format "<a href=\"%s%s/talks/%s\" target=\"_blank\" rel=\"noreferrer\">%s</a>"
+										 emacsconf-base-url
+										 emacsconf-year
+										 (plist-get o :slug)
+										 (plist-get o :slug))
+			"</td>"
+      "<td>" (if (emacsconf-talk-recorded-p o) (plist-get o :qa-type) "(live talk)") "</td>"
+			(if (plist-get o :bbb-room)
+					(format "<td><button class=\"copy\" data-copy=\"%s\" data-label=\"Copy mod code\">Copy mod code</button></td>"
+									(plist-get o :bbb-mod-code))
+        "<td></td>")
+			(concat "<td>"
+							(if (plist-get o :bbb-room)
+									(format "<a href=\"%s\" target=\"_blank\" rel=\"noreferrer\">Join Q&A</a>" (plist-get o :bbb-room)
+													""))
+							"</td>")
       "<td>" (if (plist-get o :pad-url)
                  (format "<a href=\"%s\" target=\"_blank\" rel=\"noreferrer\">Pad</a>" (plist-get o :pad-url))
                "")
@@ -274,32 +294,21 @@
       "<td>" (format "<a href=\"%s\" target=\"_blank\" rel=\"noreferrer\">Chat</a>" (plist-get o :webchat-url))
       ""
       "</td>"
-      "<td>" (format-time-string "%-l:%M" (plist-get o :start-time) emacsconf-timezone) "</td>"
-      "<td>" (format "<a href=\"%s%s/talks/%s\" target=\"_blank\" rel=\"noreferrer\">%s</a>"
-										 emacsconf-base-url
-										 emacsconf-year
-										 (plist-get o :slug)
-										 (plist-get o :slug))
-			"</td>"
+
       "<td>" (or (plist-get o :title) "") "</td>"
+      "<td>" (or (plist-get o :speakers) "") (emacsconf-surround " (" (plist-get o :irc) ")" "") "</td>"
       "</tr>"))
    info
    "\n"))
 
-(defun emacsconf-publish-res-index ()
+(defun emacsconf-publish-backstage-talk-index ()
   "Publish BBB room URLs and pad links for volunteer convenience."
   (interactive)
   (let* ((emacsconf-publishing-phase 'conference)
          (info (mapcar (lambda (o)
                          (append (list
 																	:url (concat "#" (plist-get o :slug)))
-                                 (if (and (string-match "live" (or (plist-get o :q-and-a) ""))
-																					(plist-get o :bbb-room))
-                                     (append (list
-																							:qa-link
-																							(format "<a href=\"%s\" target=\"_blank\" rel=\"noreferrer\">Join Q&A</a>" (plist-get o :bbb-room)))
-                                             o)
-                                   o)))
+																 o))
                        (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))
     (mapc
      (lambda (track)
@@ -312,6 +321,7 @@
               "<html><head><meta charset=\"utf-8\" /><link rel=\"stylesheet\" href=\"style.css\"></head><body>
 <div>"
 							(let ((emacsconf-use-absolute-url t)
+										(emacsconf-schedule-svg-modify-functions '(emacsconf-schedule-svg-color-by-status))
 										(emacsconf-base-url ""))
 								(with-temp-buffer
 									(svg-print (emacsconf-schedule-svg 800 300 info))
@@ -322,17 +332,19 @@
 							(mapconcat
 							 (lambda (day)
 								 (format
-									"<tr><th colspan=\"6\" style=\"text-align: left\">%s</th></tr>
-<tr><th>Q&A</th><th>Pad</th><th>Chat</th><th>Time</th><th>Slug</th><th>Title</th></tr>
+									"<tr><th colspan=\"7\" style=\"text-align: left\">%s</th></tr>
+<tr><th>Talk start</th><th>BBB start</th><th>Talk ID</th><th>Q&A type</th><th>Mod code</th><th>BBB</th><th>Pad</th><th>Chat</th><th>Title</th><th>Speakers</th></tr>
 %s"
 									(car day) (emacsconf-publish-format-res-talks (cdr day))))
 							 (seq-group-by
 								(lambda (o) (format-time-string "%A, %b %-e" (plist-get o :start-time)))
 								track-talks)
 							 "\n")
-              "</table></body></html>")))
-         (with-temp-file (expand-file-name (format "index-%s.html" (plist-get track :id)) emacsconf-res-dir)
-           (insert result))
+              "</table></body>"
+							(with-temp-buffer
+								(insert-file-contents (expand-file-name "include-in-index-footer.html" emacsconf-cache-dir))
+								(buffer-string))
+							"</html>")))
          (with-temp-file (expand-file-name (format "index-%s.html" (plist-get track :id)) emacsconf-backstage-dir)
            (insert result))))
      emacsconf-tracks)))
@@ -489,29 +501,29 @@
                                                  " ")
                                     ""))))
           "[[${meta} title=\"${title}\"]]
-[[${meta} copyright=\"Copyright &copy; ${year} ${speakers}\"]]
-[[!inline pages=\"internal(${year}/info/${slug}-nav)\" raw=\"yes\"]]
+							[[${meta} copyright=\"Copyright &copy	; ${year} ${speakers}\"]]
+												[[!inline pages=\"internal(${year}/info/${slug}-nav)\" raw=\"yes\"]]
 
-<!-- Initially generated with emacsconf-publish-talk-page and then left alone for manual editing -->
-<!-- You can manually edit this file to update the abstract, add links, etc. --->\n
+												<!-- Initially generated with emacsconf-publish-talk-page and then left alone for manual editing -->
+												<!-- You can manually edit this file to update the abstract, add links, etc. --->\n
 
-# ${title}
-${speaker-info}
+												# ${title}
+												${speaker-info}
 
-[[!inline pages=\"internal(${year}/info/${slug}-before)\" raw=\"yes\"]]
+												[[!inline pages=\"internal(${year}/info/${slug}-before)\" raw=\"yes\"]]
 
-${abstract-md}
+												${abstract-md}
 
-[[!inline pages=\"internal(${year}/info/${slug}-after)\" raw=\"yes\"]]
+												[[!inline pages=\"internal(${year}/info/${slug}-after)\" raw=\"yes\"]]
 
-[[!inline pages=\"internal(${year}/info/${slug}-nav)\" raw=\"yes\"]]
+												[[!inline pages=\"internal(${year}/info/${slug}-nav)\" raw=\"yes\"]]
 
-${categories}
-"))))))
+												${categories}
+												"))))))
 
 (defun emacsconf-publish-talk-p (talk)
 	"Return non-nil if the talk is ready to be published.
-Talks that are pending review will not be published yet."
+												Talks that are pending review will not be published yet."
 	(pcase (plist-get talk :status)
 		('nil nil)
 		("TODO" nil)
@@ -522,10 +534,10 @@ Talks that are pending review will not be published yet."
 
 (defun emacsconf-publish-talk-pages (emacsconf-info &optional force)
   "Populate year/talks/*.md files.
-These should include the nav and schedule files, which will be
-rewritten as needed.  After they are generated, they should be all
-right to manually edit to include things like additional
-resources."
+												These should include the nav and schedule files, which will be
+												rewritten as needed.  After they are generated, they should be all
+												right to manually edit to include things like additional
+												resources."
 	(interactive (list (emacsconf-get-talk-info) (> (prefix-numeric-value current-prefix-arg) 1)))
   (mapc (lambda (o) (emacsconf-publish-talk-page o force))
 				(emacsconf-filter-talks emacsconf-info)))
@@ -583,7 +595,7 @@ resources."
 							(if talk-p
 								(concat (or (plist-get o :video-time)
 														(plist-get o :time))
-												"-min talk; Q&A: "
+												"-min talk			; Q&A: "
 												(pcase (plist-get o :qa-type)
 													("none" "ask questions via Etherpad/IRC; we'll e-mail the speaker and post answers on this wiki page after the conference")
 													("live" "BigBlueButton conference room")
@@ -592,11 +604,11 @@ resources."
 													(_ (plist-get o :qa-type)))
 												(emacsconf-surround " <" (and (member emacsconf-publishing-phase '(schedule conference))
 																											(plist-get o :qa-url)) ">" ""))
-								(concat (or (plist-get o :video-time)
-														(plist-get o :time)) "-min talk cancelled"))
+							 (concat (or (plist-get o :video-time)
+													 (plist-get o :time)) "-min talk cancelled"))
 							:pad-info
 							(if (and talk-p emacsconf-publish-include-pads (not (and (member emacsconf-publishing-phase '(schedule conference))
-																							 (string= (plist-get o :qa-type) "etherpad"))))
+																																			 (string= (plist-get o :qa-type) "etherpad"))))
 									(format "Etherpad: <https://pad.emacsconf.org/%s-%s>  \n" emacsconf-year (plist-get o :slug))
 								"")
 							:irc-info
@@ -1812,6 +1824,7 @@ ${include}
 					 '(:slug :title :speakers :pronouns :pronunciation :url :track :file-prefix
 									 :qa-url
 									 :qa-type
+									 :prefer-live
 									 :qa-backstage-url))))
 			 (emacsconf-filter-talks (emacsconf-get-talk-info)))
 			:tracks
@@ -2063,6 +2076,7 @@ ${include}
 (autoload 'subed-parse-file "subed-common")
 (defun emacsconf-publish-video-description (talk &optional copy skip-title)
   (interactive (list (emacsconf-complete-talk-info) t))
+	(when (stringp talk) (setq talk (emacsconf-resolve-talk talk)))
   (let ((chapters (subed-parse-file
                    (expand-file-name
                     (concat
@@ -2097,15 +2111,43 @@ ${chapters}You can view this and other resources using free/libre software at ${
 This video is available under the terms of the Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0) license.")))
     (if copy (kill-new result))
     result))
-;; (emacsconf-publish-video-description (emacsconf-find-talk-info "async") t)
 
-(defun emacsconf-cache-all-video-data ()
-  (interactive)
-  (mapc
-   (lambda (talk)
-     (when (plist-get talk :file-prefix)
-       (emacsconf-publish-cache-video-data talk)))
-   (emacsconf-get-talk-info)))
+(defun emacsconf-publish-youtube-step-through-publishing ()
+	(interactive)
+	(catch 'done
+		(while t
+			(let ((talk (seq-find (lambda (o)
+															 (and (string= (plist-get o :status) "TO_STREAM")
+																		(not (plist-get o :youtube))
+																		(emacsconf-talk-file o "--main.webm")))
+														 (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))
+				(unless talk
+					(message "All done so far.")
+					(throw 'done t))
+				(kill-new (emacsconf-talk-file talk "--main.webm"))
+				(message "Video: %s - press any key" (emacsconf-talk-file talk "--main.webm"))
+				(when (eq (read-char) ?q) (throw 'done t))
+				(emacsconf-publish-video-description talk t)
+				(message "Copied description - press any key")
+				(when (eq (read-char) ?q) (throw 'done t))
+				(when (emacsconf-talk-file talk "--main.vtt")
+					(kill-new (emacsconf-talk-file talk "--main.vtt"))
+					(message "Captions: %s - press any key" (emacsconf-talk-file talk "--main.vtt"))
+					(when (eq (read-char) ?q) (throw 'done t)))
+				(emacsconf-set-property-from-slug
+				 (plist-get talk :slug)
+				 "YOUTUBE"
+				 (read-string (format "%s - YouTube URL: " (plist-get talk :scheduled))))))))
+
+	;; (emacsconf-publish-video-description (emacsconf-find-talk-info "async") t)
+
+	(defun emacsconf-cache-all-video-data ()
+		(interactive)
+		(mapc
+		 (lambda (talk)
+			 (when (plist-get talk :file-prefix)
+				 (emacsconf-publish-cache-video-data talk)))
+		 (emacsconf-get-talk-info)))
 ;; (emacsconf-cache-all-video-data t)
 (defvar emacsconf-cache-dir (expand-file-name "cache" (file-name-directory emacsconf-org-file)))
 

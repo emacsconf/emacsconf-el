@@ -608,7 +608,7 @@ With a prefix argument (\\[universal-argument]), clear the overlay."
                                  (shell-quote-argument (expand-file-name (concat (plist-get talk :slug) ".svg")
                                                                          dir)))))
                       (setq prev talk))
-                     (emacsconf-filter-talks (cdr track)))))
+                    (emacsconf-filter-talks (cdr track)))))
           by-track)))
 
 
@@ -1193,6 +1193,47 @@ If INFO is non-nil, use that as the schedule instead."
 	(dolist (track emacsconf-tracks)
 		(plist-put track :autopilot nil)
 		(emacsconf-stream-track-ssh track "crontab -r")))
+
+(defun emacsconf-stream-copy-livestream-description (shift)
+	(interactive (list (completing-read "Shift: " (mapcar (lambda (o) (plist-get o :id)) emacsconf-shifts))))
+	(when (stringp shift) (setq shift (seq-find (lambda (o) (string= (plist-get o :id) shift)) emacsconf-shifts)))
+	(let* ((track-id (when (string-match "-\\([a-z]+?\\)$" (plist-get shift :id)) (match-string 1 (plist-get shift :id))))
+				 (desc (emacsconf-replace-plist-in-string
+								(list
+								 :track-name (plist-get shift :track)
+								 :start (format-time-string "%Y-%m-%d %-l:%M %p %Z (UTC %z)" (date-to-time (plist-get shift :start)))
+								 :end (format-time-string "%Y-%m-%d %-l:%M %p %Z (UTC %z)" (date-to-time (plist-get shift :end)))
+								 :start-day (format-time-string "%b %-e %a %p" (date-to-time (plist-get shift :start)))
+								 :year emacsconf-year
+								 :track-id track-id
+								 :irc-channels (concat
+																(string-join
+																 (seq-keep (lambda (track)
+																						 (unless (string= (plist-get track :id) track-id)
+																							 (plist-get track :channel)))
+																					 emacsconf-tracks)
+																 ",")
+																","
+																(plist-get (emacsconf-get-track track-id) :channel)))
+								"
+${track-name} - ${start-day} EmacsConf ${year}
+
+This for the ${track-name} track of EmacsConf, the conference about the joy of Emacs and Emacs Lisp.
+Start: ${start}
+End: ${end}
+
+Watch using free/open source software: https://live.emacsconf.org/${year}/watch/${track-id}/
+Conference info: https://emacsconf.org/${year}/
+Schedule: https://emacsconf.org/${year}/talks/
+Chat on #emacsconf-${track-id} via https://chat.emacsconf.org/?join=emacsconf,emacsconf-org,emacsconf-accessible,${irc-channels} or irc.libera.chat using your favorite IRC client
+Etherpad: Use the Etherpad links from the talk page; general comments in https://pad.emacsconf.org/${year}
+
+Videos are shared under the terms of the Creative Commons Attribution-ShareAlike 4.0
+International (CC BY-SA 4.0) license. Please observe the guidelines for conduct: https://emacsconf.org/conduct/
+")))
+		(when (called-interactively-p 'any)
+			(kill-new desc))
+		desc))
 
 (provide 'emacsconf-stream)
 ;;; emacsconf-stream.el ends here
