@@ -501,25 +501,25 @@
                                                  " ")
                                     ""))))
           "[[${meta} title=\"${title}\"]]
-							[[${meta} copyright=\"Copyright &copy	; ${year} ${speakers}\"]]
-												[[!inline pages=\"internal(${year}/info/${slug}-nav)\" raw=\"yes\"]]
+[[${meta} copyright=\"Copyright &copy; ${year} ${speakers}\"]]
+[[!inline pages=\"internal(${year}/info/${slug}-nav)\" raw=\"yes\"]]
 
-												<!-- Initially generated with emacsconf-publish-talk-page and then left alone for manual editing -->
-												<!-- You can manually edit this file to update the abstract, add links, etc. --->\n
+<!-- Initially generated with emacsconf-publish-talk-page and then left alone for manual editing -->
+<!-- You can manually edit this file to update the abstract, add links, etc. --->\n
 
-												# ${title}
-												${speaker-info}
+# ${title}
+${speaker-info}
 
-												[[!inline pages=\"internal(${year}/info/${slug}-before)\" raw=\"yes\"]]
+[[!inline pages=\"internal(${year}/info/${slug}-before)\" raw=\"yes\"]]
 
-												${abstract-md}
+${abstract-md}
 
-												[[!inline pages=\"internal(${year}/info/${slug}-after)\" raw=\"yes\"]]
+[[!inline pages=\"internal(${year}/info/${slug}-after)\" raw=\"yes\"]]
 
-												[[!inline pages=\"internal(${year}/info/${slug}-nav)\" raw=\"yes\"]]
+[[!inline pages=\"internal(${year}/info/${slug}-nav)\" raw=\"yes\"]]
 
-												${categories}
-												"))))))
+${categories}
+"))))))
 
 (defun emacsconf-publish-talk-p (talk)
 	"Return non-nil if the talk is ready to be published.
@@ -1824,7 +1824,7 @@ ${include}
 					 '(:slug :title :speakers :pronouns :pronunciation :url :track :file-prefix
 									 :qa-url
 									 :qa-type
-									 :prefer-live
+									 :live
 									 :qa-backstage-url))))
 			 (emacsconf-filter-talks (emacsconf-get-talk-info)))
 			:tracks
@@ -2117,7 +2117,7 @@ This video is available under the terms of the Creative Commons Attribution-Shar
 	(catch 'done
 		(while t
 			(let ((talk (seq-find (lambda (o)
-															 (and (string= (plist-get o :status) "TO_STREAM")
+															(and (member (plist-get o :status) '("TO_STREAM" "TO_CHECK"))
 																		(not (plist-get o :youtube))
 																		(emacsconf-talk-file o "--main.webm")))
 														 (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))
@@ -2139,15 +2139,16 @@ This video is available under the terms of the Creative Commons Attribution-Shar
 				 "YOUTUBE"
 				 (read-string (format "%s - YouTube URL: " (plist-get talk :scheduled))))))))
 
-	;; (emacsconf-publish-video-description (emacsconf-find-talk-info "async") t)
 
-	(defun emacsconf-cache-all-video-data ()
-		(interactive)
-		(mapc
-		 (lambda (talk)
-			 (when (plist-get talk :file-prefix)
-				 (emacsconf-publish-cache-video-data talk)))
-		 (emacsconf-get-talk-info)))
+;; (emacsconf-publish-video-description (emacsconf-find-talk-info "async") t)
+
+(defun emacsconf-cache-all-video-data ()
+	(interactive)
+	(mapc
+	 (lambda (talk)
+		 (when (plist-get talk :file-prefix)
+			 (emacsconf-publish-cache-video-data talk)))
+	 (emacsconf-get-talk-info)))
 ;; (emacsconf-cache-all-video-data t)
 (defvar emacsconf-cache-dir (expand-file-name "cache" (file-name-directory emacsconf-org-file)))
 
@@ -2296,8 +2297,10 @@ We recommend using a streaming player like mpv to watch the livestreams. Example
    "</pre><table width=\"100%\"><tr><th>Watch page</th><th>Watch page (low-res)</th><th>IRC channel (libera.chat)</th><th>URL for streaming player (ex: mpv, vlc, ffplay)</th><th>Low res</th></tr>\n"
    (mapconcat (lambda (track)
                 (emacsconf-replace-plist-in-string
-                 (append (list :year emacsconf-year) track)
-                 "<tr><td><div class=\"sched-track ${name}\"><a href=\"/${year}/watch/${id}/\">${name}</a></div></td><td><a href=\"/${year}/watch/${id}-480p/\">${name} (low-res)</a></td><td><a href=\"${webchat-url}\">${channel}</a></td><td><a href=\"${stream}\">${stream}</a></td><td><a href=\"${480p}\">${id}-480p.webm</a></tr>"))
+                 (append (list :year emacsconf-year
+															 :watch-base emacsconf-live-base-url
+															 ) track)
+                 "<tr><td><div class=\"sched-track ${name}\"><a href=\"${watch-base}${year}/watch/${id}/\">${name}</a></div></td><td><a href=\"${watch-base}${year}/watch/${id}-480p/\">${name} (low-res)</a></td><td><a href=\"${webchat-url}\">${channel}</a></td><td><a href=\"${stream}\">${stream}</a></td><td><a href=\"${480p}\">${id}-480p.webm</a></tr>"))
               emacsconf-tracks
               "\n")
    "</table>\n\n"
