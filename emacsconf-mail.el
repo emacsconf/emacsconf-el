@@ -1265,10 +1265,13 @@ quality of the reencoded video."))
                                                speaker-groups))
                          volunteer-groups)))))
 
-(defun emacsconf-mail-bbb-tips-and-intro-to-all (&optional types)
-	"Draft BBB information for all speakers."
+(defun emacsconf-mail-intro-to-all (&optional types)
+	"Ask speakers to review intros and let them know that check-in info will come soon."
 	(interactive)
-	(let* ((log-note "sent bbb-tips-and-intro")
+	(let* ((log-note "sent intro")
+				 (talks (emacsconf-filter-talks-by-logbook
+								 log-note
+								 (emacsconf-active-talks (emacsconf-get-talk-info))))
 				 (talk-groups (seq-group-by
 											 (lambda (talk)
 												 (cond
@@ -1283,53 +1286,47 @@ quality of the reencoded video."))
 													 'after)
 													(t (error "Exception for %s" (plist-get talk :slug)))))
 											 (seq-filter (lambda (o) (plist-get o :email))
-																	 (emacsconf-filter-talks-by-logbook
-																		log-note
-																		(emacsconf-active-talks (emacsconf-get-talk-info))))))
+																	 talks)))
 				 (base (list :reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
 										 :log-note log-note
 										 :mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}")))
 		(setq types (or types (mapcar 'car talk-groups)))
 		(dolist (type types)
-			(dolist (group (emacsconf-mail-groups (cdr (assoc-default type talk-groups))))
-				(emacsconf-mail-prepare
-				 (append
-					base
-					(pcase type
-						('waiting-for-prerec
-						 (list
-							:subject "${conf-name} ${year} action needed: Options, BigBlueButton info, intro"
-							:body
-							"${email-notes}Hi, ${name}!
+			(when (assoc-default type talk-groups)
+				(dolist (group (emacsconf-mail-groups (assoc-default type talk-groups)))
+					(emacsconf-mail-prepare
+					 (append
+						base
+						(pcase type
+							('waiting-for-prerec
+							 (list
+								:subject "${conf-name} ${year}: options, please check intro"
+								:body
+								"${email-notes}Hi, ${name}!
 
-${conf-name} is in two weeks. Aaah! I don't think we have your
+${conf-name} is this week. Aaah! I don't think we have your
 presentation yet, but I'm not panicking (much) because we've got plans
 and backup plans.
 
 Option A: You can upload your presentation before the conference
 
-There's still a little time to squeeze in processing presentations and
-possibly even captioning them. If you're getting stuck because you
-want your presentation to be totally awesome, it's okay, it doesn't
-have to be perfect. If it's too long or too short, that's cool too; we
-can manage the time around that. We'll figure things out together. =)
+There might still be a little time to squeeze in processing
+presentations and possibly even captioning them. If you're getting stuck
+because you want your presentation to be totally awesome, it's okay, it
+doesn't have to be perfect. If it's too long or too short, that's cool
+too; we can manage the time around that. We'll figure things out
+together. =)
 
 You can upload your file(s) to ${upload-url} (password
 ${upload-password}) and we'll get things going.${fill}
 
-If you're thinking of doing the Q&A in a live web conference,
-please also test the BigBlueButton URL described under Option
-B. Thanks!
-
 Option B: You can do it live
 
 Sometimes it's easier to do a presentation live, or sometimes you're
-making last-minute tweaks and want to play the latest copy of your
-video from your own computer. We can do the presentation live over
-BigBlueButton. Your room URL is ${bbb-url} , and I've put together
-some tips at ${bbb-tips} . Please
-help reduce the technical risks by trying out the BigBlueButton setup
-before November 28 so that there's time to help troubleshoot.${fill}
+making last-minute tweaks and want to play the latest copy of your video
+from your own computer. We can do the presentation live over
+BigBlueButton. On Thursday or Friday, I'll send you the BigBlueButton
+information so you can check in and try things out.${fill}
 
 Option C: It's okay, you can cancel
 
@@ -1352,21 +1349,17 @@ e-mail me the corrections.${fill}
 Best regards,
 
 ${signature}"))
-						('live
-						 (list
-							:subject "${conf-name} ${year} action needed: BigBlueButton info, intro"
-							:body
-							"${email-notes}Hi, ${name}!
+							('live
+							 (list
+								:subject "${conf-name} ${year}: please check intro pronunciation"
+								:body
+								"${email-notes}Hi, ${name}!
 
 Thanks again for uploading your presentation early!
 
-Since you're planning to do a live Q&A session, I've set up a
-BigBlueButton web conference room for you at ${bbb-url} . I've
-also put together some tips at ${bbb-tips} . Please help reduce
-the technical risks by trying out the BigBlueButton setup before
-November 28 so that there's time to help troubleshoot. Sharing
-system audio or multi-monitor setups can sometimes be tricky, so
-please let us know if you need help figuring things out. ${fill}
+Since you're planning to do a live Q&A session, I'll set up a
+BigBlueButton web conference room and I'll e-mail you the information on
+Thursday or Friday.${fill}
 
 Also, could you please take a minute to check if I pronounce your name
 correctly in the intro I recorded? The recording is at ${intro-url} ,
@@ -1378,11 +1371,11 @@ e-mail me the corrections.
 Best regards,
 
 ${signature}"))
-						('pad-or-irc
-						 (list
-							:subject "${conf-name} ${year} action needed: check intro pronunciation"
-							:body
-							"${email-notes}Hi, ${name}!
+							('pad-or-irc
+							 (list
+								:subject "${conf-name} ${year}: please check intro pronunciation"
+								:body
+								"${email-notes}Hi, ${name}!
 
 Thanks again for uploading your presentation early!
 
@@ -1393,17 +1386,17 @@ at ${backstage-url-with-credentials} . If it needs tweaking, you can
 upload a recording to ${upload-url} (password ${upload-password}) or
 e-mail me the corrections.
 
-We'll send you check-in instructions a few days before the conference
-so that you'll be all set.
+We'll send you check-in instructions on Thursday or Friday so that
+you'll be all set.
 
 Best regards,
 
 ${signature}"))
-						('after
-						 (list
-							:subject "${conf-name} ${year} action needed: check intro pronunciation"
-							:body
-							"${email-notes}Hi, ${name}!
+							('after
+							 (list
+								:subject "${conf-name} ${year}: please check intro pronunciation"
+								:body
+								"${email-notes}Hi, ${name}!
 
 Thanks again for uploading your presentation early!
 
@@ -1424,56 +1417,58 @@ us!
 Best regards,
 
 ${signature}"))
-						(_ (error "Unknown type %s" (symbol-name type)))))
-				 (car group)
-				 (list
-					:email-notes (or (plist-get (car group) :email-notes) "")
-					:conf-name emacsconf-name
-					:year emacsconf-year
-					:name (plist-get (cadr group) :speakers-short)
-					:email (car group)
-					:user-email user-mail-address
-					:signature user-full-name
-					:backstage-url-with-credentials
-					(mapconcat (lambda (talk)
-											 (format "https://%s:%s@media.emacsconf.org/%s/backstage/#%s"
-															 emacsconf-backstage-user
-															 emacsconf-backstage-password
-															 emacsconf-year
-															 (plist-get talk :slug)))
-										 (cdr group)
-										 " , ")
-					:upload-url (concat "https://ftp-upload.emacsconf.org/?sid="
-															emacsconf-upload-password
-															"-"
-															(mapconcat (lambda (o) (plist-get o :slug)) (cdr group) "-"))
-					:upload-password emacsconf-upload-password
-					:bbb-url
-					(cond
-					 ((null (file-exists-p
-									 (expand-file-name
-										(format "assets/redirects/open/bbb-%s.html" (plist-get (cadr group) :slug))
-										emacsconf-backstage-dir)))
-						(error "Backstage redirect for %s does not exist" (plist-get (cadr group) :slug)))
-					 ((null (= (length (seq-uniq (mapcar (lambda (o) (plist-get o :bbb-room)) (cdr group)))) 1))
-						(error "Number of rooms for %s speaker: %d"
-									 (plist-get (cadr group) :slug)
-									 (length (seq-uniq (mapcar (lambda (o) (plist-get o :bbb-room)) (cdr group))))))
-					 (t (emacsconf-backstage-url (plist-get (car (cdr group)) :bbb-backstage))))
-					:bbb-tips (concat emacsconf-base-url emacsconf-year "/bbb-for-speakers/")
-					:intro-url (mapconcat
-											(lambda (talk)
-												(if (file-exists-p (expand-file-name
-																						(concat (plist-get talk :file-prefix) "--intro.webm")
-																						emacsconf-backstage-dir))
-														(format "https://%s:%s@media.emacsconf.org/%s/backstage/%s--intro.webm"
-																		emacsconf-backstage-user
-																		emacsconf-backstage-password
-																		emacsconf-year
-																		(plist-get talk :file-prefix))
-													(error "No intro file for %s" (plist-get talk :slug))))
-											(cdr group)
-											" , ")))))))
+							(_ (error "Unknown type %s" (symbol-name type)))))
+					 (car group)
+					 (list
+						:email-notes (or (plist-get (car group) :email-notes) "")
+						:conf-name emacsconf-name
+						:year emacsconf-year
+						:name (plist-get (cadr group) :speakers-short)
+						:email (car group)
+						:user-email user-mail-address
+						:signature user-full-name
+						:backstage-url-with-credentials
+						(mapconcat (lambda (talk)
+												 (format "https://%s:%s@media.emacsconf.org/%s/backstage/#%s"
+																 emacsconf-backstage-user
+																 emacsconf-backstage-password
+																 emacsconf-year
+																 (plist-get talk :slug)))
+											 (cdr group)
+											 " , ")
+						:upload-url (concat "https://ftp-upload.emacsconf.org/?sid="
+																emacsconf-upload-password
+																"-"
+																(mapconcat (lambda (o) (plist-get o :slug)) (cdr group) "-"))
+						:upload-password emacsconf-upload-password
+						;; :bbb-url
+						;; (cond
+						;;  ((string= (plist-get (cadr group) :qa-type) "none")
+						;; 	"{ZZZ: No BBB URL because Q&A is after the conference}")
+						;;  ((null (file-exists-p
+						;; 				 (expand-file-name
+						;; 					(format "assets/redirects/open/bbb-%s.html" (plist-get (cadr group) :slug))
+						;; 					emacsconf-backstage-dir)))
+						;; 	(error "Backstage redirect for %s does not exist" (plist-get (cadr group) :slug)))
+						;;  ((null (= (length (seq-uniq (mapcar (lambda (o) (plist-get o :bbb-room)) (cdr group)))) 1))
+						;; 	(error "Number of rooms for %s speaker: %d"
+						;; 				 (plist-get (cadr group) :slug)
+						;; 				 (length (seq-uniq (mapcar (lambda (o) (plist-get o :bbb-room)) (cdr group))))))
+						;;  (t (emacsconf-backstage-url (plist-get (car (cdr group)) :bbb-backstage))))
+						;; :bbb-tips (concat emacsconf-base-url emacsconf-year "/bbb-for-speakers/")
+						:intro-url (mapconcat
+												(lambda (talk)
+													(if (file-exists-p (expand-file-name
+																							(emacsconf-talk-file talk "--intro.webm")
+																							emacsconf-backstage-dir))
+															(format "https://%s:%s@media.emacsconf.org/%s/backstage/%s--intro.webm"
+																			emacsconf-backstage-user
+																			emacsconf-backstage-password
+																			emacsconf-year
+																			(plist-get talk :file-prefix))
+														(error "No intro file for %s" (plist-get talk :slug))))
+												(cdr group)
+												" , "))))))))
 
 (defun emacsconf-mail-checkin-instructions-to-all ()
 	"Draft check-in instructions for all speakers."
@@ -1484,10 +1479,11 @@ ${signature}"))
 					 (seq-filter (lambda (o) (and (plist-get o :email)
 																				(plist-get o :q-and-a)))
 											 (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))
-				 (by-attendance (seq-group-by (lambda (o) (null (string-match "after" (plist-get o :q-and-a))))
+				 (by-attendance (seq-group-by (lambda (o) (null (string-match "after\\|none" (plist-get o :qa-type))))
 																			talks)))
-		(dolist (group (emacsconf-mail-groups (assoc-default nil by-attendance)))
-			(emacsconf-mail-checkin-instructions-for-nonattending-speakers group))
+		(when (assoc-default nil by-attendance)
+			(dolist (group (emacsconf-mail-groups (assoc-default nil by-attendance)))
+				(emacsconf-mail-checkin-instructions-for-nonattending-speakers group)))
 		(dolist (group (emacsconf-mail-groups (assoc-default t by-attendance)))
 			(emacsconf-mail-checkin-instructions-for-attending-speakers group))))
 
@@ -1636,8 +1632,8 @@ GROUP is (email . (talk talk))"
 	(emacsconf-mail-prepare
 	 (list
 		:subject "${conf-name} ${year}: Check-in instructions"
-		:reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
-		:mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+		:reply-to "${user-email}"
+		:mail-followup-to "${user-email}"
 		:log-note "sent check-in information for people who will be there"
 		:body
 		"${email-notes}Hello, ${speakers-short}!
@@ -1645,9 +1641,9 @@ GROUP is (email . (talk talk))"
 We're looking forward to having you join us at ${conf-name}!
 Here's your talk page URL and checkin information:
 
-${checkin-info}
+${checkin-info}${bbb-tech-check-note}
 
-Please check in early so that we can deal with scheduling changes
+Please check in earlyish so that we can deal with scheduling changes
 or technical issues, and so that we don't worry too much about
 missing speakers (aaah!). You can find the check-in
 process at ${base-url}${year}/speakers/ . ${wrap}
@@ -1658,10 +1654,7 @@ my emergency contact information: ${emergency}${wrap}
 Thank you for sharing your time and energy with the ${conf-name}
 community!
 
-${signature}
-
-p.s. If you need to cancel, that's okay too, life happens. Let me know
-as soon as you can and I'll try to shuffle things around. Thank you!")
+${signature}")
    (car group)
    (list
 		:year emacsconf-year
@@ -1681,6 +1674,14 @@ as soon as you can and I'll try to shuffle things around. Thank you!")
 								((= (length waiting) 1) "If you happen to be able to get a pre-recorded video together in the next few days, I think we might be able to still manage that.${fill}\n\n")
 								(t "If you happen to be able to get your pre-recorded videos together in the next few days, I think we might be able to still manage them.${fill}\n\n")))
 		:signature user-full-name
+		:bbb-tech-check-note
+		(if (seq-find (lambda (o)
+										(or (plist-get o :live)
+												(null (plist-get o :video-file))
+												(string= (plist-get o :qa-type) "live")))
+									(cdr group))
+				"\n\nWe upgraded BigBlueButton this year, so it might be a good idea to do a tech check to make sure I didn't mess anything up. =) Feel free to connect to your BigBlueButton room before the conference using the URL and moderator code above so that you can try your audio, screensharing (optional), webcam (optional), etc.${wrap}"
+			"")
 		:checkin-info
 		(mapconcat
      (lambda (o)
@@ -1696,13 +1697,23 @@ as soon as you can and I'll try to shuffle things around. Thank you!")
 											:qa-info-speakers
 											(cond
 											 ((or (plist-get o :live) (null (plist-get o :video-file)))	;; intentionally a live talk
+												(unless (plist-get o :bbb-room) (error "No BBB room for %s" (plist-get o :slug)))
+												(unless (plist-get o :bbb-mod-code) (error "No BBB mod code for %s" (plist-get o :slug)))
 												(concat "Talk & Q&A BigBlueButton room: "
-																(emacsconf-backstage-url (plist-get o :bbb-backstage))))
+																(emacsconf-backstage-url (plist-get o :bbb-backstage))
+																" (moderator code: "
+																(plist-get o :bbb-mod-code)
+																")"))
                        ((string= (plist-get o :qa-type) "none")
 												"Q&A: After the event; we'll collect the questions and e-mail them to you")
 											 ((string= (plist-get o :qa-type) "live")
+												(unless (plist-get o :bbb-room) (error "No BBB room for %s" (plist-get o :slug)))
+												(unless (plist-get o :bbb-mod-code) (error "No BBB mod code for %s" (plist-get o :slug)))
 												(concat "Q&A BigBlueButton room: "
-																(emacsconf-backstage-url (plist-get o :bbb-backstage))))
+																(emacsconf-backstage-url (plist-get o :bbb-backstage))
+																" (moderator code: "
+																(plist-get o :bbb-mod-code)
+																")"))
 											 ((string= (plist-get o :qa-type) "irc")
 												(concat "Q&A: On IRC: #" (plist-get o :channel) " ( " (plist-get o :webchat-url) " )"))
 											 ((string= (plist-get o :qa-type) "pad")
