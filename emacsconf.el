@@ -70,7 +70,7 @@
 (defcustom emacsconf-base-url "https://emacsconf.org/" "Includes trailing slash"
   :group 'emacsconf
   :type 'string)
-(defcustom emacsconf-publishing-phase 'cfp
+(defcustom emacsconf-publishing-phase 'conference
   "Controls what information to include.
 'program - don't include times
 'schedule - include times; use this leading up to the conference
@@ -450,6 +450,14 @@ FILENAME specifies an extra string to add to the file prefix if needed."
       (setq value (or value (org-read-property-value prop)))
       (org-entry-put (point) prop value))))
 
+(defun emacsconf-copy-property (search prop)
+  (interactive (list (emacsconf-complete-talk) nil))
+  (save-window-excursion
+    (emacsconf-with-talk-heading search
+      (setq prop (or prop (org-read-property-name)))
+			(when (called-interactively-p 'any)
+				(kill-new (org-entry-get (point) prop)))
+			(org-entry-get (point) prop))))
 
 (defun emacsconf-complete-slug ()
   (emacsconf-get-slug-from-string (emacsconf-complete-talk)))
@@ -573,7 +581,7 @@ If INFO is specified, limit it to that list."
 
 (defun emacsconf-talk-recorded-p (talk)
 	"Returns non-nil if TALK will start with a recorded video."
-	(and (not (plist-get talk :prefer-live))
+	(and (not (plist-get talk :live))
 			 (plist-get talk :video-file)))
 
 (defun emacsconf-get-talk-info-from-properties (o)
@@ -618,7 +626,6 @@ If INFO is specified, limit it to that list."
                        (:youtube-url "YOUTUBE_URL")
                        (:toobnix-url "TOOBNIX_URL")
 											 (:intro-time "INTRO_TIME")
-											 (:prefer-live "PREFER_LIVE")
                        ;; Captioning
                        (:captioner "CAPTIONER")
                        (:caption-note "CAPTION_NOTE")
@@ -1197,6 +1204,7 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
     "c" #'emacsconf-find-captions-from-slug
     "d" #'emacsconf-find-caption-directives-from-slug
     "p" #'emacsconf-set-property-from-slug
+    "P" #'emacsconf-copy-property
     "w" #'emacsconf-edit-wiki-page
     "s" #'emacsconf-set-start-time-for-slug
     "W" #'emacsconf-browse-wiki-page
@@ -1439,6 +1447,7 @@ If TIMEZONES is a string, split it by commas."
             '((emacsconf-pad-api-key . etherpad_api_key)
               (emacsconf-pad-base . etherpad_url)
               (emacsconf-backstage-password . emacsconf_backstage_password))))))
+(defvar emacsconf-live-base-url "https://live.emacsconf.org/")
 ;; (emacsconf-ansible-load-vars (expand-file-name "prod-vars.yml" emacsconf-ansible-directory))
 ;;; Tracks
 (defvar emacsconf-tracks
@@ -1457,21 +1466,21 @@ If TIMEZONES is a string, split it by commas."
            :vnc-port "5905"
 					 :autopilot crontab
            :status "offline")
-   (:name "Development" :color "skyblue" :id "dev" :channel "emacsconf-dev"
-          :watch  ,(format "https://live.emacsconf.org/%s/watch/dev/" emacsconf-year)
-				  :webchat-url "https://chat.emacsconf.org/?join=emacsconf,emacsconf-org,emacsconf-accessible,emacsconf-gen,emacsconf-dev"
-          :tramp "/ssh:emacsconf-dev@res.emacsconf.org#46668:"
-					;; :toobnix-url "https://toobnix.org/w/w6K77y3bNMo8xsNuqQeCcD"
-					;; :youtube-url "https://www.youtube.com/watch?v=PMaoF-xa1b4"
-					;; :youtube-studio-url "https://studio.youtube.com/video/PMaoF-xa1b4/livestreaming"
-					:stream ,(concat emacsconf-stream-base "dev.webm")
-          :480p ,(concat emacsconf-stream-base "dev-480p.webm")
-					:uid 2003
-          :start "10:00" :end "17:00"
-          :vnc-display ":6"
-          :vnc-port "5906"
-					:autopilot crontab
-          :status "offline")))
+		(:name "Development" :color "skyblue" :id "dev" :channel "emacsconf-dev"
+           :watch  ,(format "https://live.emacsconf.org/%s/watch/dev/" emacsconf-year)
+				   :webchat-url "https://chat.emacsconf.org/?join=emacsconf,emacsconf-org,emacsconf-accessible,emacsconf-gen,emacsconf-dev"
+           :tramp "/ssh:emacsconf-dev@res.emacsconf.org#46668:"
+					 ;; :toobnix-url "https://toobnix.org/w/w6K77y3bNMo8xsNuqQeCcD"
+					 ;; :youtube-url "https://www.youtube.com/watch?v=PMaoF-xa1b4"
+					 ;; :youtube-studio-url "https://studio.youtube.com/video/PMaoF-xa1b4/livestreaming"
+					 :stream ,(concat emacsconf-stream-base "dev.webm")
+           :480p ,(concat emacsconf-stream-base "dev-480p.webm")
+					 :uid 2003
+           :start "10:00" :end "17:00"
+           :vnc-display ":6"
+           :vnc-port "5906"
+					 :autopilot crontab
+           :status "offline")))
 
 (defun emacsconf-get-track (name)
 	"Get the track for NAME.
@@ -1830,7 +1839,8 @@ tracks with the ID in the cdr of that list."
 	(save-window-excursion
 		(save-excursion
 			(emacsconf-with-talk-heading talk
-				(emacsconf-add-to-logbook note)))))
+				(emacsconf-add-to-logbook note)
+				(bury-buffer (current-buffer))))))
 
 (defun emacsconf-reload ()
   "Reload the emacsconf-el modules."

@@ -24,9 +24,9 @@
 
 ;;; Code:
 
-(defvar emacsconf-stream-dir "/data/emacsconf/stream/"
+(defvar emacsconf-stream-dir (format  "/data/emacsconf/shared/%s/assets/stream/" emacsconf-year)
   "Directory where the stream versions are.
-Files should be in YEAR/file-prefix--main.webm and file-prefix--main.vtt.")
+Files should be file-prefix--main.webm and file-prefix--main.vtt.")
 (defvar emacsconf-stream-host "res.emacsconf.org")
 
 (defun emacsconf-stream-track-login (track)
@@ -261,11 +261,10 @@ especially when two things need to happen close together."
 
 (defun emacsconf-stream-get-filename (talk)
   "Return the local filename for the video file for TALK.
-Final files should be stored in /data/emacsconf/stream/YEAR/file-prefix--main.webm."
+Final files should be stored in emacsconf-stream-dir/file-prefix--main.webm."
   (expand-file-name
    (concat (plist-get talk :file-prefix) "--main.webm")
-   (expand-file-name emacsconf-year
-                     emacsconf-stream-dir)))
+	  emacsconf-stream-dir))
 
 (defun emacsconf-stream-play-video (talk)
 	"Play just the video for TALK."

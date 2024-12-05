@@ -696,7 +696,7 @@ ${bbb-checklist}</li>")
 								 ;; live talk, join BBB
 								 "<li><strong>${start-hhmm} ${slug} live talk</strong>: it should play a prerecorded intro, but if it doesn't, join ${bbb-backstage} (mod code <strong>${bbb-mod-code}</strong> ) and introduce talk, then turn it over to speaker for <strong>live talk</strong>: ${expanded-intro} (pronunciation: ${pronunciation})</li>")
 							 ;; Q&A
-							 (if (and (not (emacsconf-talk-prerecorded-p talk))
+							 (if (and (not (emacsconf-talk-recorded-p talk))
 												(not (string= (or (plist-get talk :qa-type) "none") "none")))
 									 "<li>Continue in the BBB room for live Q&A because the talk was live</li>"
 								 (pcase (plist-get talk :qa-type)
