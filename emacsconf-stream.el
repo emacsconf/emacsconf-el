@@ -818,6 +818,7 @@ ffplay URL
 (defvar emacsconf-stream-track "General")
 (defvar emacsconf-stream-clock-buffer "*emacsconf*")
 (defvar emacsconf-stream-clock-timer nil)
+(defvar emacsconf-stream-random-timer nil)
 
 (require 'diary-lib)
 (require 'text-property-search)
@@ -861,10 +862,55 @@ ffplay URL
                         " to go" (if message ": " ""))
                      ""))))
        "")
-     (or message ""))
+     (or message "")
+		 "\n\n"
+		 (propertize "Enjoy EmacsConf!" 'emacsconf-random t))
     (when (timerp emacsconf-stream-clock-timer) (cancel-timer emacsconf-stream-clock-timer))
     (emacsconf-stream-update-time)
-    (setq emacsconf-stream-clock-timer (run-at-time t 1 #'emacsconf-stream-update-time))))
+    (setq emacsconf-stream-clock-timer (run-at-time t 1 #'emacsconf-stream-update-time))
+		(setq emacsconf-stream-clock-timer (run-at-time t 10 #'emacsconf-stream-update-random))))
+
+(defvar emacsconf-stream-random-file (expand-file-name "fortune.txt" emacsconf-cache-dir))
+(defvar emacsconf-stream-random-data nil)
+
+(defun emacsconf-stream-shuffle-list (list)
+  "Shuffle LIST using Fisher-Yates algorithm."
+  (let ((shuffled (copy-sequence list)))
+    (dotimes (i (1- (length shuffled)))
+      (let* ((j (+ i (random (- (length shuffled) i))))
+             (temp (nth i shuffled)))
+        (setf (nth i shuffled) (nth j shuffled))
+        (setf (nth j shuffled) temp)))
+    shuffled))
+
+(defun emacsconf-stream-get-random-string ()
+	(when (and (not emacsconf-stream-random-data)
+						 emacsconf-stream-random-file (file-exists-p emacsconf-stream-random-file))
+			(setq emacsconf-stream-random-data
+						(emacsconf-stream-shuffle-list
+						 (with-temp-buffer
+							 (insert-file-contents emacsconf-stream-random-file)
+							 (split-string (string-trim (buffer-string)) "\n%\n")))))
+	(when emacsconf-stream-random-data
+		(pop emacsconf-stream-random-data)))
+
+(defun emacsconf-stream-update-random ()
+  (if (get-buffer emacsconf-stream-clock-buffer)
+      (when (get-buffer-window emacsconf-stream-clock-buffer)
+        (with-current-buffer emacsconf-stream-clock-buffer
+          (save-excursion
+						(goto-char (point-min))
+						(let (match)
+							(while (setq match (text-property-search-forward 'emacsconf-random))
+								(goto-char (prop-match-beginning match))
+								(add-text-properties
+								 (prop-match-beginning match)
+								 (prop-match-end match)
+								 (list 'display
+											 (emacsconf-stream-get-random-string)))
+								(goto-char (prop-match-end match)))))))
+    (when (timerp emacsconf-stream-random-timer)
+      (cancel-timer emacsconf-stream-random-timer))))
 
 (defun emacsconf-stream-update-time ()
 	"Update the displayed time."
