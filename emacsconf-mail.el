@@ -1470,7 +1470,7 @@ ${signature}"))
 												(cdr group)
 												" , "))))))))
 
-(defun emacsconf-mail-checkin-instructions-to-all ()
+(defun emacsconf-mail-checkin-instructions-to-all (&optional info)
 	"Draft check-in instructions for all speakers."
 	(interactive)
 	(let* ((talks
@@ -1478,7 +1478,7 @@ ${signature}"))
 					 "sent check-in information"
 					 (seq-filter (lambda (o) (and (plist-get o :email)
 																				(plist-get o :q-and-a)))
-											 (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))
+											 (emacsconf-publish-prepare-for-display (or info (emacsconf-get-talk-info))))))
 				 (by-attendance (seq-group-by (lambda (o) (null (string-match "after\\|none" (plist-get o :qa-type))))
 																			talks)))
 		(when (assoc-default nil by-attendance)
@@ -1622,13 +1622,15 @@ as soon as you can and I'll try to shuffle things around. Thank you!")
   "Send checkin instructions to speakers who will be there.
 GROUP is (email . (talk talk))"
   (interactive (list (emacsconf-mail-complete-email-group
-                      (seq-remove
-                       (lambda (o)
-                         (or
-                          (string= (plist-get o :status) "CANCELLED")
-                          (null (plist-get o :email))
-                          (string-match "after" (or (plist-get o :q-and-a) ""))))
-                       (emacsconf-get-talk-info)))))
+                      (emacsconf-filter-talks-by-logbook
+											 "sent check-in information"
+											 (seq-remove
+												(lambda (o)
+													(or
+                           (string= (plist-get o :status) "CANCELLED")
+                           (null (plist-get o :email))
+                           (string-match "after" (or (plist-get o :qa-type) ""))))
+												(emacsconf-get-talk-info))))))
 	(emacsconf-mail-prepare
 	 (list
 		:subject "${conf-name} ${year}: Check-in instructions"
@@ -2014,24 +2016,28 @@ ${signature}
 
 ;;; Other mail functions
 
-(defun emacsconf-mail-verify-delivery (groups subject)
+(defun emacsconf-mail-verify-delivery (subject &optional groups)
 	"Verify that the email addresses in GROUPS have all received an email with SUBJECT."
-	(interactive (list (emacsconf-mail-groups (seq-filter (lambda (o) (not (string= (plist-get o :status) "CANCELLED")))
-																					(emacsconf-get-talk-info)))
-										 (read-string "Subject: ")))
+	(interactive (list (read-string "Subject: ")))
+	(setq groups (or groups
+									 (emacsconf-mail-groups (seq-filter (lambda (o)
+																					(and (not (string= (plist-get o :status) "CANCELLED"))
+																							 (plist-get o :email)))
+																				(emacsconf-get-talk-info)))))
 	(let ((missing
 				 (seq-keep (lambda (group)
-										 (and (string= "0"
-																	 (string-trim
-																		(shell-command-to-string
-																		 (format "notmuch count to:%s and to:%s and subject:%s"
-																						 (shell-quote-argument (car group))
-																						 (shell-quote-argument emacsconf-mail-bcc-email)
-																						 subject))))
-													(car group)))
+										 (let ((cmd (format "notmuch count to:%s and to:%s and subject:\\\"%s\\\""
+																				(shell-quote-argument (car group))
+																				(shell-quote-argument emacsconf-mail-bcc-email)
+																				subject)))
+											 (and (string= "0"
+																		 (string-trim
+																			(shell-command-to-string
+																			 cmd)))
+														(car group))))
 									 groups)))
 		(if missing
-				(prin1 missing)
+				(message "Missing: %s" (string-join missing ", "))
 			(message "All good."))))
 
 (defun emacsconf-mail-get-all-email-addresses (talk)

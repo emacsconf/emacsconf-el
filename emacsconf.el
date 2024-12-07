@@ -1761,8 +1761,8 @@ friendly-id speaker - slugs
                  #'emacsconf-org-after-todo-state-change  t)))
 
 (defvar emacsconf-todo-hooks
-  '(emacsconf-stream-play-talk-on-change
-		emacsconf-stream-open-qa-windows-on-change
+  '(;; emacsconf-stream-play-talk-on-change
+		;; emacsconf-stream-open-qa-windows-on-change
     emacsconf-erc-announce-on-change ;; announce via ERC
     emacsconf-publish-bbb-redirect
     emacsconf-stream-update-talk-info-on-change
