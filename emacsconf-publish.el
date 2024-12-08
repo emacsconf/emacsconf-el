@@ -2136,7 +2136,7 @@ This video is available under the terms of the Creative Commons Attribution-Shar
 					(when (eq (read-char) ?q) (throw 'done t)))
 				(emacsconf-set-property-from-slug
 				 (plist-get talk :slug)
-				 "YOUTUBE"
+				 "YOUTUBE_URL"
 				 (read-string (format "%s - YouTube URL: " (plist-get talk :scheduled))))))))
 
 (defun emacsconf-publish-toobnix-step-through-publishing ()
@@ -2144,9 +2144,8 @@ This video is available under the terms of the Creative Commons Attribution-Shar
 	(catch 'done
 		(while t
 			(let ((talk (seq-find (lambda (o)
-															(and (member (plist-get o :status) '("TO_STREAM" "TO_CHECK"))
-																		(not (plist-get o :toobnix-url))
-																		(emacsconf-talk-file o "--main.webm")))
+															(and (not (plist-get o :toobnix-url))
+																	 (emacsconf-talk-file o "--main.webm")))
 														 (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))
 				(unless talk
 					(message "All done so far.")
@@ -2154,7 +2153,7 @@ This video is available under the terms of the Creative Commons Attribution-Shar
 				(kill-new (emacsconf-talk-file talk "--main.webm"))
 				(message "Video: %s - press any key" (emacsconf-talk-file talk "--main.webm"))
 				(when (eq (read-char) ?q) (throw 'done t))
-				(emacsconf-publish-video-description talk t)
+				(kill-new (emacsconf-publish-video-description talk t))
 				(message "Copied description - press any key")
 				(when (eq (read-char) ?q) (throw 'done t))
 				(when (emacsconf-talk-file talk "--main.vtt")
