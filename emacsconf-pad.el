@@ -366,7 +366,7 @@ ${next-talk-list}
 										(replace-regexp-in-string
 										 "https://studio\\.youtube\\.com/video/\\([^/]+\\)/livestreaming" "https://youtube.com/live/\\1"
 										 (assoc-default "YouTube URL" shift-rtmp 'string=))
-                    :checkin-pad (concat emacsconf-pad-base "checkin-" (downcase (format-time-string "%a" (date-to-time (plist-get shift :start)))))))
+                    :checkin-pad (concat emacsconf-pad-base "private-" emacsconf-private-pad-prefix "-checkin-" (downcase (format-time-string "%a" (date-to-time (plist-get shift :start)))))))
          (shift-talks
           (mapcar (lambda (o) (append prefixed o))
                   (seq-filter
@@ -498,6 +498,7 @@ ${next-talk-list}
 <ul><li>[ ] Window or screen can be shared
 <li>[ ] Text is readable</li></ul>
 <li>[ ] Webcam sharing (optional)</li></ul></li>
+<li>[ ] What kind of facilitation would the speaker like? (Host reads questions, chats a lot, etc.)</li></ul></li>
 <li>OK to do other things until going live at <strong>${live}</strong></li>
 <li>People will add questions to the pad or IRC channel; host can read them to you, or you can read them</li>
 <li>You can answer questions in any order, and you can skip questions if you want. Feel free to take your time to think about answers or to save some for following up later</li>
