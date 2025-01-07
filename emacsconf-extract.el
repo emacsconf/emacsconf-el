@@ -247,6 +247,11 @@
 			(gethash "sentences" data)))))
 ;; (emacsconf-extract-qa-from-assemblyai-sentences "~/proj/emacsconf/rms/sentences")
 
+(defun emacsconf-extract-unescape (s)
+	(replace-regexp-in-string
+   "\\\\\\(['\"]\\)"
+   "\\1" s))
+
 ;;;###autoload
 (defun emacsconf-extract-copy-pad-to-wiki ()
 	"Copy the notes and questions from the current file to the wiki page for this talk."
@@ -268,12 +273,12 @@
 				nil
 			(re-search-forward "-after)" nil t)
 			(forward-line -1)
-			(insert "# Discussion\n\n"))
-		(save-excursion
-			(unless (string= (or questions "") "")
-				(insert "## Questions and answers\n\n" questions "\n\n"))
-			(unless (string= (or notes "") "")
-				(insert "## Notes\n\n" notes "\n\n")))))
+			(insert "# Discussion\n\n")
+			(save-excursion
+				(unless (string= (or questions "") "")
+					(insert "## Questions and answers\n\n" (emacsconf-extract-unescape questions) "\n\n"))
+				(unless (string= (or notes "") "")
+					(insert "## Notes\n\n" (emacsconf-extract-unescape notes) "\n\n"))))))
 
 (defun emacsconf-extract-question-headings (slug)
 	(with-temp-buffer
@@ -308,7 +313,7 @@
 		 "Question: "
 		 (emacsconf-extract-question-headings
 			(emacsconf-get-slug-from-string (file-name-base (buffer-file-name)))))))
-	(insert "NOTE " question "\n\n"))
+	(subed-set-subtitle-comment (concat "Q: " question)))
 
 (defun emacsconf-extract-wget-bbb (o)
 	(when (plist-get o :bbb-playback)
@@ -355,7 +360,8 @@
 					(date-to-time
 					 (dom-text
 						(dom-by-tag
-						 (dom-elements dom 'eventname "StopRecordingEvent")
+						 (or (dom-elements dom 'eventname "StopRecordingEvent")
+								 (dom-elements dom 'eventname "EndAndKickAllEvent"))
 						 'date))))
 		(setq start-ms (* 1000 (time-to-seconds start-recording))
 					stop-ms (* 1000 (time-to-seconds stop-recording)))
@@ -428,10 +434,27 @@
 	(let ((results ""))
 		(save-excursion
 			(goto-char (point-min))
-			(while (re-search-forward "^\\( *- \\([QA]: \\)?\\)\\[[0-9:]+\\] <.*?> \\(.*\n\\)" nil t)
-				(setq results (concat results (match-string 1) (match-string 3)))
+			(while (re-search-forward "^\\([qna] *\\| *- +\\([QA]: \\)?\\)\\[[0-9:]+\\] <.*?> \\(.*\n\\)" nil t)
+				(setq results (concat results
+															(save-match-data
+																(pcase (match-string 1)
+																	((rx "q") "- Q: ")
+																	((rx "a") "- A: ")
+																	((rx "n") "- ")
+																	(_ "- ")))
+															(match-string 3)))
 				(replace-match "" nil t nil 1))
 			(kill-new results))))
+
+(defvar-keymap emacsconf-extract-irc-log-map
+	"<down>" #'forward-line
+	"<up>" #'previous-line
+	"<right>" (lambda () (interactive) (insert "-") (forward-line))
+	"<left>" #'forward-line)
+
+(defun emacsconf-extract-irc-log ()
+	(interactive)
+	(set-transient-map emacsconf-extract-irc-log-map t))
 
 (defun emacsconf-extract-irc-backward-by-nick ()
 	(interactive)
@@ -503,29 +526,12 @@
 (defun emacsconf-extract-irc-anonymize-log (beg end speakers)
 	(interactive "r\nMNick(s): ")
 	(when (stringp speakers) (setq speakers (split-string speakers)))
-	(let ((text (buffer-substring beg end))
-				nicks)
-		(with-temp-buffer
-			(insert text)
-			(goto-char (point-min))
-			;; make a list of nicks
-			(while (re-search-forward "^\\[[0-9:]+\\] <\\(.*?\\)>" nil t)
-				(unless (member (match-string 1) speakers)
-					(add-to-list 'nicks (match-string 1))))
-			(goto-char (point-min))
-			(while (re-search-forward "^\\[[0-9:]+\\] <\\(.*?\\)> \\(.+\\)" nil t)
-				(replace-match
-				 (if (member (match-string 1) speakers)
-						 (concat "  - A: " (match-string 2))
-					 (format "- {{%d}} %s"
-									 (seq-position nicks (match-string 1))
-									 (propertize (match-string 2)
-															 'nick (match-string 1))))))
-			(goto-char (point-min))
-			(perform-replace (regexp-opt nicks) (lambda ()))
-			(setq text (buffer-string))
-			(other-window 1)
-			(insert text))))
+	(save-excursion
+		(goto-char beg)
+		(while (re-search-forward "^\\[[0-9:]+\\] <\\(.*?\\)> \\(.+\\)" end t)
+			(if (member (match-string 1) speakers)
+					(replace-match (concat "- " (match-string 1) ": " (match-string 2)) t t)
+				(replace-match (concat "- " (match-string 2)) t t)))))
 
 (defun emacsconf-private-qa (&optional info)
 	(seq-remove (lambda (o)
@@ -720,7 +726,7 @@ Would you like to help? See [[help_with_chapter_markers]] for more details. You 
 	(setq talk (emacsconf-resolve-talk talk))
 	(expand-file-name "events.xml" (expand-file-name (plist-get talk :bbb-meeting-id) emacsconf-extract-bbb-raw-dir)))
 
-(defun emacsconf-extract-bbb-report ()
+(defun emacsconf-extract-bbb-report (&optional event-xml-files)
 	(let* ((max 0)
 				 (participant-count 0)
 				 (meeting-count 0)
@@ -730,39 +736,41 @@ Would you like to help? See [[help_with_chapter_markers]] for more details. You 
 				 (meeting-events
 					(sort
 					 (seq-mapcat
-						(lambda (talk)
-							(when (plist-get talk :bbb-meeting-id)
-								(let ((dom (xml-parse-file (emacsconf-extract-bbb-raw-events-file-name talk)))
-											participants talking meeting-events)
-									(mapc (lambda (o)
-													(pcase (dom-attr o 'eventname)
-														("ParticipantJoinEvent"
-														 (cl-pushnew (cons (dom-text (dom-by-tag o 'userId))
-																							 (dom-text (dom-by-tag o 'name)))
-																				 participants)
+						(lambda (file)
+							(let ((dom (xml-parse-file file))
+										participants talking meeting-events)
+								(mapc (lambda (o)
+												(pcase (dom-attr o 'eventname)
+													("ParticipantJoinEvent"
+													 (cl-pushnew (cons (dom-text (dom-by-tag o 'userId))
+																						 (dom-text (dom-by-tag o 'name)))
+																			 participants)
+													 (push (cons (string-to-number (dom-text (dom-by-tag o 'timestampUTC)))
+																			 (dom-attr o 'eventname))
+																 meeting-events))
+													("ParticipantLeftEvent"
+													 (when (string= (dom-attr o 'module) "PARTICIPANT")
 														 (push (cons (string-to-number (dom-text (dom-by-tag o 'timestampUTC)))
 																				 (dom-attr o 'eventname))
-																	 meeting-events))
-														("ParticipantLeftEvent"
-														 (when (string= (dom-attr o 'module) "PARTICIPANT")
-															 (push (cons (string-to-number (dom-text (dom-by-tag o 'timestampUTC)))
-																					 (dom-attr o 'eventname))
-																		 meeting-events)))
-														("ParticipantTalkingEvent"
-														 (cl-pushnew (assoc-default (dom-text (dom-by-tag o 'participant)) participants) talking))
-														((or
-															"CreatePresentationPodEvent"
-															"EndAndKickAllEvent")
-														 (push (cons (string-to-number (dom-text (dom-by-tag o 'timestampUTC)))
-																				 (dom-attr o 'eventname))
-																	 meeting-events))))
-												(dom-search dom (lambda (o) (dom-attr o 'eventname))))
-									(cl-pushnew (list :slug (plist-get talk :slug)
-																		:participants participants
-																		:talking talking)
-															meeting-participants)
-									meeting-events)))
-						(emacsconf-get-talk-info))
+																	 meeting-events)))
+													("ParticipantTalkingEvent"
+													 (cl-pushnew (assoc-default (dom-text (dom-by-tag o 'participant)) participants) talking))
+													((or
+														"CreatePresentationPodEvent"
+														"EndAndKickAllEvent")
+													 (push (cons (string-to-number (dom-text (dom-by-tag o 'timestampUTC)))
+																			 (dom-attr o 'eventname))
+																 meeting-events))))
+											(dom-search dom (lambda (o) (dom-attr o 'eventname))))
+								(cl-pushnew (list ;; :slug (plist-get talk :slug)
+														 :participants participants
+														 :talking talking)
+														meeting-participants)
+								meeting-events))
+						(or event-xml-files
+								(mapcar #'emacsconf-extract-bbb-raw-events-file-name
+												(seq-filter (lambda (talk) (plist-get talk :bbb-meeting-id))
+																		(emacsconf-get-talk-info)))))
 					 (lambda (a b) (< (car a) (car b))))))
 		(dolist (event meeting-events)
 			(pcase (cdr event)
@@ -794,13 +802,8 @@ Would you like to help? See [[help_with_chapter_markers]] for more details. You 
 																	 (expand-file-name (plist-get talk :bbb-meeting-id) emacsconf-extract-bbb-published-dir))))
 
 
-(defun emacsconf-extract-bbb-parse-events (talk)
-	"Parse events TALK from raw recordings.
-This works with the events.xml from /var/bigbluebutton/raw.
-Files should be downloaded to `emacsconf-extract-bbb-raw-dir'."
-	(setq talk (emacsconf-resolve-talk talk))
-	(let* ((xml-file (emacsconf-extract-bbb-raw-events-file-name talk))
-				 (dom (xml-parse-file xml-file))
+(defun emacsconf-extract-bbb-parse-events (xml-file)
+	(let* ((dom (xml-parse-file xml-file))
 				 (meeting-name (dom-attr (dom-by-tag dom 'metadata) 'meetingName))
 				 (meeting-id (dom-attr dom 'meeting_id))
 				 (conf-joined (dom-search dom (lambda (o) (and (string= (dom-tag o) "name") (string= (dom-text o) emacsconf-extract-conference-username)))))
@@ -885,6 +888,37 @@ Files should be downloaded to `emacsconf-extract-bbb-raw-dir'."
 			(participants . ,participants)
 			(talking . ,(nreverse talking))
 			(chat . ,(nreverse chat)))))
+
+(defun emacsconf-extract-bbb-talking-report (meeting-xml)
+	(let ((data (emacsconf-extract-bbb-parse-events meeting-xml)))
+		(unless (string= "" (alist-get 'meeting-date data))
+			(format "- %s %s: %s\n"
+							(alist-get 'name data)
+							(format-time-string "%a %I:%M %p"
+																	(date-to-time
+																	 (alist-get 'meeting-date data)))
+							(mapconcat
+							 (lambda (person)
+								 (format "%s (%s)"
+												 (car person)
+												 (/ (cdr person) 60000)))
+							 (sort
+								(mapcar
+								 (lambda (group)
+									 (cons
+										(car group)
+										(apply '+ (mapcar (lambda (o) (- (elt o 2) (elt o 1))) (cdr group)))))
+								 (seq-group-by 'car (alist-get 'talking data)))
+								:key 'cdr
+								:reverse t)
+							 ", ")))))
+
+(defun emacsconf-extract-bbb-parse-events-for-talk (talk)
+	"Parse events TALK from raw recordings.
+This works with the events.xml from /var/bigbluebutton/raw.
+Files should be downloaded to `emacsconf-extract-bbb-raw-dir'."
+	(setq talk (emacsconf-resolve-talk talk))
+	(emacsconf-extract-bbb-parse-events (emacsconf-extract-bbb-raw-events-file-name talk)))
 
 (defun emacsconf-extract-bbb-format-chat ()
 	(mapconcat
@@ -1127,6 +1161,10 @@ Strategies:
 ;; To avoid being prompted for the client secret, it's helpful to have a line in ~/.authinfo or ~/.authinfo.gpg with
 ;; machine https://oauth2.googleapis.com/token username CLIENT_ID password CLIENT_SECRET
 
+;; reset:
+;; (setq url-http-oauth--interposed nil url-http-oauth--interposed-regexp nil)
+;; and remove the token from ~/.authinfo
+
 (defvar emacsconf-extract-google-client-identifier nil)
 (defvar emacsconf-extract-youtube-api-channels nil)
 (defvar emacsconf-extract-youtube-api-categories nil)
@@ -1154,7 +1192,7 @@ Strategies:
 				 ("access_type" . "offline")
 				 ("prompt" . "consent")))
 			 ("access-token-endpoint" . "https://oauth2.googleapis.com/token")
-			 ("scope" . "https://www.googleapis.com/auth/youtube")
+			 ("scope" . "https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/youtube.force-ssl https://www.googleapis.com/auth/youtube.upload")
 			 ("client-secret-method" . prompt))))
 	(setq emacsconf-extract-youtube-api-channels
 				(plz 'get "https://youtube.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true"
@@ -1179,6 +1217,106 @@ Strategies:
 				 (lambda (item)
 					 (string-match (regexp-quote emacsconf-year)
 												 (let-alist item .snippet.title))))))
+
+(defun emacsconf-extract-youtube-comment-list ()
+ (seq-mapcat
+		(lambda (item)
+			(append
+			 (if (alist-get 'topLevelComment (alist-get 'snippet item))
+					 (list (alist-get 'topLevelComment (alist-get 'snippet item))))
+			 (alist-get 'comments (alist-get 'replies item))))
+		(alist-get
+		 'items
+		 (or emacsconf-extract-youtube-comments (emacsconf-extract-youtube-get-channel-comments)))))
+
+(defun emacsconf-extract-youtube-get-talk-for-video-id (video-id)
+	(seq-find (lambda (o)
+							(or (string-match (regexp-quote video-id) (or (plist-get o :youtube-url) ""))
+									(string-match (regexp-quote video-id) (or (plist-get o :qa-youtube-url) ""))))
+						(emacsconf-get-talk-info)))
+
+(defun emacsconf-extract-youtube-comments-after (date)
+	(interactive (list (org-read-date nil t nil "On or after date: ")))
+	(when (stringp date)
+		(setq date (org-read-date nil t date)))
+	(seq-filter
+	 (lambda (entry)
+		 (time-less-p
+			date
+			(date-to-time
+			 (alist-get
+				'publishedAt
+				(alist-get 'snippet entry)))))
+	 (emacsconf-extract-youtube-comment-list)))
+
+(defun emacsconf-extract-youtube-format-talk-comments (videos)
+	(mapconcat
+	 (lambda (video)
+		 (format
+			"- https://youtu.be/%s\n%s\n"
+			(car video)
+			(mapconcat
+			 (lambda (comment)
+				 (let-alist comment
+					 (format
+						"  - %s: %s\n"
+						.snippet.authorDisplayName
+						(replace-regexp-in-string "\n" "\n    " .snippet.textOriginal))))
+			 (cdr video)
+			 "")))
+	 videos
+	 ""))
+
+(defun emacsconf-extract-youtube-comments-by-talk (&optional comments)
+	(interactive (list
+								(if current-prefix-arg (emacsconf-extract-youtube-comments-after (org-read-date nil nil nil "Date: ")))))
+	(setq comments (or comments (emacsconf-extract-youtube-comment-list)))
+	(let ((by-talk
+				 (seq-group-by
+					(lambda (group)
+						(plist-get (emacsconf-extract-youtube-get-talk-for-video-id (car group)) :slug))
+					(seq-group-by (lambda (o)
+													(alist-get 'videoId (alist-get 'snippet o)))
+												comments))))
+		(when (called-interactively-p 'any)
+			(with-current-buffer (get-buffer-create "*comments*")
+				(erase-buffer)
+				(org-mode)
+				(dolist (group by-talk)
+					(when (car group)
+						(insert (format
+										 "* %s\n\n%s\n\n"
+										 (org-link-make-string
+											(concat "file:"
+															(expand-file-name
+															 (concat
+																(car group) ".md")
+															 (expand-file-name
+																"talks"
+																(expand-file-name
+																 emacsconf-year
+																 emacsconf-directory))))
+											(car group))
+										 (emacsconf-extract-youtube-format-talk-comments (cdr group))))))
+				(display-buffer (current-buffer))))
+		by-talk))
+
+
+;; (emacsconf-extract-youtube-comment-list)
+
+;; (emacsconf-extract-youtube-comments-after "-2mon")
+
+(defvar emacsconf-extract-youtube-comments nil)
+(defun emacsconf-extract-youtube-get-channel-comments (&optional no-cache)
+	(setq
+	 emacsconf-extract-youtube-comments
+	 (or (and emacsconf-extract-youtube-comments (not no-cache))
+			 (plz 'get
+				 (format
+					"https://youtube.googleapis.com/youtube/v3/commentThreads?part=snippet,replies&allThreadsRelatedToChannelId=%s&maxResults=100"
+					(alist-get 'id (car (alist-get 'items emacsconf-extract-youtube-api-channels))))
+				 :headers `(("Authorization" . ,(url-oauth-auth "https://youtube.googleapis.com/youtube/v3/")))
+				 :as #'json-read))))
 
 (defvar emacsconf-extract-youtube-tags '("emacs" "emacsconf"))
 (defun emacsconf-extract-youtube-object (video-id talk &optional privacy-status qa)
@@ -1206,19 +1344,27 @@ If QA is non-nil, treat it as a Q&A video."
 	(let-alist video-object
 		(cond
 		 ;; not yet renamed
-		 ((string-match (rx (literal emacsconf-id) " " (literal emacsconf-year) " "
-												(group (1+ (or (syntax word) "-")))
-												"  ")
-										.snippet.title)
+		 ((and .snippet.title (string-match (rx (literal emacsconf-id) " " (literal emacsconf-year) " "
+																						(group (1+ (or (syntax word) "-")))
+																						"  ")
+																				.snippet.title))
 			(match-string 1 .snippet.title))
 		 ;; renamed, match the description instead
-		 ((string-match (rx (literal emacsconf-base-url) (literal emacsconf-year) "/talks/"
-												(group (1+ (or (syntax word) "-"))))
-										.snippet.description)
+		 ((and .snippet.description
+					 (string-match (rx (literal emacsconf-base-url) (literal emacsconf-year) "/talks/"
+														 (group (1+ (or (syntax word) "-"))))
+												 .snippet.description))
 			(match-string 1 .snippet.description))
 		 (t
 			(plist-get
-			 (seq-find (lambda (o) (string-match (regexp-quote .snippet.resourceId.videoId) (or (plist-get o :youtube-url) "")))
+			 (seq-find (lambda (o)
+									 (or
+										(string-match (regexp-quote (or .snippet.videoId
+																										.snippet.resourceId.videoId))
+																	(or (plist-get o :youtube-url) ""))
+										(string-match (regexp-quote (or .snippet.videoId
+																										.snippet.resourceId.videoId))
+																	(or (plist-get o :qa-youtube-url) ""))))
 								 (emacsconf-get-talk-info))
 			 :slug)))))
 
@@ -1260,6 +1406,7 @@ If QA is non-nil, treat it as a Q&A video."
 				(setq num-pages (1- num-pages))
 				(if (<= num-pages 0) (setq url null))))
 			result))
+
 
 (defun emacsconf-extract-youtube-api-update-video (video-object &optional qa)
 	"Update VIDEO-OBJECT.
@@ -1418,6 +1565,8 @@ If QA is non-nil, treat it as a Q&A video."
 																	("Content-Type" . "application/json"))
 											 :as #'json-read))
 										nil)))))
+
+
 
 (defun emacsconf-extract-youtube-duration-msecs (video)
 	(let-alist video
@@ -1671,6 +1820,20 @@ Call with a prefix arg to store the URL as Q&A."
 								 field
 								 url)))))
 
+
+(defun emacsconf-extract-subed-copy-section-text ()
+	(interactive)
+	(save-excursion
+		(subed-copy-region-text
+		 (unless (looking-at "^NOTE")
+			 (if (re-search-backward "^NOTE" nil t)
+					 (point)
+				 (point-min)))
+		 (progn
+			 (forward-line)
+			 (if (re-search-forward "^NOTE" nil t)
+					 (match-beginning 0)
+				 (point-max))))))
 
 (provide 'emacsconf-extract)
 ;;; emacsconf-extract.el ends here
