@@ -177,6 +177,8 @@ You can find it in $ETHERPAD_PATH/APIKEY.txt"
                               "\n")
                              "</ul></div>")
                    "")
+								 :pronouns (emacsconf-surround " (" (plist-get o :pronouns) ")" "")
+								 :pronunciation (emacsconf-surround " - Pronunciation: " (plist-get o :pronunciation) "" "")
                  :track-id
                  (plist-get (emacsconf-get-track (plist-get o :track)) :id)
                  :watch
@@ -198,7 +200,7 @@ You can find it in $ETHERPAD_PATH/APIKEY.txt"
    "<div>
 <div>All talks: ${talks}</div>
 <div><strong>${title}</strong></div>
-<div>${base-url}${url} - ${speakers} - Track: ${track}</div>
+<div>${base-url}${url} - ${speakers}${pronouns}${pronunciation} - Track: ${track}</div>
 <div>Watch/participate: ${watch}</div>
 ${bbb-info}
 <div>IRC: ${irc-nick-details} https://chat.emacsconf.org/#/connect?join=emacsconf,emacsconf-${track-id} or #emacsconf-${track-id} on libera.chat network</div>
