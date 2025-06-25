@@ -1180,7 +1180,7 @@ ${signature}")
     :backstage-user emacsconf-backstage-user
     :backstage-password emacsconf-backstage-password
 		:upload-url
-		(concat "https://ftp-upload.emacsconf.org/?sid="
+		(concat "https://upload.emacsconf.org/?sid="
 						emacsconf-upload-password
 						"-"
 						(mapconcat (lambda (o) (plist-get o :slug)) (cdr group) "-"))
@@ -1492,7 +1492,7 @@ ${signature}"))
 																 (plist-get talk :slug)))
 											 (cdr group)
 											 " , ")
-						:upload-url (concat "https://ftp-upload.emacsconf.org/?sid="
+						:upload-url (concat "https://upload.emacsconf.org/?sid="
 																emacsconf-upload-password
 																"-"
 																(mapconcat (lambda (o) (plist-get o :slug)) (cdr group) "-"))
