@@ -1831,7 +1831,7 @@ Sacha")
                      (cdr group) " , ")
 		 :email-notes (emacsconf-surround "ZZZ: " (plist-get (cadr group) :email-notes) "\n\n" ""))))
 
-(defun emacsconf-mail-template-speakers-thanks-after-conferences ()
+(defun emacsconf-mail-template-speakers-thanks-after-conference ()
 	(interactive)
 	(let* ((log-note "sent thanks to speaker after conference")
 				 (groups
@@ -1844,8 +1844,8 @@ Sacha")
 			(emacsconf-mail-prepare
 			 (list
 				:subject "Thanks for speaking at ${conf-name} ${year}!"
-				:reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
-				:mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+				:reply-to "${user-email}"
+				:mail-followup-to "${user-email}"
 				:log-note log-note
 				:body
 				"${email-notes}Hi, ${speakers-short}!
@@ -1854,18 +1854,22 @@ Thank you so much for being part of ${conf-name} ${year}! Hundreds of people
 enjoyed it, and I'm sure even more will come across the videos in the
 days to follow.
 
-Your videos are available on the talk page at ${talk-urls} , and
-we've added the questions and comments that we've collected from
-IRC/BBB/Etherpad. For your convenience, I've also included them below.
+We've added the questions and comments that we've collected from
+IRC/BBB/Etherpad to ${talk-urls} . For your convenience, I've also
+included them below. You can edit the wiki directly or e-mail me
+anything you'd like me to add.${wrap}
 
-Your videos are also available on YouTube and Toobnix at:
+Videos are also available on YouTube and Toobnix at:
 
 ${video-urls}
+I'm waiting for people to check the audio of the Q&A videos and
+renormalize them if needed before I upload those to YouTube and Toobnix,
+but the Q&A videos are already available on the talk pages at ${wiki}
+along with chapter indices and rough transcripts.
 
-If you want to reupload the video to your own channel, feel free
-to do so.  If you let me know where you've uploaded it, I can
-switch our playlist to include your version of the video
-instead. That way, it might be easier for you to respond to
+If you want to reupload the video to your own channel, feel free to do
+so.  If you like, I can switch our playlist to include your version of
+the video instead. That way, it might be easier for you to respond to
 comments on videos.
 
 If you would like to share more resources or add more answers to
@@ -1886,6 +1890,7 @@ ${feedback}
 				:speakers-short (plist-get (cadr group) :speakers-short)
 				:conf-name emacsconf-name
 				:year emacsconf-year
+				:wiki (concat emacsconf-base-url emacsconf-year "/talks/")
 				:talk-urls
 				(mapconcat
 				 (lambda (talk)
