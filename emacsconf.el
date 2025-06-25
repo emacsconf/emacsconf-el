@@ -34,20 +34,20 @@
   "Name of conference"
   :group 'emacsconf
   :type 'string)
-(defcustom emacsconf-year "2024"
+(defcustom emacsconf-year "2025"
   "Conference year. String for easy inclusion."
   :group 'emacsconf
   :type 'string)
-(defcustom emacsconf-cfp-deadline "2024-09-20" "Deadline for proposals."
+(defcustom emacsconf-cfp-deadline "2025-09-19" "Target date for proposals."
 	:group 'emacsconf
 	:type 'string)
-(defcustom emacsconf-date "2024-12-07" "Starting date of EmacsConf."
+(defcustom emacsconf-date "2025-12-06" "Starting date of EmacsConf."
 	:group 'emacsconf
 	:type 'string)
-(defcustom emacsconf-video-target-date "2024-11-08" "Target date for receiving talk videos from the speakers."
+(defcustom emacsconf-video-target-date "2025-10-31" "Target date for receiving talk videos from the speakers."
 	:group 'emacsconf
 	:type 'string)
-(defcustom emacsconf-schedule-announcement-date "2024-10-25" "Date for publishing the schedule."
+(defcustom emacsconf-schedule-announcement-date "2025-10-24" "Date for publishing the schedule."
 	:group 'emacsconf
 	:type 'string)
 (defcustom emacsconf-directory "~/vendor/emacsconf-wiki"
@@ -70,7 +70,7 @@
 (defcustom emacsconf-base-url "https://emacsconf.org/" "Includes trailing slash"
   :group 'emacsconf
   :type 'string)
-(defcustom emacsconf-publishing-phase 'conference
+(defcustom emacsconf-publishing-phase 'resources
   "Controls what information to include.
 'program - don't include times
 'schedule - include times; use this leading up to the conference
@@ -86,7 +86,7 @@
           (const :tag "Harvest: Extracting info" conference)
           (const :tag "Resources: Don't include status, publish all Q&A" resources)))
 
-(defcustom emacsconf-backstage-phase 'prerec
+(defcustom emacsconf-backstage-phase 'harvest
 	"Contros what information to include backstage.
 'prerec - focus on captioning
 'harvest - focus on Q&A."
@@ -1024,13 +1024,8 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
 
 
 (defun emacsconf-get-talk-info-from-file (&optional filename)
-  (with-temp-buffer
-    (insert-file-contents (or filename "conf.org"))
-    (org-mode)
-    (org-show-all)
-    (goto-char (point-min))
-    (goto-char (org-find-property "ID" "talks"))
-    (emacsconf-get-talk-info 'wiki)))
+	(let ((emacsconf-org-file filename))
+		(emacsconf-get-talk-info)))
 
 (defun emacsconf-include-next-talks (info number)
   (let* ((info (emacsconf-publish-prepare-for-display info))
@@ -1465,7 +1460,7 @@ If TIMEZONES is a string, split it by commas."
            :vnc-display ":5"
            :vnc-port "5905"
 					 :autopilot crontab
-           :status "offline")
+           :status "online")
 		(:name "Development" :color "skyblue" :id "dev" :channel "emacsconf-dev"
            :watch  ,(format "https://live.emacsconf.org/%s/watch/dev/" emacsconf-year)
 				   :webchat-url "https://chat.emacsconf.org/?join=emacsconf,emacsconf-org,emacsconf-accessible,emacsconf-gen,emacsconf-dev"
@@ -1544,8 +1539,7 @@ NAME could be a track name, a talk name, or a list."
 									info)
 		info))
 
-(defvar emacsconf-shifts
-	(list (list :id "sat-am-gen" :track "General" :start "2024-12-07T09:00:00-0500" :end "2024-12-07T12:00:00-0500" :host "zaeph" :streamer "sachac" :checkin "sachac" :coord "sachac") (list :id "sat-pm-gen" :track "General" :start "2024-12-07T13:00:00-0500" :end "2024-12-07T17:00:00-0500" :host "zaeph" :streamer "sachac" :checkin "sachac" :coord "sachac") (list :id "sat-am-dev" :track "Development" :start "2024-12-07T10:00:00-0500" :end "2024-12-07T12:00:00-0500" :host "corwin" :streamer "sachac" :checkin "sachac" :coord "sachac") (list :id "sat-pm-dev" :track "Development" :start "2024-12-07T13:00:00-0500" :end "2024-12-07T17:00:00-0500" :host "corwin" :streamer "sachac" :checkin "sachac" :coord "sachac") (list :id "sun-am-gen" :track "General" :start "2024-12-08T09:00:00-0500" :end "2024-12-08T12:00:00-0500" :host "zaeph" :streamer "sachac" :checkin "corwin" :coord "sachac") (list :id "sun-pm-gen" :track "General" :start "2024-12-08T13:00:00-0500" :end "2024-12-08T17:00:00-0500" :host "zaeph" :streamer "sachac" :checkin "corwin" :coord "sachac")))
+(setq emacsconf-shifts (list (list :id "sat-am-gen" :track "General" :start "2025-12-07T09:00:00-0500" :end "2025-12-07T12:00:00-0500") (list :id "sat-pm-gen" :track "General" :start "2025-12-07T13:00:00-0500" :end "2025-12-07T17:00:00-0500") (list :id "sat-am-dev" :track "Development" :start "2025-12-07T10:00:00-0500" :end "2025-12-07T12:00:00-0500") (list :id "sat-pm-dev" :track "Development" :start "2025-12-07T13:00:00-0500" :end "2025-12-07T17:00:00-0500") (list :id "sun-am-gen" :track "General" :start "2025-12-08T09:00:00-0500" :end "2025-12-08T12:00:00-0500") (list :id "sun-pm-gen" :track "General" :start "2025-12-08T13:00:00-0500" :end "2025-12-08T17:00:00-0500")))
 
 (defun emacsconf-filter-talks-by-time (start-time end-time info)
   "Return talks that are between START-TIME and END-TIME (inclusive) in INFO."
