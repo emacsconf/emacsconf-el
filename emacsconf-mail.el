@@ -1076,6 +1076,60 @@ ${captions}
       :captions (mapconcat (lambda (sub) (concat (emacsconf-surround "\nNOTE " (elt sub 4) "\n\n" "") (elt sub 3))) (subed-parse-file captions) "\n")))
     (mml-attach-file captions "text/vtt" "Subtitles" "attachment")))
 
+(defun emacsconf-mail-answers-for-review (talk)
+	"E-mail Q&A session for TALK so that the speakers can review them."
+  (interactive (list (emacsconf-complete-talk-info
+											(seq-filter
+											 (lambda (talk)
+												 (and (emacsconf-talk-file talk "--answers.vtt")
+															(file-exists-p (emacsconf-talk-file talk "--answers.vtt"))
+															(not (plist-get talk :qa-public))))
+											 (emacsconf-get-talk-info)))))
+  (let ((captions (expand-file-name (concat (plist-get talk :file-prefix) "--answers.vtt")
+                                    emacsconf-cache-dir))
+        (captioner-info
+         (with-current-buffer (find-file-noselect emacsconf-org-file)
+           (org-entry-properties (org-find-property "CUSTOM_ID" (plist-get talk :captioner))))))
+    (emacsconf-mail-prepare
+		 (list
+			:subject "${conf-name} ${year}: Q&A for ${title}"
+			:to "${email}"
+			:log-note "sent q&a for review"
+			:body "${email-notes}Hi ${speakers-short}!
+
+Thank you for speaking at ${conf-name} ${year}! We're working on getting
+the Q&A recordings out the door. We noticed you had a long Q&A session
+that continued off-stream. Was there anything that would need to be
+removed before we can publish the recording? You can review it at ${url}
+(video is in --answers.webm, captions are in --answers.vtt). I've also
+attached the automatic captions for easy skimming. In the interests of
+getting stuff out the door quickly, we haven't edited the Q&A captions
+much; it's mostly there so you can remember the conversation and let us
+know if we need to trim anything.${wrap}
+
+${signature}
+
+${captions}
+")
+     (plist-get talk :email)
+     (list
+			:email-notes (emacsconf-surround "ZZZ: " (plist-get talk :email-notes) "\n\n" "")
+			:conf-name emacsconf-name
+      :speakers-short (plist-get talk :speakers-short)
+      :year emacsconf-year
+      :email (plist-get talk :email)
+      :title (plist-get talk :title)
+			:signature user-full-name
+      :url
+      (format "https://%s:%s@media.emacsconf.org/%s/backstage/#%s"
+              emacsconf-backstage-user
+              emacsconf-backstage-password
+              emacsconf-year
+              (plist-get talk :slug))
+      :password emacsconf-backstage-password
+      :captions (mapconcat (lambda (sub) (concat (emacsconf-surround "\nNOTE " (elt sub 4) "\n\n" "") (elt sub 3))) (subed-parse-file captions) "\n")))
+    (mml-attach-file captions "text/vtt" "Subtitles" "attachment")))
+
 (defun emacsconf-mail-upload-and-backstage-info (group)
 	"E-mail upload and backstage access information to GROUP."
   (interactive (list (emacsconf-mail-complete-email-group)))
