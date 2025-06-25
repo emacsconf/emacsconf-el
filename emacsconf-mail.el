@@ -2075,6 +2075,147 @@ ${signature}
 			(emacsconf-mail-template-mailing-address group))
 		(message "Drafted %d messages" (length groups))))
 
+(defun emacsconf-mail-template-ask-volunteer-for-mailing-address (volunteer)
+	(interactive (list (emacsconf-complete-volunteer)))
+	(emacsconf-mail-prepare
+	 (list
+		:subject "${conf-name} ${year}: Thank you! Can we send you a sticker or pin of appreciation?"
+		:reply-to "${user-email}, ${sticker-mailer}, ${email}"
+		:mail-followup-to "${user-email}, ${sticker-mailer}, ${email}"
+		:body
+		"Hi, ${name-short}!
+
+${email-notes}
+
+We have swag this year, thanks to Corwin
+Brust! Would you like a sticker or a pin as a
+small token of our appreciation? This is what they
+look like:
+
+https://bru.st/i/ecswag.jpg
+
+(It's also part of our Evil Plan: maybe people
+will see the sticker or the pin and talk to you
+about Emacs! =) )
+
+If you want one, please e-mail your mailing
+address and your preference* (sticker or pin) to
+corwin@bru.st . We promise to use your address
+only for sending it.
+
+(* While supplies last; Corwin thinks there should
+be plenty, but just in case, feel free to send us
+your second choice too.)
+
+Thank you so much for contributing to ${conf-name} ${year}!
+
+${signature}
+")
+	 (assoc-default "EMAIL" volunteer)
+	 (list
+		:email-notes
+		(emacsconf-surround
+		 "ZZZ: "
+		 (replace-regexp-in-string
+			":volunteer" ""
+			(assoc-default "ALLTAGS" volunteer))
+		 "\n\n" "")
+		:name-short (assoc-default "NAME_SHORT" volunteer)
+		:conf-name emacsconf-name
+		:year emacsconf-year
+		:email (assoc-default "EMAIL" volunteer)
+		:base-url emacsconf-base-url
+		:signature user-full-name
+		:user-email user-mail-address
+		:sticker-mailer emacsconf-sticker-mailer)))
+
+(defun emacsconf-mail-template-mail-youtube-comments (group)
+	"Send more YouTube comments."
+	(interactive (list (emacsconf-mail-complete-email-group
+                      (seq-filter
+                       (lambda (o)
+												 (and
+													(or
+                           (emacsconf-talk-file o "--answers--original.vtt")
+													 (emacsconf-talk-file o "--original.vtt"))
+													(not (string-match "Asked for permission regarding the rest of the Q&A"
+																						 (plist-get o :logbook)))))
+                       (emacsconf-get-talk-info)))))
+	(emacsconf-mail-prepare
+	 (list
+		:subject "${conf-name} ${year}: May we post the rest of the Q&A?"
+		:reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+		:mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+		:log-note "Asked for permission regarding the rest of the Q&A"
+		:body
+		"${email-notes}Hi, ${speakers-short}!
+
+We're experimenting with a new harvesting workflow for live and
+Q&A videos this year to make things more predictable for speakers
+and participants. Sometimes people have so much fun chatting
+after the talk that they might forget that the recording for the
+session Q&A will be posted for other people to learn from.
+
+I've trimmed your online videos to roughly when the host left the
+BigBlueButton room. There was lots of great discussion
+afterwards, though, so I'd love to include the rest of it if
+that's okay with you. To make it easier for you to review that
+part or reuse what you shared in the Q&A session, I've included
+an automatically-generated transcript for the whole Q&A
+session. I've indicated the section that got trimmed out of the
+published recording with \"NOTE Start of section to review\" in
+the transcript. You can watch the session at ${bbb-recording-url} .
+
+- Option A: We could post the rest of the Q&A as is, which lets
+  people listen to the conversation and learn from it
+
+- Option B: We can keep the published Q&A video to just the part
+  that the host was in, and either you or I can go over the
+  transcript to pull out interesting notes for the summary or for
+  other posts
+
+What do you think?
+
+${signature}
+----
+${transcript}
+")
+	 (car group)
+	 (list
+		:email-notes (emacsconf-surround "ZZZ: " (string-join (seq-uniq (seq-map (lambda (talk) (plist-get talk :email-notes)) (cdr group)))
+																													", ") "\n\n" "")
+		:speakers-short (plist-get (cadr group) :speakers-short)
+		:conf-name emacsconf-name
+		:year emacsconf-year
+		:bbb-recording-url
+		(mapconcat
+		 (lambda (talk)
+			 (plist-get talk :bbb-rec))
+		 (cdr group)
+		 " , ")
+		:signature user-full-name
+		:email (car group)
+		:transcript
+		(mapconcat
+		 (lambda (talk)
+			 (concat
+				(plist-get talk :title) "\n\n"
+				(mapconcat
+				 (lambda (sub)
+					 (concat (emacsconf-surround "\nNOTE " (elt sub 4) "\n\n" "")
+									 (elt sub 3)))
+				 (subed-parse-file (or (emacsconf-talk-file talk "--answers--original.vtt")
+															 (emacsconf-talk-file talk "--original.vtt"))) "\n")))
+		 (cdr group)
+		 "----")
+		:user-email user-mail-address))
+	(dolist (talk (cdr group))
+		(mml-attach-file (or (emacsconf-talk-file talk "--answers--original.vtt")
+												 (emacsconf-talk-file talk "--original.vtt"))
+										 "text/vtt"
+										 (concat "Automatic captions for " (plist-get talk :title))
+										 "attachment")))
+
 ;;; Other mail functions
 
 (defun emacsconf-mail-verify-delivery (subject &optional groups)
