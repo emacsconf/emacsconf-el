@@ -253,7 +253,9 @@ insert into the current buffer instead of drafting e-mails."
   (add-hook 'message-sent-hook
             `(lambda ()
                (save-window-excursion
-                 (emacsconf-add-to-talk-logbook ,(plist-get o :slug) ,message)))
+                 (emacsconf-add-to-talk-logbook ,(plist-get o :slug) ,message))
+							 (when (match-buffers "*unsent")
+								 (switch-to-buffer (car (match-buffers "*unsent")))))
             nil t))
 
 (defun emacsconf-mail-group-by-email (&optional info)
