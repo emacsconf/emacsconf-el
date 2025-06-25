@@ -30,7 +30,7 @@
   :type 'string
   :group 'emacsconf)
 
-(defcustom emacsconf-main-extensions '("--main.webm" "--main.opus" "--main.org" ".org" ".odp" ".pdf" ".pptx" ".el" "--compressed56.webm" "--main.vtt" "--main_fr.vtt" "--main_ja.vtt" "--main_es.vtt" "--main--chapters.vtt" "--script.fountain" "--main.pdf" "--slides.pdf")
+(defcustom emacsconf-main-extensions '("--main.webm" "--main.opus" "--main.org" ".org" ".odp" ".pdf" ".pptx" ".el" "--compressed56.webm" "--main.vtt" "--main_fr.vtt" "--main_ja.vtt" "--main_es.vtt" "--main--chapters.vtt" "--script.fountain" "--main.pdf" "--slides.pdf" "--answers.vtt" "--answers.webm")
   "Extensions to list on public pages."
   :type '(repeat string)
   :group 'emacsconf)
@@ -145,13 +145,14 @@
          (video (and file-prefix
                      (emacsconf-publish-index-card-video
                       (or (plist-get talk :video-id)
-                          (concat (plist-get talk :slug) "-mainVideo"))
+                          (concat "mainVideo-" (plist-get talk :slug)))
                       video-file talk))))
     ;; Add extra information to the talk
     (setq talk
           (append
            talk
            (list
+						:video-type (or (plist-get talk :video-type) "mainVideo")
 						:time-info (emacsconf-surround "Duration: " (plist-get talk :video-duration) " minutes" "")
             :video-html (or (plist-get video :video) "")
             :audio-html (or (plist-get video :audio) "")
@@ -161,7 +162,7 @@
             :speaker-info (or (plist-get talk :speakers-with-pronouns) ""))))
     (emacsconf-replace-plist-in-string
      talk
-     "<div class=\"vid\">${video-html}${audio-html}<div>${extra}</div>${time-info}${resources}${chapter-list}</div>")))
+     "<div class=\"vid ${video-type}\">${video-html}${audio-html}<div>${extra}</div>${time-info}${resources}${chapter-list}</div>")))
 
 ;; (emacsconf-publish-format-track-as-org (car emacsconf-tracks) "US/Eastern")
 ;; (emacsconf-get-talk-info)
@@ -364,10 +365,10 @@
            (list
             :source-src
             (when (stringp video-file)
-              (if (plist-get talk :public)
-                  (format "%s%s/%s" emacsconf-media-base-url (plist-get talk :conf-year)
-                          (file-name-nondirectory video-file))
-                (file-name-nondirectory video-file)))
+							(if (plist-get talk (if (string-match "--answers" video-file) :qa-public :public))
+									(format "%s%s/%s" emacsconf-media-base-url (plist-get talk :conf-year)
+													(file-name-nondirectory video-file))
+								(file-name-nondirectory video-file)))
             :captions
 						(or
 						 (and (stringp video-file)
@@ -428,6 +429,11 @@
                (concat "<li>" s "</li>"))
              (emacsconf-publish-link-file-formats-as-list talk)
              "")
+            :youtube-info (if (plist-get talk :youtube-url)
+                              (format
+                               "<li><a href=\"%s\">View on Youtube</a></li>"
+                               (plist-get talk :youtube-url))
+                            "")
             :toobnix-info (if (plist-get talk :toobnix-url)
                               (format
                                "<li><a href=\"%s\">View on Toobnix</a></li>"
@@ -457,7 +463,7 @@
      :resources
      (emacsconf-replace-plist-in-string
       info
-      "<div class=\"files resources\"><ul>${links}${other-files}${toobnix-info}</ul></div>"))))
+      "<div class=\"files resources\"><ul>${links}${other-files}${toobnix-info}${youtube-info}</ul></div>"))))
 
 (defun emacsconf-publish-format-public-email (o &optional email)
   (format "[%s](mailto:%s?subject=%s)"
@@ -563,8 +569,10 @@ ${categories}
                (emacsconf-publish-index-card (append
                              (list
                               :public 1
-                              :video-id (concat (plist-get o :slug) "-qanda")
-                              :toobnix-url nil
+															:video-type "qanda"
+                              :video-id (concat "qanda-" (plist-get o :slug))
+                              :youtube-url (plist-get o :qa-youtube)
+                              :toobnix-url (plist-get o :qa-toobnix)
 															:captions-edited (plist-get o :qa-captions-edited)
 															:caption-file (emacsconf-talk-file o "--answers.vtt")
                               :video-file (emacsconf-talk-file o "--answers.webm")
@@ -763,6 +771,7 @@ This includes the intro note, the schedule, and talk resources."
 (defun emacsconf-publish-format-transcript (talk &optional video-id lang title)
   "Format the transcript for TALK, adding paragraph markers when possible."
 	(require 'subed)
+	(setq video-id (or video-id "mainVideo"))
   (let* ((subtitles
           (subed-parse-file (if lang
 																(format "%s_%s.vtt"
@@ -771,14 +780,14 @@ This includes the intro note, the schedule, and talk resources."
 																				lang)
 															(plist-get talk :caption-file)))))
     (if subtitles
-        (format "<a name=\"%s-%s-transcript%s\"></a>
-# %s%s
+        (format "<div class=\"transcript%s\"><a name=\"%s-%s-transcript%s\"></a><h1>%s%s</h1>
 
 %s
 
-"
+</div>"
+								(if video-id (concat " transcript-" video-id) "")
 								(plist-get talk :slug)
-                (or video-id "mainVideo")
+                video-id
                 (emacsconf-surround "-" lang "" "")
 								(if lang (assoc-default lang emacsconf-publish-subtitle-languages) (or title "Transcript"))
 								(if (emacsconf-captions-edited-p (plist-get talk :caption-file))
