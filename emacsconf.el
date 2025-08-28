@@ -1166,6 +1166,11 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
   (interactive (list (emacsconf-complete-talk)))
   (insert (plist-get (emacsconf-search-talk-info search) :email)))
 
+(defun emacsconf-insert-talk-link (search)
+	"Insert the talk link matching SEARCH."
+  (interactive (list (emacsconf-complete-talk)))
+  (insert (concat emacsconf-base-url "/" (plist-get (emacsconf-search-talk-info search) :url))))
+
 (defun emacsconf-backstage-url (&optional base-url)
 	"Return or insert backstage URL with credentials."
 	(interactive)
@@ -1193,6 +1198,7 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
     :doc "Keymap for emacsconf-related things"
     "a" #'emacsconf-announce
 		"i e" #'emacsconf-insert-talk-email
+		"i l" #'emacsconf-insert-talk-link
 		"i t" #'emacsconf-insert-talk-title
 		"i s" #'emacsconf-insert-talk-schedule
 		"I" #'emacsconf-message-talk-info
