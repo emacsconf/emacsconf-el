@@ -583,6 +583,22 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
      "Volunteers: " (emacsconf-volunteer-emails-for-completion))))
   (compose-mail (string-join volunteers ", ")))
 
+(defun emacsconf-mail-core ()
+  (interactive)
+	(let ((people
+				 (seq-remove
+					(lambda (o)
+						(string= user-mail-address(assoc-default "EMAIL" o 'string=)))
+					(emacsconf-get-volunteer-info "core"))))
+		(compose-mail
+		 (mapconcat (lambda (o) (assoc-default "EMAIL" o 'string=)) people ", "))
+		(message-goto-body)
+		(insert
+		 "Hello, "
+		 (string-join (sort (mapcar (lambda (o) (assoc-default "NAME_SHORT" o 'string=)) people)) ", ")
+		 "!\n\n")
+		(message-goto-subject)))
+
 (defun emacsconf-mail-notmuch-search-for-volunteer (volunteer)
   (interactive
    (list
@@ -624,7 +640,7 @@ This includes NAME_SHORT and EMAIL_NOTES."
 											 :body "
 Hi, ${speakers-short}!
 
-Thanks for submitting your proposal! (ZZZ TODO: feedback)
+Thanks for submitting your proposal!
 
 We'll wait a week (~ ${notification-date}) in case the other volunteers want to chime in regarding your talk. =)
 
@@ -1181,6 +1197,8 @@ ${signature}")
     :backstage-password emacsconf-backstage-password
 		:upload-url
 		(concat "https://upload.emacsconf.org/?sid="
+						emacsconf-year
+						"-"
 						emacsconf-upload-password
 						"-"
 						(mapconcat (lambda (o) (plist-get o :slug)) (cdr group) "-"))
@@ -2377,10 +2395,17 @@ This minimizes the risk of mail delivery issues and radio silence."
 					 part (expand-file-name new-filename emacsconf-backstage-dir)))))
 		(mm-dissect-buffer))))
 
+;;;###autoload
 (defun emacsconf-notmuch-submissions ()
 	"Search for recent submissions."
 	(interactive)
-	(notmuch-search emacsconf-submit-email))
+	(notmuch-search (format "to:%s and not subject:\"requires approval\" and not subject:\"moderator request(s) waiting\" and not from:no-reply@netdata.cloud" emacsconf-submit-email)))
+
+;;;###autoload
+(defun emacsconf-notmuch-new-submissions ()
+	"Search for recent submissions."
+	(interactive)
+	(notmuch-search (format "to:%s and not subject:\"requires approval\" and not subject:\"moderator request(s) waiting\" and not from:no-reply@netdata.cloud and not tag:replied and not tag:sent" emacsconf-submit-email)))
 
 (defun emacsconf-notmuch-check-sent (query &optional groups)
 	(interactive "MSubject: ")
