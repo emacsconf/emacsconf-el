@@ -147,13 +147,11 @@ TYPE can be 'end if you want the match end instead of the beginning."
   (let ((new-filename (concat (file-name-sans-extension (buffer-file-name)) "--chapters.vtt"))
         (subtitles (subed-subtitle-list))
         (subed-auto-play-media nil))
-    (when (or (not (file-exists-p new-filename))
-              (yes-or-no-p (format "%s exists. Overwrite? " new-filename)))
-      (subed-create-file
-       new-filename 
-       (emacsconf-subed-list-chapter-markers-based-on-comments
-        subtitles)
-       t))))
+    (subed-create-file
+     new-filename
+     (emacsconf-subed-list-chapter-markers-based-on-comments
+      subtitles)
+     t)))
 
 (defun emacsconf-subed-list-chapter-markers-based-on-comments (subtitles)
   "Make a list of subtitles based on which SUBTITLES have comments."
@@ -431,5 +429,14 @@ Create it if necessary."
 		 map)
 	 t))
 
+(defun emacsconf-subed-insert-question-heading-from-other-window ()
+	(interactive)
+	(insert
+	 (with-selected-window
+		(other-window)
+		(replace-regexp-in-string
+		 "^- +" "NOTE "
+		 (buffer-substring (line-beginning-position) (line-end-position))))
+	 "\n\n"))
 (provide 'emacsconf-subed)
 ;;; emacsconf-subed.el ends here
