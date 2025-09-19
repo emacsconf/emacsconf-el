@@ -126,7 +126,7 @@
 (defvar emacsconf-backstage-dir "/ssh:orga@media.emacsconf.org:/var/www/media.emacsconf.org/2022/backstage")
 (defvar emacsconf-upload-dir "/ssh:orga@media.emacsconf.org:/srv/upload")
 (defvar emacsconf-res-dir (format "/ssh:orga@res.emacsconf.org:/data/emacsconf/shared/%s" emacsconf-year))
-(defvar emacsconf-media-extensions '("webm" "mkv" "mp4" "webm" "mov" "avi" "ts" "ogv" "wav" "ogg" "mp3" ))
+(defvar emacsconf-media-extensions '("webm" "mkv" "mp4" "webm" "mov" "avi" "mpv" "ts" "ogv" "wav" "ogg" "mp3" ))
 (defvar emacsconf-ftp-upload-dir "/ssh:orga@media.emacsconf.org:/srv/ftp/anon/upload-here")
 (defvar emacsconf-backstage-user "emacsconf")
 (defvar emacsconf-backstage-password nil "Password for backstage area.")
@@ -172,6 +172,11 @@
 (defun emacsconf-backstage-dired ()
   (interactive)
   (dired emacsconf-backstage-dir "-tl"))
+
+(defun emacsconf-backstage-web ()
+	(interactive)
+	(browse-url (emacsconf-backstage-url)))
+
 (defun emacsconf-res-dired () (interactive) (dired emacsconf-res-dir "-tl"))
 (defun emacsconf-res-cache-dired () (interactive) (dired (expand-file-name "cache" emacsconf-res-dir) "-tl"))
 (defun emacsconf-media-dired () (interactive) (dired emacsconf-public-media-directory "-tl"))
@@ -2001,5 +2006,30 @@ tracks with the ID in the cdr of that list."
 				(message "Deleting %s from %s"
 								 (file-name-nondirectory file) dir)))))
 
+(defun emacsconf-current-org-notebook-filename ()
+	"Return the filename for the current year's public organizers notebook."
+	(expand-file-name "organizers-notebook/index.org" (expand-file-name emacsconf-year emacsconf-directory)))
+
+(defun emacsconf-current-org-notebook-open ()
+	"Open the current year's public organizers notebook."
+	(interactive)
+	(find-file (emacsconf-current-org-notebook-filename)))
+
+(defun emacsconf-current-org-notebook-refresh-schedule ()
+	"Refresh info from draft schedule."
+	(interactive)
+	(save-window-excursion
+		(with-current-buffer (find-file-noselect (emacsconf-current-org-notebook-filename))
+			(save-restriction
+				(widen)
+				(goto-char (org-find-property "CUSTOM_ID" "draft-schedule"))
+				(org-babel-execute-subtree)))))
+
+(defun emacsconf-insert-availability-comment (talk)
+	(interactive (list (or (emacsconf-search-talk-info (thing-at-point 'symbol))
+												 (emacsconf-complete-talk))))
+	(save-excursion
+		(goto-char (line-end-position))
+		(insert " ; " (plist-get talk :availability))))
 (provide 'emacsconf)
 ;;; emacsconf.el ends here
