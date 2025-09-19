@@ -719,14 +719,14 @@ Both start and end time are tested."
 				(goto-char (point-min))
 				(while (not (eobp))
 					(cond
-					 ((looking-at "\\([<>]\\)=? *\\([0-9]+:[0-9]+\\) *EST \\([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\\|Sat\\|Sun\\)?")
+					 ((looking-at "\\([<>]\\)=? *\\([0-9]+:[0-9]+\\) *EST\\( [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\\|Sat\\|Sun\\)?")
 						(push (and (string= (match-string 1) ">") ; start time
 											 (match-string 2))
 									result)
 						(push (and (string= (match-string 1) "<") ; end time
 											 (match-string 2))
 									result)
-						(push (match-string 3) result)
+						(push (and (match-string 3) (string-trim (match-string 3))) result)
 						(goto-char (match-end 0)))
 					 ((looking-at " or ")
 						(push 'or result)
