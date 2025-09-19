@@ -65,6 +65,7 @@
 (defun emacsconf-publish-add-talk ()
   "Add the current talk to the wiki."
   (interactive)
+	(emacsconf-current-org-notebook-refresh-schedule)
   (emacsconf-publish-talk-page (emacsconf-get-talk-info-for-subtree))
   (emacsconf-publish-info-pages)
 	(emacsconf-publish-schedule)
@@ -1411,6 +1412,7 @@ If MODIFY-FUNC is specified, use it to modify the talk."
 (defun emacsconf-publish-backstage-index (&optional filename)
 	"Render the backstage index to FILENAME."
   (interactive)
+	(emacsconf-current-org-notebook-refresh-schedule)
   (setq filename (or filename (expand-file-name "index.html" emacsconf-backstage-dir)))
   (let ((info (or emacsconf-schedule-draft (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))
     (with-temp-file filename
@@ -1419,7 +1421,7 @@ If MODIFY-FUNC is specified, use it to modify the talk."
                (lambda (o) (append
 														(list :captions-edited t
 																	:backstage t) o))
-							  (emacsconf-filter-talks info)))
+							 (emacsconf-filter-talks info)))
              (by-status (seq-group-by (lambda (o) (plist-get o :status)) talks))
              (files (directory-files emacsconf-backstage-dir)))
         (insert
