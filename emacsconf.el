@@ -479,10 +479,16 @@ FILENAME specifies an extra string to add to the file prefix if needed."
        (format "[%s](%s \"%s\")" desc path (plist-get talk :title)))
       (_ path))))
 
+(defun emacsconf-org-insert-description (link desc)
+	(unless desc
+		(when (string-match "emacsconf:\\(.+\\)" link)
+			(plist-get (emacsconf-search-talk-info (match-string 1 link)) :title))))
+
 (with-eval-after-load 'org
   (org-link-set-parameters
    "emacsconf"
    :follow #'emacsconf-go-to-talk
+	 :insert-description #'emacsconf-org-insert-description
    :complete (lambda () (concat "emacsconf:" (emacsconf-complete-slug)))
    :export #'emacsconf-export-slug))
 
