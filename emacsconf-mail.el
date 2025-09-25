@@ -363,8 +363,8 @@ insert into the current buffer instead of drafting e-mails."
 
 (defun emacsconf-mail-parse-submission (body)
 	"Extract data from EmacsConf submissions in BODY."
-	(when (listp body) (setq body (plist-get (car body) :content)))
-	(when (listp body) (setq body (plist-get (car body) :content)))
+	(while (and (listp body) (plist-get (car body) :content))
+		(setq body (plist-get (car body) :content)))
 	(let* ((data (list :body body))
 				 (fields '((:title "^[* ]*Talk title")
 									 (:description "^[* ]*Talk description")
