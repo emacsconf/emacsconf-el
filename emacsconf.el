@@ -391,6 +391,27 @@ FILENAME specifies an extra string to add to the file prefix if needed."
 			(kill-new (string-join command " ")))
 		command))
 
+(defun emacsconf-upload-copy-scp-from-json (talk key filename)
+  "Parse PsiTransfer JSON files and make an scp command.
+This command will copy the uploaded file to the current directory.
+The file is associated with TALK. KEY identifies the file in a multi-file upload.
+FILENAME specifies an extra string to add to the file prefix if needed."
+  (interactive (let-alist (json-parse-string (buffer-string) :object-type 'alist)
+                 (list (emacsconf-complete-talk-info)
+                       .metadata.key
+                       (read-string (format "Filename: ")))))
+  (let* ((new-filename (concat (plist-get talk :file-prefix)
+                               (if (string= filename "")
+                                   filename
+                                 (concat "--" filename))
+                               "."
+                               (let-alist (json-parse-string (buffer-string) :object-type 'alist)
+                                 (file-name-extension .metadata.name))))
+         (cmd (format "scp media:%s %s"
+                      (file-name-sans-extension (tramp-file-local-name (buffer-file-name)))
+                      new-filename)))
+    (message "%s" cmd)
+    (kill-new cmd)))
 (defun emacsconf-upload-copy-from-json (talk key filename)
 	"Parse PsiTransfer JSON files and copy the uploaded file to the res directory.
 The file is associated with TALK. KEY identifies the file in a multi-file upload.
@@ -642,6 +663,7 @@ If INFO is specified, limit it to that list."
                        (:caption-note "CAPTION_NOTE")
                        (:captions-edited "CAPTIONS_EDITED")
                        ;; Conference
+                       (:live "LIVE")
                        (:check-in "CHECK_IN")
                        (:public "PUBLIC")
                        (:intro-note "INTRO_NOTE")
@@ -1628,12 +1650,32 @@ Filter by TRACK if given.  Use INFO as the list of talks."
          (seq-group-by (lambda (o) (plist-get o :speakers))
                        (or info (emacsconf-active-talks (emacsconf-filter-talks (emacsconf-get-talk-info))))))))
 
+(defun emacsconf-bbb-create-rooms ()
+  "Copy the commands needed to create the rooms.
+docker exec -it greenlight-v3 /bin/bash -c \"bundle exec rails console\"
+user_id = User.find_by_email(\"emacsconf@sachachua.com\").id"
+  (interactive)
+  (kill-new
+   (mapconcat (lambda (group)
+					      (format
+					       "Room.create(user_id: user_id, name: \"%s - %s\")\n"
+					       (plist-get (cadr group) :speakers)
+					       (string-join (mapcar (lambda (talk) (plist-get talk :slug))
+																		  (cdr group))
+                              ", ")))
+				      (emacsconf-mail-groups (emacsconf-active-talks (emacsconf-get-talk-info)))
+				      "")))
+
 (defun emacsconf-load-rooms (string)
 	"Split STRING and load them as ROOM properties.
 STRING should be a list of rooms, one room per line, like this:
 friendly-id speaker - slugs
 friendly-id speaker - slugs
+
+Print out room IDs with:
+Room.all.each { |x| puts x.friendly_id + " " + x.name }; nil
 "
+  (interactive "MInput: ")
 	(let ((rooms
 				 (mapcar (lambda (row) (when (string-match "^\\(.+?\\) \\(.+\\)" row)
 																 (list (match-string 1 row) (match-string 2 row))))
@@ -1660,6 +1702,47 @@ friendly-id speaker - slugs
 									rooms))
 								"/join"))))
 					(emacsconf-active-talks (emacsconf-get-talk-info)))))
+
+(defun emacsconf-bbb-spookfox-set-moderator-codes ()
+  (interactive)
+  (dolist (talk (seq-filter (lambda (o)
+														  (and (plist-get o :bbb-room)
+																   (not (plist-get o :bbb-mod-code))))
+													  (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
+	  (spookfox-js-injection-eval-in-active-tab
+	   (format "window.location.href = \"%s\""
+					   (replace-regexp-in-string "/join" "" (plist-get talk :bbb-room)))
+	   t)
+	  (sleep-for 3)
+	  (spookfox-js-injection-eval-in-active-tab
+	   "document.querySelector('button[data-rr-ui-event-key=\"settings\"]').click()" t)
+	  (spookfox-js-injection-eval-in-active-tab
+	   "document.querySelector('input#glAnyoneCanStart').checked = true")
+	  (spookfox-js-injection-eval-in-active-tab
+	   "document.querySelector('input#muteOnStart').checked = true")
+	  (spookfox-js-injection-eval-in-active-tab
+	   "document.querySelectorAll('.border-end button')[2].click()" t)
+	  (let ((code (spookfox-js-injection-eval-in-active-tab
+							   "document.querySelector('.access-code-input input').value" t)))
+		  (message "Setting %s to %s" (plist-get talk :slug) code)
+		  (emacsconf-set-property-from-slug
+		   talk "BBB_MOD_CODE"
+		   code)
+		  (sit-for 2))))
+
+(defun emacsconf-bbb-spookfox-confirm-settings ()
+  (interactive)
+  (dolist (talk (seq-filter (lambda (o)
+														(plist-get o :bbb-room))
+													(emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
+	(spookfox-js-injection-eval-in-active-tab
+	 (format "window.location.href = \"%s\""
+					 (replace-regexp-in-string "/join" "" (plist-get talk :bbb-room)))
+	 t)
+	(sleep-for 3)
+	(spookfox-js-injection-eval-in-active-tab
+	 "document.querySelector('button[data-rr-ui-event-key=\"settings\"]').click()" t)
+	(sleep-for 3)))
 
 (defun emacsconf-surround (before text after &optional alternative)
   "Concat BEFORE, TEXT, and AFTER if TEXT is specified, or return ALTERNATIVE."
