@@ -1280,5 +1280,35 @@ International (CC BY-SA 4.0) license. Please observe the guidelines for conduct:
 			(kill-new desc))
 		desc))
 
+(defun emacsconf-stream-populate-random-package-file ()
+	(interactive)
+	(with-temp-file (expand-file-name "fortune.txt" emacsconf-cache-dir)
+		(dolist (entry
+						 (emacsconf-stream-shuffle-list
+							(seq-mapcat (lambda (f)
+														(let ((base (file-name-base f)))
+															(mapcar
+															 (lambda (entry)
+																 (list base
+																			 (symbol-name (car entry))
+																			 (elt (cdr entry) 2)))
+															 (cdr
+																(with-temp-buffer
+																	(insert-file-contents
+																	 (expand-file-name "archive-contents" f))
+																	(goto-char (point-min))
+																	(read (current-buffer)))))))
+													(directory-files
+													 (expand-file-name "archives" package-user-dir) t
+													 directory-files-no-dot-files-regexp))))
+			(unless (bobp) (insert "\n%\n"))
+			(insert
+			 (format "%s: %s (%s)"
+							 (elt entry 1)
+							 (elt entry 2)
+							 (pcase (elt entry 0)
+								 ("gnu" "GNU ELPA")
+								 ("nongnu" "NonGNU ELPA")
+								 ("melpa" "MELPA")))))))
 (provide 'emacsconf-stream)
 ;;; emacsconf-stream.el ends here

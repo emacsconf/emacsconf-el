@@ -34,20 +34,20 @@
   "Name of conference"
   :group 'emacsconf
   :type 'string)
-(defcustom emacsconf-year "2024"
+(defcustom emacsconf-year "2025"
   "Conference year. String for easy inclusion."
   :group 'emacsconf
   :type 'string)
-(defcustom emacsconf-cfp-deadline "2024-09-20" "Deadline for proposals."
+(defcustom emacsconf-cfp-deadline "2025-09-19" "Target date for proposals."
 	:group 'emacsconf
 	:type 'string)
-(defcustom emacsconf-date "2024-12-07" "Starting date of EmacsConf."
+(defcustom emacsconf-date "2025-12-06" "Starting date of EmacsConf."
 	:group 'emacsconf
 	:type 'string)
-(defcustom emacsconf-video-target-date "2024-11-08" "Target date for receiving talk videos from the speakers."
+(defcustom emacsconf-video-target-date "2025-10-31" "Target date for receiving talk videos from the speakers."
 	:group 'emacsconf
 	:type 'string)
-(defcustom emacsconf-schedule-announcement-date "2024-10-25" "Date for publishing the schedule."
+(defcustom emacsconf-schedule-announcement-date "2025-10-24" "Date for publishing the schedule."
 	:group 'emacsconf
 	:type 'string)
 (defcustom emacsconf-directory "~/vendor/emacsconf-wiki"
@@ -70,7 +70,7 @@
 (defcustom emacsconf-base-url "https://emacsconf.org/" "Includes trailing slash"
   :group 'emacsconf
   :type 'string)
-(defcustom emacsconf-publishing-phase 'conference
+(defcustom emacsconf-publishing-phase 'resources
   "Controls what information to include.
 'program - don't include times
 'schedule - include times; use this leading up to the conference
@@ -86,7 +86,7 @@
           (const :tag "Harvest: Extracting info" conference)
           (const :tag "Resources: Don't include status, publish all Q&A" resources)))
 
-(defcustom emacsconf-backstage-phase 'prerec
+(defcustom emacsconf-backstage-phase 'harvest
 	"Contros what information to include backstage.
 'prerec - focus on captioning
 'harvest - focus on Q&A."
@@ -126,7 +126,7 @@
 (defvar emacsconf-backstage-dir "/ssh:orga@media.emacsconf.org:/var/www/media.emacsconf.org/2022/backstage")
 (defvar emacsconf-upload-dir "/ssh:orga@media.emacsconf.org:/srv/upload")
 (defvar emacsconf-res-dir (format "/ssh:orga@res.emacsconf.org:/data/emacsconf/shared/%s" emacsconf-year))
-(defvar emacsconf-media-extensions '("webm" "mkv" "mp4" "webm" "mov" "avi" "ts" "ogv" "wav" "ogg" "mp3" ))
+(defvar emacsconf-media-extensions '("webm" "mkv" "mp4" "webm" "mov" "avi" "mpv" "ts" "ogv" "wav" "ogg" "mp3" ))
 (defvar emacsconf-ftp-upload-dir "/ssh:orga@media.emacsconf.org:/srv/ftp/anon/upload-here")
 (defvar emacsconf-backstage-user "emacsconf")
 (defvar emacsconf-backstage-password nil "Password for backstage area.")
@@ -172,6 +172,11 @@
 (defun emacsconf-backstage-dired ()
   (interactive)
   (dired emacsconf-backstage-dir "-tl"))
+
+(defun emacsconf-backstage-web ()
+	(interactive)
+	(browse-url (emacsconf-backstage-url)))
+
 (defun emacsconf-res-dired () (interactive) (dired emacsconf-res-dir "-tl"))
 (defun emacsconf-res-cache-dired () (interactive) (dired (expand-file-name "cache" emacsconf-res-dir) "-tl"))
 (defun emacsconf-media-dired () (interactive) (dired emacsconf-public-media-directory "-tl"))
@@ -386,6 +391,27 @@ FILENAME specifies an extra string to add to the file prefix if needed."
 			(kill-new (string-join command " ")))
 		command))
 
+(defun emacsconf-upload-copy-scp-from-json (talk key filename)
+  "Parse PsiTransfer JSON files and make an scp command.
+This command will copy the uploaded file to the current directory.
+The file is associated with TALK. KEY identifies the file in a multi-file upload.
+FILENAME specifies an extra string to add to the file prefix if needed."
+  (interactive (let-alist (json-parse-string (buffer-string) :object-type 'alist)
+                 (list (emacsconf-complete-talk-info)
+                       .metadata.key
+                       (read-string (format "Filename: ")))))
+  (let* ((new-filename (concat (plist-get talk :file-prefix)
+                               (if (string= filename "")
+                                   filename
+                                 (concat "--" filename))
+                               "."
+                               (let-alist (json-parse-string (buffer-string) :object-type 'alist)
+                                 (file-name-extension .metadata.name))))
+         (cmd (format "scp media:%s %s"
+                      (file-name-sans-extension (tramp-file-local-name (buffer-file-name)))
+                      new-filename)))
+    (message "%s" cmd)
+    (kill-new cmd)))
 (defun emacsconf-upload-copy-from-json (talk key filename)
 	"Parse PsiTransfer JSON files and copy the uploaded file to the res directory.
 The file is associated with TALK. KEY identifies the file in a multi-file upload.
@@ -474,10 +500,16 @@ FILENAME specifies an extra string to add to the file prefix if needed."
        (format "[%s](%s \"%s\")" desc path (plist-get talk :title)))
       (_ path))))
 
+(defun emacsconf-org-insert-description (link desc)
+	(unless desc
+		(when (string-match "emacsconf:\\(.+\\)" link)
+			(plist-get (emacsconf-search-talk-info (match-string 1 link)) :title))))
+
 (with-eval-after-load 'org
   (org-link-set-parameters
    "emacsconf"
    :follow #'emacsconf-go-to-talk
+	 :insert-description #'emacsconf-org-insert-description
    :complete (lambda () (concat "emacsconf:" (emacsconf-complete-slug)))
    :export #'emacsconf-export-slug))
 
@@ -631,6 +663,7 @@ If INFO is specified, limit it to that list."
                        (:caption-note "CAPTION_NOTE")
                        (:captions-edited "CAPTIONS_EDITED")
                        ;; Conference
+                       (:live "LIVE")
                        (:check-in "CHECK_IN")
                        (:public "PUBLIC")
                        (:intro-note "INTRO_NOTE")
@@ -1024,13 +1057,8 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
 
 
 (defun emacsconf-get-talk-info-from-file (&optional filename)
-  (with-temp-buffer
-    (insert-file-contents (or filename "conf.org"))
-    (org-mode)
-    (org-show-all)
-    (goto-char (point-min))
-    (goto-char (org-find-property "ID" "talks"))
-    (emacsconf-get-talk-info 'wiki)))
+	(let ((emacsconf-org-file filename))
+		(emacsconf-get-talk-info)))
 
 (defun emacsconf-include-next-talks (info number)
   (let* ((info (emacsconf-publish-prepare-for-display info))
@@ -1171,6 +1199,11 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
   (interactive (list (emacsconf-complete-talk)))
   (insert (plist-get (emacsconf-search-talk-info search) :email)))
 
+(defun emacsconf-insert-talk-link (search)
+	"Insert the talk link matching SEARCH."
+  (interactive (list (emacsconf-complete-talk)))
+  (insert (concat emacsconf-base-url "/" (plist-get (emacsconf-search-talk-info search) :url))))
+
 (defun emacsconf-backstage-url (&optional base-url)
 	"Return or insert backstage URL with credentials."
 	(interactive)
@@ -1198,6 +1231,7 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
     :doc "Keymap for emacsconf-related things"
     "a" #'emacsconf-announce
 		"i e" #'emacsconf-insert-talk-email
+		"i l" #'emacsconf-insert-talk-link
 		"i t" #'emacsconf-insert-talk-title
 		"i s" #'emacsconf-insert-talk-schedule
 		"I" #'emacsconf-message-talk-info
@@ -1465,7 +1499,7 @@ If TIMEZONES is a string, split it by commas."
            :vnc-display ":5"
            :vnc-port "5905"
 					 :autopilot crontab
-           :status "offline")
+           :status "online")
 		(:name "Development" :color "skyblue" :id "dev" :channel "emacsconf-dev"
            :watch  ,(format "https://live.emacsconf.org/%s/watch/dev/" emacsconf-year)
 				   :webchat-url "https://chat.emacsconf.org/?join=emacsconf,emacsconf-org,emacsconf-accessible,emacsconf-gen,emacsconf-dev"
@@ -1544,8 +1578,7 @@ NAME could be a track name, a talk name, or a list."
 									info)
 		info))
 
-(defvar emacsconf-shifts
-	(list (list :id "sat-am-gen" :track "General" :start "2024-12-07T09:00:00-0500" :end "2024-12-07T12:00:00-0500" :host "zaeph" :streamer "sachac" :checkin "sachac" :coord "sachac") (list :id "sat-pm-gen" :track "General" :start "2024-12-07T13:00:00-0500" :end "2024-12-07T17:00:00-0500" :host "zaeph" :streamer "sachac" :checkin "sachac" :coord "sachac") (list :id "sat-am-dev" :track "Development" :start "2024-12-07T10:00:00-0500" :end "2024-12-07T12:00:00-0500" :host "corwin" :streamer "sachac" :checkin "sachac" :coord "sachac") (list :id "sat-pm-dev" :track "Development" :start "2024-12-07T13:00:00-0500" :end "2024-12-07T17:00:00-0500" :host "corwin" :streamer "sachac" :checkin "sachac" :coord "sachac") (list :id "sun-am-gen" :track "General" :start "2024-12-08T09:00:00-0500" :end "2024-12-08T12:00:00-0500" :host "zaeph" :streamer "sachac" :checkin "corwin" :coord "sachac") (list :id "sun-pm-gen" :track "General" :start "2024-12-08T13:00:00-0500" :end "2024-12-08T17:00:00-0500" :host "zaeph" :streamer "sachac" :checkin "corwin" :coord "sachac")))
+(setq emacsconf-shifts (list (list :id "sat-am-gen" :track "General" :start "2025-12-07T09:00:00-0500" :end "2025-12-07T12:00:00-0500") (list :id "sat-pm-gen" :track "General" :start "2025-12-07T13:00:00-0500" :end "2025-12-07T17:00:00-0500") (list :id "sat-am-dev" :track "Development" :start "2025-12-07T10:00:00-0500" :end "2025-12-07T12:00:00-0500") (list :id "sat-pm-dev" :track "Development" :start "2025-12-07T13:00:00-0500" :end "2025-12-07T17:00:00-0500") (list :id "sun-am-gen" :track "General" :start "2025-12-08T09:00:00-0500" :end "2025-12-08T12:00:00-0500") (list :id "sun-pm-gen" :track "General" :start "2025-12-08T13:00:00-0500" :end "2025-12-08T17:00:00-0500")))
 
 (defun emacsconf-filter-talks-by-time (start-time end-time info)
   "Return talks that are between START-TIME and END-TIME (inclusive) in INFO."
@@ -1617,12 +1650,32 @@ Filter by TRACK if given.  Use INFO as the list of talks."
          (seq-group-by (lambda (o) (plist-get o :speakers))
                        (or info (emacsconf-active-talks (emacsconf-filter-talks (emacsconf-get-talk-info))))))))
 
+(defun emacsconf-bbb-create-rooms ()
+  "Copy the commands needed to create the rooms.
+docker exec -it greenlight-v3 /bin/bash -c \"bundle exec rails console\"
+user_id = User.find_by_email(\"emacsconf@sachachua.com\").id"
+  (interactive)
+  (kill-new
+   (mapconcat (lambda (group)
+					      (format
+					       "Room.create(user_id: user_id, name: \"%s - %s\")\n"
+					       (plist-get (cadr group) :speakers)
+					       (string-join (mapcar (lambda (talk) (plist-get talk :slug))
+																		  (cdr group))
+                              ", ")))
+				      (emacsconf-mail-groups (emacsconf-active-talks (emacsconf-get-talk-info)))
+				      "")))
+
 (defun emacsconf-load-rooms (string)
 	"Split STRING and load them as ROOM properties.
 STRING should be a list of rooms, one room per line, like this:
 friendly-id speaker - slugs
 friendly-id speaker - slugs
+
+Print out room IDs with:
+Room.all.each { |x| puts x.friendly_id + " " + x.name }; nil
 "
+  (interactive "MInput: ")
 	(let ((rooms
 				 (mapcar (lambda (row) (when (string-match "^\\(.+?\\) \\(.+\\)" row)
 																 (list (match-string 1 row) (match-string 2 row))))
@@ -1649,6 +1702,47 @@ friendly-id speaker - slugs
 									rooms))
 								"/join"))))
 					(emacsconf-active-talks (emacsconf-get-talk-info)))))
+
+(defun emacsconf-bbb-spookfox-set-moderator-codes ()
+  (interactive)
+  (dolist (talk (seq-filter (lambda (o)
+														  (and (plist-get o :bbb-room)
+																   (not (plist-get o :bbb-mod-code))))
+													  (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
+	  (spookfox-js-injection-eval-in-active-tab
+	   (format "window.location.href = \"%s\""
+					   (replace-regexp-in-string "/join" "" (plist-get talk :bbb-room)))
+	   t)
+	  (sleep-for 3)
+	  (spookfox-js-injection-eval-in-active-tab
+	   "document.querySelector('button[data-rr-ui-event-key=\"settings\"]').click()" t)
+	  (spookfox-js-injection-eval-in-active-tab
+	   "document.querySelector('input#glAnyoneCanStart').checked = true")
+	  (spookfox-js-injection-eval-in-active-tab
+	   "document.querySelector('input#muteOnStart').checked = true")
+	  (spookfox-js-injection-eval-in-active-tab
+	   "document.querySelectorAll('.border-end button')[2].click()" t)
+	  (let ((code (spookfox-js-injection-eval-in-active-tab
+							   "document.querySelector('.access-code-input input').value" t)))
+		  (message "Setting %s to %s" (plist-get talk :slug) code)
+		  (emacsconf-set-property-from-slug
+		   talk "BBB_MOD_CODE"
+		   code)
+		  (sit-for 2))))
+
+(defun emacsconf-bbb-spookfox-confirm-settings ()
+  (interactive)
+  (dolist (talk (seq-filter (lambda (o)
+														(plist-get o :bbb-room))
+													(emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
+	(spookfox-js-injection-eval-in-active-tab
+	 (format "window.location.href = \"%s\""
+					 (replace-regexp-in-string "/join" "" (plist-get talk :bbb-room)))
+	 t)
+	(sleep-for 3)
+	(spookfox-js-injection-eval-in-active-tab
+	 "document.querySelector('button[data-rr-ui-event-key=\"settings\"]').click()" t)
+	(sleep-for 3)))
 
 (defun emacsconf-surround (before text after &optional alternative)
   "Concat BEFORE, TEXT, and AFTER if TEXT is specified, or return ALTERNATIVE."
@@ -2001,5 +2095,30 @@ tracks with the ID in the cdr of that list."
 				(message "Deleting %s from %s"
 								 (file-name-nondirectory file) dir)))))
 
+(defun emacsconf-current-org-notebook-filename ()
+	"Return the filename for the current year's public organizers notebook."
+	(expand-file-name "organizers-notebook/index.org" (expand-file-name emacsconf-year emacsconf-directory)))
+
+(defun emacsconf-current-org-notebook-open ()
+	"Open the current year's public organizers notebook."
+	(interactive)
+	(find-file (emacsconf-current-org-notebook-filename)))
+
+(defun emacsconf-current-org-notebook-refresh-schedule ()
+	"Refresh info from draft schedule."
+	(interactive)
+	(save-window-excursion
+		(with-current-buffer (find-file-noselect (emacsconf-current-org-notebook-filename))
+			(save-restriction
+				(widen)
+				(goto-char (org-find-property "CUSTOM_ID" "draft-schedule"))
+				(org-babel-execute-subtree)))))
+
+(defun emacsconf-insert-availability-comment (talk)
+	(interactive (list (or (emacsconf-search-talk-info (thing-at-point 'symbol))
+												 (emacsconf-complete-talk))))
+	(save-excursion
+		(goto-char (line-end-position))
+		(insert " ; " (plist-get talk :availability))))
 (provide 'emacsconf)
 ;;; emacsconf.el ends here

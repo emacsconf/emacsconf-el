@@ -287,23 +287,23 @@ Pairs with `emacsconf-schedule-dump-sexp'."
 
 (defvar emacsconf-schedule-svg-modify-functions '(emacsconf-schedule-svg-color-by-track) "Functions to run to modify the display of each item.")
 (defvar emacsconf-use-absolute-url nil "Non-nil means try to use absolute URLs.")
-(defun emacsconf-schedule-svg-track (svg base-x base-y width height start-time end-time info)
+(defun emacsconf-schedule-svg-track (svg base-x base-y width height start-time end-time info &optional direction)
 	"Draw the actual rectangles and text for the talks."
-  (let ((scale (/ width (float-time (time-subtract end-time start-time)))))
+  (let ((scale (/ (if (eq direction 'vertical) height width) (float-time (time-subtract end-time start-time)))))
     (mapc
      (lambda (o)
        (let* ((offset (floor (* scale (float-time (time-subtract (plist-get o :start-time) start-time)))))
               (size (floor (* scale (float-time (time-subtract (plist-get o :end-time) (plist-get o :start-time))))))
-              (x (+ base-x offset))
-              (y base-y)
+              (x (if (eq direction 'vertical) base-x (+ base-x offset)))
+              (y (if (eq direction 'vertical) (+ base-y offset) base-y))
               (node (dom-node
                      'rect
                      (list
                       (cons 'x x)
                       (cons 'y y)
                       (cons 'opacity "0.8")
-                      (cons 'width size)
-                      (cons 'height (1- height))
+                      (cons 'width (if (eq direction 'vertical) (1- width) size))
+                      (cons 'height (if (eq direction 'vertical) size (1- height)))
                       (cons 'stroke "black")
                       (cons 'stroke-dasharray
                             (if (string-match "live" (or (plist-get o :q-and-a) "live"))
@@ -336,7 +336,8 @@ Pairs with `emacsconf-schedule-dump-sexp'."
                        (dom-node
                         'g
                         `((transform . ,(format "translate(%d,%d)"
-                                                (+ x size -2) (+ y height -2))))
+                                                (if (eq direction 'vertical) x (+ x size -2))
+																								(if (eq direction 'vertical) (+ y size -2) (+ y height -2)))))
                         (dom-node
                          'text
                          (list
@@ -344,7 +345,7 @@ Pairs with `emacsconf-schedule-dump-sexp'."
                           (cons 'x 0)
                           (cons 'y 0)
                           (cons 'font-size 10)
-                          (cons 'transform "rotate(-90)"))
+                          (cons 'transform (if (eq direction 'vertical) nil "rotate(-90)")))
                          (svg--encode-text (or (plist-get o :slug) (plist-get o :title))))))))
          (run-hook-with-args
           'emacsconf-schedule-svg-modify-functions
@@ -354,44 +355,73 @@ Pairs with `emacsconf-schedule-dump-sexp'."
           parent)))
      info)))
 
-(defun emacsconf-schedule-svg-day (elem label width height start end tracks)
+(defun emacsconf-schedule-svg-day (elem label width height start end tracks &optional direction)
 	"Add the time scale and the talks on a given day."
-  (let* ((label-margin 15)
-         (track-height (/ (- height (* 2 label-margin)) (length tracks)))
-         (x 0) (y label-margin)
-         (scale (/ width (float-time (time-subtract end start))))
+  (let* ((label-margin (if (eq direction 'vertical) 40 15))
+         (x (if (eq direction 'vertical) label-margin 0))
+				 (y (if (eq direction 'vertical) label-margin label-margin))
+				 (track-size (if (eq direction 'vertical)
+												 (/ (- width (* 2 label-margin)) (length tracks))
+											 (/ (- height (* 2 label-margin)) (length tracks))))
+         (scale (/ (if (eq direction 'vertical) height width) (float-time (time-subtract end start))))
          (time start))
     (dom-append-child elem (dom-node 'title nil (concat "Schedule for " label)))
     (svg-rectangle elem 0 0 width height :fill "white")
-    (svg-text elem label :x 3 :y (- label-margin 3) :fill "black" :font-size "10")
+		(if (eq direction 'vertical)
+				(svg-text elem label :x 3 :y (- label-margin 10) :fill "black" :font-size "10")
+			(svg-text elem label :x 3 :y (- label-margin 3) :fill "black" :font-size "10"))
     (mapc (lambda (track)
             (emacsconf-schedule-svg-track
-             elem x y width track-height
-             start end track)
-            (setq y (+ y track-height)))
+             elem x y
+						 (if (eq direction 'vertical) track-size width)
+						 (if (eq direction 'vertical) height track-size)
+             start end track
+						 direction)
+						(if (eq direction 'vertical)
+								(setq x (+ x track-size))
+							(setq y (+ y track-size))))
           tracks)
     ;; draw grid
     (while (time-less-p time end)
-      (let ((x (* (float-time (time-subtract time start)) scale)))
+      (let ((x (if (eq direction 'vertical)
+									 3
+								 (* (float-time (time-subtract time start)) scale)))
+						(y (if (eq direction 'vertical)
+									 (+ (* (float-time (time-subtract time start)) scale) label-margin)
+								 3)))
         (dom-append-child
          elem
          (dom-node
           'g
-          `((transform . ,(format "translate(%d,%d)" x label-margin)))
-          (dom-node
-           'line
-           `((stroke . "darkgray")
-             (x1 . 0)
-             (y1 . 0)
-             (x2 . 0)
-             (y2 . ,(- height label-margin label-margin))))
+          `((transform . ,(format "translate(%d,%d)" x y)))
+					(if (eq direction 'vertical)
+							(dom-node
+							 'line
+							 `((stroke . "darkgray")
+								 (x1 . ,label-margin)
+								 (y1 . 0)
+								 (x2 . ,(- width label-margin))
+								 (y2 . 0)))
+						(dom-node
+							 'line
+							 `((stroke . "darkgray")
+								 (x1 . 0)
+								 (y1 . 0)
+								 (x2 . 0)
+								 (y2 . ,(- height label-margin label-margin)))))
           (dom-node
            'text
-           `((fill . "black")
-             (x . 0)
-             (y . ,(- height 2 label-margin))
-             (font-size . 10)
-             (text-anchor . "left"))
+					 (if (eq direction 'vertical)
+							 `((fill . "black")
+								 (x . 0)
+								 (y . 0)
+								 (font-size . 10)
+								 (dy . ".4em"))
+						 `((fill . "black")
+							 (x . 0)
+							 (y . ,(- height label-margin -5))
+							 (font-size . 10)
+							 (text-anchor . "left")))
            (svg--encode-text (format-time-string "%-l %p" time emacsconf-timezone)))))
         (setq time (time-add time (seconds-to-time 3600)))))
     elem))
@@ -411,7 +441,7 @@ Pairs with `emacsconf-schedule-dump-sexp'."
 											 "peachpuff")
 											(t "gray"))))
 
-(defun emacsconf-schedule-svg (width height &optional info)
+(defun emacsconf-schedule-svg (width height &optional info direction)
 	"Make the schedule SVG for INFO."
   (setq info (or info (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
   (let ((days (seq-group-by (lambda (o)
@@ -430,7 +460,8 @@ Pairs with `emacsconf-schedule-dump-sexp'."
                        :start start
                        :end end
                        :tracks (emacsconf-by-track (cdr o)))))
-             days))))
+             days)
+		 direction)))
 
 (defun emacsconf-schedule-svg-color-by-status (o node &optional _)
 	"Set talk color based on status.
@@ -459,23 +490,28 @@ Other status: gray"
 													"lightgray")
                          (_ "gray")))))
 
-(defun emacsconf-schedule-svg-days (width height days)
+(defun emacsconf-schedule-svg-days (width height days &optional direction)
 	"Display multiple days."
   (let ((svg (svg-create width height))
-        (day-height (/ height (length days)))
-        (y 0))
+        (day-height (if (eq direction 'vertical) height (/ height (length days))))
+				(day-width (if (eq direction 'vertical) (/ width (length days)) width))
+        (y 0)
+				(x 0))
     (dom-append-child svg (dom-node 'title nil "Graphical view of the schedule"))
     (mapc
      (lambda (day)
-       (let ((group (dom-node 'g `((transform . ,(format "translate(0,%d)" y))))))
+       (let ((group (dom-node 'g `((transform . ,(format "translate(%d,%d)" x y))))))
          (dom-append-child svg group)
          (emacsconf-schedule-svg-day group
                    (plist-get day :label)
-                   width day-height
+                   day-width day-height
                    (date-to-time (plist-get day :start))
                    (date-to-time (plist-get day :end))
-                   (plist-get day :tracks)))
-       (setq y (+ y day-height)))
+                   (plist-get day :tracks)
+									 direction))
+			 (if (eq direction 'vertical)
+					 (setq x (+ x day-width))
+				 (setq y (+ y day-height))))
      days)
     svg))
 
@@ -719,14 +755,14 @@ Both start and end time are tested."
 				(goto-char (point-min))
 				(while (not (eobp))
 					(cond
-					 ((looking-at "\\([<>]\\)=? *\\([0-9]+:[0-9]+\\) *EST \\([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\\|Sat\\|Sun\\)?")
+					 ((looking-at "\\([<>]\\)=? *\\([0-9]+:[0-9]+\\) *EST\\( [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\\|Sat\\|Sun\\)?")
 						(push (and (string= (match-string 1) ">") ; start time
 											 (match-string 2))
 									result)
 						(push (and (string= (match-string 1) "<") ; end time
 											 (match-string 2))
 									result)
-						(push (match-string 3) result)
+						(push (and (match-string 3) (string-trim (match-string 3))) result)
 						(goto-char (match-end 0)))
 					 ((looking-at " or ")
 						(push 'or result)

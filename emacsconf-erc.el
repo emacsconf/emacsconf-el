@@ -68,12 +68,12 @@
 (defcustom emacsconf-erc-org "#emacsconf-org" "Channel for organizers")
 
 (defcustom emacsconf-topic-templates
-  '(("#emacsconf" "Welcome to EmacsConf 2024 | please join our track-specific channels #emacsconf-gen and #emacsconf-dev as well | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
-    ("#emacsconf-gen" "General track | https://emacsconf.org/2024/watch/gen/ | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
-    ("#emacsconf-dev" "Development track | https://emacsconf.org/2024/watch/dev/ | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
-    ("#emacsconf-accessible" "EmacsConf 2024 accessibility - help by describing what's happening | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
-    ("#emacsconf-org" "EmacsConf 2024 | Dedicated channel for EmacsConf organizers and speakers | this is intended as an internal, low-traffic channel; for main discussion around EmacsConf, please join #emacsconf | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
-    ("#emacsconf-questions" "EmacsConf 2024 | Low-traffic channel for questions if speakers prefer IRC and need help focusing; for main discussion around EmacsConf, please join #emacsconf | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates"))
+  '(("#emacsconf" "Welcome to EmacsConf 2025 | please join our track-specific channels #emacsconf-gen and #emacsconf-dev as well | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
+    ("#emacsconf-gen" "General track | https://emacsconf.org/2025/watch/gen/ | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
+    ("#emacsconf-dev" "Development track | https://emacsconf.org/2025/watch/dev/ | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
+    ("#emacsconf-accessible" "EmacsConf 2025 accessibility - help by describing what's happening | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
+    ("#emacsconf-org" "EmacsConf 2025 | Dedicated channel for EmacsConf organizers and speakers | this is intended as an internal, low-traffic channel; for main discussion around EmacsConf, please join #emacsconf | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates")
+    ("#emacsconf-questions" "EmacsConf 2025 | Low-traffic channel for questions if speakers prefer IRC and need help focusing; for main discussion around EmacsConf, please join #emacsconf | Subscribe to https://lists.gnu.org/mailman/listinfo/emacsconf-discuss for updates"))
   "List of (channel topic-template) entries for mass-setting channel topics."
   :group 'emacsconf
   :type '(repeat (list (string :tag "Channel")
@@ -546,6 +546,35 @@ Usage: /conflog keyword notes go here"
 		(setq emacsconf-erc-recent-announcements
 					(cons (cons (match-string-no-properties 1 string) (current-time))
 								(seq-take emacsconf-erc-recent-announcements (1- emacsconf-erc-recent-announcements-length))))))
+
+;; (keymap-set erc-mode-map "C-c w" #'emacsconf-erc-copy)
+(defun emacsconf-erc-copy (&optional beg end)
+	"Unwrap and copy the current line to the clipboard.
+This makes it easier to paste into the Etherpad."
+	(interactive
+	 (list
+		(if (region-active-p)
+				(min (point) (mark)))
+		(if (region-active-p)
+				(max (point) (mark)))))
+	(setq beg (or beg (if (get-text-property (point) 'erc--ts)
+												(line-beginning-position)
+											(prop-match-beginning (text-property-search-backward 'erc--ts)))))
+	(setq end
+				(let ((end-field (save-excursion (text-property-search-forward 'field)))
+							(end-nick (save-excursion (text-property-search-forward 'erc--ts nil nil t))))
+					(min (if end-field (prop-match-beginning end-field) most-positive-fixnum)
+							 (if end-nick (prop-match-beginning end-nick) most-positive-fixnum))))
+	(let* ((pulse-flag nil))
+		(when (fboundp 'pulse-momentary-highlight-region)
+			(pulse-momentary-highlight-region beg end))
+		(kill-new
+		 (string-trim
+			(replace-regexp-in-string
+			 "\n[ \t]+" " "
+			 (buffer-substring-no-properties
+				beg
+				end))))))
 
 (provide 'emacsconf-erc)
 ;;; emacsconf-erc.el ends here
