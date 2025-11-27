@@ -44,6 +44,9 @@
 (defcustom emacsconf-date "2025-12-06" "Starting date of EmacsConf."
 	:group 'emacsconf
 	:type 'string)
+(defcustom emacsconf-dates "2025-12-06 to 2025-12-07" "Conference dates."
+	:group 'emacsconf
+	:type 'string)
 (defcustom emacsconf-video-target-date "2025-10-31" "Target date for receiving talk videos from the speakers."
 	:group 'emacsconf
 	:type 'string)
@@ -2099,10 +2102,24 @@ tracks with the ID in the cdr of that list."
 	"Return the filename for the current year's public organizers notebook."
 	(expand-file-name "organizers-notebook/index.org" (expand-file-name emacsconf-year emacsconf-directory)))
 
-(defun emacsconf-current-org-notebook-open ()
-	"Open the current year's public organizers notebook."
-	(interactive)
-	(find-file (emacsconf-current-org-notebook-filename)))
+(defun emacsconf-current-org-notebook-open (&optional common)
+	"Open the current year's public organizers notebook.
+With a prefix argument (\\[universal-argument]), open the general organizers notebook."
+	(interactive (list current-prefix-arg))
+	(find-file (if common
+                 (expand-file-name "organizers-notebook/index.org"
+                                   emacsconf-directory)
+               (emacsconf-current-org-notebook-filename))))
+
+(defun emacsconf-current-org-notebook-heading (&optional common)
+	"Open the current year's public organizers notebook and jump to a heading.
+With a prefix argument (\\[universal-argument]), open the general organizers notebook."
+	(interactive (list current-prefix-arg))
+  (emacsconf-current-org-notebook-open common)
+  (cond
+   ((fboundp 'consult-org-heading)
+    (call-interactively #'consult-org-heading))
+   (t (call-interactively #'org-goto))))
 
 (defun emacsconf-current-org-notebook-refresh-schedule ()
 	"Refresh info from draft schedule."
@@ -2120,5 +2137,23 @@ tracks with the ID in the cdr of that list."
 	(save-excursion
 		(goto-char (line-end-position))
 		(insert " ; " (plist-get talk :availability))))
+
+(defun emacsconf-cancel-talk (talk)
+  "Cancel TALK. Assume that the schedule has already been updated."
+  (interactive (list (emacsconf-complete-talk)))
+  (emacsconf-with-talk-heading talk
+    (org-todo "CANCELLED")
+    (emacsconf-current-org-notebook-refresh-schedule)
+    (emacsconf-schedule-update-from-info)
+    (emacsconf-update-schedule)
+    (emacsconf-publish-watch-pages)
+    (emacsconf-publish-talks-json-to-files)
+    (emacsconf-publish-info-pages-for-talk talk)
+    (emacsconf-publish-info-pages)
+    (emacsconf-stream-generate-in-between-pages)
+    ;; Regenerate intros
+    (find-file (emacsconf-latest-file (expand-file-name "../assets/intros" emacsconf-cache-dir) "^\\(intro\\|script\\).*.vtt"))
+    (message "Remember to regenerate the intro videos.")))
+
 (provide 'emacsconf)
 ;;; emacsconf.el ends here
