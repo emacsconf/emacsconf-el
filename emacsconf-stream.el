@@ -1283,6 +1283,47 @@ International (CC BY-SA 4.0) license. Please observe the guidelines for conduct:
 			(kill-new desc))
 		desc))
 
+(defun emacsconf-stream-toobnix-copy-livestream-description (track)
+	(interactive (list (emacsconf-complete-track)))
+	(when (stringp track) (setq track (emacsconf-get-track track)))
+	(let* ((track-id (plist-get track :id))
+				 (desc (emacsconf-replace-plist-in-string
+								(list
+								 :track-name (plist-get track :name)
+								 :dates emacsconf-dates
+                 :conf-name emacsconf-name
+								 :year emacsconf-year
+								 :track-id track-id
+                 :base-url emacsconf-base-url
+                 :channel (plist-get track :channel)
+                 :chat-url (plist-get track :webchat-url)
+								 :irc-channels (concat
+																(string-join
+																 (seq-keep (lambda (track)
+																						 (unless (string= (plist-get track :id) track-id)
+																							 (plist-get track :channel)))
+																					 emacsconf-tracks)
+																 ",")
+																","
+																(plist-get track :channel)))
+								"
+${track-name} - ${conf-name} ${year}
+
+This for the ${track-name} track of ${conf-name} (${dates})
+
+Watch using free/open source software: https://live.emacsconf.org/${year}/watch/${track-id}/
+Conference info: ${base-url}${year}/
+Schedule: ${base-url}${year}/talks/
+Chat on #${channel} via ${chat-url} or irc.libera.chat using your favorite IRC client
+Etherpad: Use the Etherpad links from the talk page; general comments in https://pad.emacsconf.org/${year}
+
+Videos are shared under the terms of the Creative Commons Attribution-ShareAlike 4.0
+International (CC BY-SA 4.0) license. Please observe the guidelines for conduct: https://emacsconf.org/conduct/
+")))
+		(when (called-interactively-p 'any)
+			(kill-new desc))
+		desc))
+
 (defun emacsconf-stream-populate-random-package-file ()
 	(interactive)
 	(with-temp-file (expand-file-name "fortune.txt" emacsconf-cache-dir)
