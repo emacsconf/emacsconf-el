@@ -174,53 +174,58 @@
    "** " (plist-get track :name) "  :" (plist-get track :id) ":\n:PROPERTIES:\n:CATEGORY: " (plist-get track :id) "\n:END:\n"
    (mapconcat
     (lambda (talk)
-      (concat
-       "*** " (plist-get talk :title) "\n"
-       "<"
-			 (format-time-string
-        (cdr org-time-stamp-formats)
-        (plist-get talk :start-time)
-        tz)
-			 ">--<"
-			 (format-time-string
-        (cdr org-time-stamp-formats)
-        (plist-get talk :end-time)
-        tz)
-			 ">\n"
-       (emacsconf-surround "- " (plist-get talk :speakers-with-pronouns) "\n" "")
-       (emacsconf-surround "- " (plist-get talk :absolute-url) "\n" "")
-			 "- Watch live: "
-			 (mapconcat (lambda (player)
-										(org-link-make-string
-										 (concat "shell:" player " " (plist-get track :stream) " &")
-										 player))
-									'("mpv" "vlc" "ffplay")
-									" or ")
-			 " or "
-			 (org-link-make-string
-				(plist-get track :watch)
-				"web-based player")
-			 "\n"
-       (emacsconf-surround "- Etherpad: " (plist-get talk :pad-url) "\n" "")
-       (emacsconf-surround "- Chat: "
-													 (org-link-make-string
-														(plist-get talk :webchat-url)
-														(concat "#" (plist-get talk :channel)))
-													 "\n" "")
-       (emacsconf-surround "- Q&A: "
-													 (if (plist-get talk :qa-url)
-															 (org-make-link-string
-																(plist-get talk :qa-url)
-																(plist-get talk :qa-info))
-														 (plist-get talk :qa-info))
-													 "\n" "")
-       (emacsconf-surround "\n" (plist-get talk :intro-note) "\n" "")
-			 (emacsconf-surround "\nDescription:\n\n"
-													 (when (plist-get talk :org-description)
-														 (with-temp-buffer
-															 (org-paste-subtree 3 (plist-get talk :org-description))
-															 (buffer-string)))
-													 "\n" "")))
+      (with-temp-buffer
+        (org-mode)
+
+        (concat
+         "*** " (plist-get talk :title) "\n"
+         "<"
+			   (format-time-string
+          (cdr org-time-stamp-formats)
+          (plist-get talk :start-time)
+          tz)
+			   ">--<"
+			   (format-time-string
+          (cdr org-time-stamp-formats)
+          (plist-get talk :end-time)
+          tz)
+			   ">\n"
+         (emacsconf-surround "- " (plist-get talk :speakers-with-pronouns) "\n" "")
+         (emacsconf-surround "- " (plist-get talk :absolute-url) "\n" "")
+			   "- Watch live: "
+			   (mapconcat (lambda (player)
+										  (org-link-make-string
+										   (concat "shell:" player " " (plist-get track :stream) " &")
+										   player))
+									  '("mpv" "vlc" "ffplay")
+									  " or ")
+			   " or "
+			   (org-link-make-string
+				  (plist-get track :watch)
+				  "web-based player")
+			   "\n"
+         (emacsconf-surround "- Etherpad: " (plist-get talk :pad-url) "\n" "")
+         (emacsconf-surround "- Chat: "
+													   (org-link-make-string
+														  (plist-get talk :webchat-url)
+														  (concat "#" (plist-get talk :channel)))
+													   "\n" "")
+         (emacsconf-surround "- Q&A: "
+													   (if (plist-get talk :qa-url)
+															   (org-make-link-string
+																  (plist-get talk :qa-url)
+																  (plist-get talk :qa-info))
+														   (plist-get talk :qa-info))
+													   "\n" "")
+         (emacsconf-surround "\n" (plist-get talk :intro-note) "\n" "")
+			   (emacsconf-surround "\nDescription:\n\n"
+													   (when (plist-get talk :org-description)
+														   (with-temp-buffer
+                                 (if (org-kill-is-subtree-p (plist-get talk :org-description))
+															       (org-paste-subtree 3 (plist-get talk :org-description))
+                                   (insert (plist-get talk :org-description)))
+															   (buffer-string)))
+													   "\n" ""))))
     (emacsconf-filter-talks-by-track track info)
     "\n")))
 
@@ -1420,11 +1425,15 @@ If MODIFY-FUNC is specified, use it to modify the talk."
 														f))))
 							talks "\n")))
 
-(defun emacsconf-publish-backstage-index (&optional filename)
+(defun emacsconf-publish-backstage-index (&optional filename dest)
 	"Render the backstage index to FILENAME."
-  (interactive)
+  (interactive (list nil (if current-prefix-arg
+                             emacsconf-cache-dir
+                           emacsconf-backstage-dir)))
+  (setq dest (or dest
+                 emacsconf-cache-dir))
 	(emacsconf-current-org-notebook-refresh-schedule)
-  (setq filename (or filename (expand-file-name "index.html" emacsconf-backstage-dir)))
+  (setq filename (or filename (expand-file-name "index.html" dest)))
   (let ((info (or emacsconf-schedule-draft (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))
     (with-temp-file filename
       (let* ((talks
@@ -1434,7 +1443,7 @@ If MODIFY-FUNC is specified, use it to modify the talk."
 																	:backstage t) o))
 							 (emacsconf-filter-talks info)))
              (by-status (seq-group-by (lambda (o) (plist-get o :status)) talks))
-             (files (directory-files emacsconf-backstage-dir)))
+             (files (directory-files dest))) ;emacsconf-backstage-dir  very sislow right now
         (insert
          "<html><head><meta charset=\"UTF-8\"><link rel=\"stylesheet\" href=\"/style.css\" /></head><body>"
 				 (if (file-exists-p (expand-file-name "include-in-index.html" emacsconf-cache-dir))
@@ -1594,7 +1603,10 @@ answers without needing to listen to everything again. You can see <a href=\"htt
 				 (if (file-exists-p (expand-file-name "include-in-index-footer.html" emacsconf-cache-dir))
              (with-temp-buffer (insert-file-contents (expand-file-name "include-in-index-footer.html" emacsconf-cache-dir)) (buffer-string))
            "")
-         "</body></html>")))))
+         "</body></html>"))))
+  (when (and (called-interactively-p 'any)
+             (eq (window-system) 'x))
+    (emacsconf-backstage-web)))
 
 (defun emacsconf-publish-filter-public-files (talk &optional selector files)
 	"Return files that are okay to post publicly for TALK."
