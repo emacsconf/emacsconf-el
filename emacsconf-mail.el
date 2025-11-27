@@ -588,7 +588,7 @@ Include some other things, too, such as emacsconf-year, title, name, email, url,
 	(let ((people
 				 (seq-remove
 					(lambda (o)
-						(string= user-mail-address(assoc-default "EMAIL" o 'string=)))
+						(string= user-mail-address (assoc-default "EMAIL" o 'string=)))
 					(emacsconf-get-volunteer-info "core"))))
 		(compose-mail
 		 (mapconcat (lambda (o) (assoc-default "EMAIL" o 'string=)) people ", "))
@@ -847,9 +847,9 @@ comments or requests.
 You can see the draft schedule at
 ${base}${year}/organizers-notebook/?highlight=${slugs}#draft-schedule
 .  If you use a Javascript-enabled browser, your talk${plural}
-will be highlighted with a black border in the schedule, and your
-talk ID${plural} (${slugs}) will be highlighted with a yellow
-background in the notes that follow.${wrap}
+will be highlighted with a thicker black border in the schedule. If I've mentioned your
+talk ID${plural} (${slugs}) in the notes that follow, they'll be highlighted with a yellow
+background.${wrap}
 
 As of the time I write this e-mail, your tentative schedule is:
 
@@ -890,8 +890,9 @@ ${schedule}
 You can see the draft schedule at
 ${base}${year}/organizers-notebook/?highlight=${slugs}#draft-schedule
 .  If you use a Javascript-enabled browser, your talk${plural}
-will have a black border in the schedule and a yellow background
-in the notes that follow.
+will be highlighted with a thicker black border in the schedule. If I've mentioned your
+talk ID${plural} (${slugs}) in the notes that follow, they'll be highlighted with a yellow
+background.${wrap}
 
 We'll also update the schedule as we get closer to the
 conference, but I'll let you know if things change a lot. Anyway,
@@ -956,9 +957,8 @@ ${file-list}
 
 I've added the video to the processing queue. You can see how things are
 going backstage at ${backstage-url-with-auth} . I or another captioning
-volunteer will work on captioning your talk over the next few weeks. The
-VTT and TXT file are in the backstage area if you want to try editing it
-yourself. =) We'll e-mail again a little closer to the conference with
+volunteer will work on captioning your talk over the next few weeks.
+We'll e-mail again a little closer to the conference with
 schedule updates and other useful information. If you want to upload a
 new version, you can upload it the same way you did the previous
 one.${fill}
@@ -1030,11 +1030,19 @@ ${signature}")
 												 (and (emacsconf-talk-file talk "--main.vtt")
 															(file-exists-p (emacsconf-talk-file talk "--main.vtt"))))
 											 (emacsconf-get-talk-info)))))
+  (unless (plist-get talk :captioner)
+    (message "No captioner set for talk.")
+    (save-excursion
+      (emacsconf-with-talk-heading talk
+        (org-set-property "CAPTIONER" (assoc-default "CUSTOM_ID" (emacsconf-complete-volunteer)
+                                                     #'string=)))
+      (setq talk (emacsconf-search-talk-info (plist-get talk :slug)))))
   (let ((captions (expand-file-name (concat (plist-get talk :file-prefix) "--main.vtt")
                                     emacsconf-cache-dir))
         (captioner-info
          (with-current-buffer (find-file-noselect emacsconf-org-file)
            (org-entry-properties (org-find-property "CUSTOM_ID" (plist-get talk :captioner))))))
+
     (emacsconf-mail-prepare
 		 (list
 			:subject "${conf-name} ${year}: Captions for ${title}"
@@ -1154,7 +1162,7 @@ ${captions}
 		:subject "${conf-name} ${year}: Upload instructions, backstage info"
 		:reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
 		:mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
-		:log-note "sent backstage and upload information"
+		:log-note "emacsconf-mail-upload-and-backstage-info"
 		:body
 		"${email-notes}Hi ${name}!
 
@@ -1349,7 +1357,9 @@ quality of the reencoded video."))
 				 (talk-groups (seq-group-by
 											 (lambda (talk)
 												 (cond
-													((string= (plist-get talk :status) "WAITING_FOR_PREREC")
+                          ((plist-get talk :live) 'live-talk)
+													((member (plist-get talk :status)
+                                   (list "WAITING_FOR_PREREC" "TO_CONFIRM"))
 													 'waiting-for-prerec)
 													((string= (plist-get talk :qa-type) "live")
 													 'live)
@@ -1371,16 +1381,48 @@ quality of the reencoded video."))
 					(emacsconf-mail-prepare
 					 (append
 						base
-						(pcase type
-							('waiting-for-prerec
-							 (list
-								:subject "${conf-name} ${year}: options, please check intro"
-								:body
-								"${email-notes}Hi, ${name}!
+            (pcase type
+                  ('live-talk
+							     (list
+								    :subject "${conf-name} ${year}: confirming with you, also please check intro pronunciation"
+								    :body
+								    "${email-notes}Hi, ${name}!
 
-${conf-name} is this week. Aaah! I don't think we have your
-presentation yet, but I'm not panicking (much) because we've got plans
-and backup plans.
+How are you feeling about ${conf-name}? It's coming up soon - just two weeks away.
+I wanted to check in with all the speakers in case things have come up.
+I have you penciled in for a live talk. In case life
+has become unexpectedly busy for you and you're not sure if
+you want to do it, let me know and I can adjust the schedule.
+No stress. =) ${fill}
+
+Since you're planning to do a live talk, I'll set up a BigBlueButton web
+conference room. I plan to bring the web conference server up on Friday
+night before the conference, and I'll e-mail you the check-in
+information then so that you can test things if you like. If you want to
+test things beforehand, let me know what time and date might work for
+you and I can set that up.${fill}
+
+Also, could you please take a minute to check if I pronounce your name
+correctly in the intro I recorded? The recording is at ${intro-url} ,
+and you can also find it under \"--intro.webm\" in your talk's section
+at ${backstage-url-with-credentials} . If it needs tweaking, you can
+upload a recording to ${upload-url} (password ${upload-password}) or
+e-mail me the corrections.
+
+Best regards,
+
+${signature}"))
+							    ('waiting-for-prerec
+							     (list
+								    :subject "${conf-name} ${year}: gently checking in with you, also please check intro"
+								    :body
+								    "${email-notes}Hi, ${name}!
+
+How are you feeling about ${conf-name}? It's coming up soon - just two weeks away.
+I wanted to check in with all the speakers in case things have come up.
+In case life has become unexpectedly busy for you and you're not sure if
+you want to go through with your presentation, let me know and I can adjust the schedule.
+No stress. =) ${fill}
 
 Option A: You can upload your presentation before the conference
 
@@ -1399,17 +1441,20 @@ Option B: You can do it live
 Sometimes it's easier to do a presentation live, or sometimes you're
 making last-minute tweaks and want to play the latest copy of your video
 from your own computer. We can do the presentation live over
-BigBlueButton. On Thursday or Friday, I'll send you the BigBlueButton
-information so you can check in and try things out.${fill}
+BigBlueButton. I plan to bring the web conference server up on Friday
+night before the conference, and I'll e-mail you the check-in
+information then so that you can test things if you like. If you want to
+test things beforehand, let me know what time and date might work for
+you and I can set that up.${fill}
 
 Option C: It's okay, you can cancel
 
-Sometimes an interesting talk idea turns out to be more challenging
-than you'd like. Sometimes life happens. If you're stressing out and
-you don't think you can make it, no worries, no need to feel
-embarrassed or guilty or anything like that. Let me know and I can
-update the schedule so that other speakers have extra time for Q&A. We
-hope you'll consider proposing a talk for another EmacsConf!
+Sometimes an interesting talk idea turns out to be more challenging than
+you'd like. Sometimes life happens. If you're stressing out and you
+don't think you can make it, no worries, no need to feel embarrassed or
+guilty or anything like that. Let me know and I can update the
+schedule. We hope you'll consider proposing a talk for another
+EmacsConf!
 
 ----------------
 If you're planning to go through with the talk (yay!), could you
@@ -1423,17 +1468,25 @@ e-mail me the corrections.${fill}
 Best regards,
 
 ${signature}"))
-							('live
-							 (list
-								:subject "${conf-name} ${year}: please check intro pronunciation"
-								:body
-								"${email-notes}Hi, ${name}!
+							    ('live
+							     (list
+								    :subject "${conf-name} ${year}: thanks again for your video, also please check intro pronunciation"
+								    :body
+								    "${email-notes}Hi, ${name}!
 
-Thanks again for uploading your presentation early!
+Thanks again for uploading your presentation early! How are you feeling
+about ${conf-name}? It's coming up soon - just two weeks away. I wanted
+to check in with all the speakers in case things have come up. In case
+life has become unexpectedly busy for you and you're not sure if you
+want to go through with your presentation & live Q&A, let me know and I
+can adjust the schedule. No stress. =) ${fill}
 
 Since you're planning to do a live Q&A session, I'll set up a
-BigBlueButton web conference room and I'll e-mail you the information on
-Thursday or Friday.${fill}
+BigBlueButton web conference room. I plan to bring the web conference
+server up on Friday night before the conference, and I'll e-mail you the
+check-in information then so that you can test things if you like. If
+you want to test things beforehand, let me know what time and date might
+work for you and I can set that up.${fill}
 
 Also, could you please take a minute to check if I pronounce your name
 correctly in the intro I recorded? The recording is at ${intro-url} ,
@@ -1445,13 +1498,19 @@ e-mail me the corrections.
 Best regards,
 
 ${signature}"))
-							('pad-or-irc
-							 (list
-								:subject "${conf-name} ${year}: please check intro pronunciation"
-								:body
-								"${email-notes}Hi, ${name}!
+							    ('pad-or-irc
+							     (list
+								    :subject "${conf-name} ${year}: thanks again for your video, also please check intro pronunciation"
+								    :body
+								    "${email-notes}Hi, ${name}!
 
 Thanks again for uploading your presentation early!
+
+How are you feeling about ${conf-name}? It's coming up soon - just two
+weeks away. I wanted to check in with all the speakers in case things
+have come up. In case life has become unexpectedly busy for you and
+you're not sure if you want to go through with your presentation &
+Q&A, let me know and I can adjust the schedule. No stress. =)${fill}
 
 Could you please take a minute to check if I pronounce your name
 correctly in the intro I recorded? The recording is at ${intro-url} ,
@@ -1460,17 +1519,17 @@ at ${backstage-url-with-credentials} . If it needs tweaking, you can
 upload a recording to ${upload-url} (password ${upload-password}) or
 e-mail me the corrections.
 
-We'll send you check-in instructions on Thursday or Friday so that
-you'll be all set.
+We'll send you check-in instructions on the Friday before the conference
+so that you'll be all set.
 
 Best regards,
 
 ${signature}"))
-							('after
-							 (list
-								:subject "${conf-name} ${year}: please check intro pronunciation"
-								:body
-								"${email-notes}Hi, ${name}!
+							    ('after
+							     (list
+								    :subject "${conf-name} ${year}: thanks again for your video, please check intro pronunciation"
+								    :body
+								    "${email-notes}Hi, ${name}!
 
 Thanks again for uploading your presentation early!
 
@@ -1491,7 +1550,7 @@ us!
 Best regards,
 
 ${signature}"))
-							(_ (error "Unknown type %s" (symbol-name type)))))
+							    (_ (error "Unknown type %s" (symbol-name type)))))
 					 (car group)
 					 (list
 						:email-notes (or (plist-get (car group) :email-notes) "")
@@ -1625,8 +1684,7 @@ or technical issues, and so that we don't worry too much about
 missing speakers (aaah!). You can find the check-in
 process at ${base-url}${year}/speakers/ . ${wrap}
 
-If something comes up, please let us know as soon as you can. Here's
-my emergency contact information: ${emergency}${wrap}
+If something comes up, please let us know as soon as you can.
 
 Thank you for sharing your time and energy with the ${conf-name}
 community!
@@ -1724,8 +1782,7 @@ or technical issues, and so that we don't worry too much about
 missing speakers (aaah!). You can find the check-in
 process at ${base-url}${year}/speakers/ . ${wrap}
 
-${waiting}If something comes up, please let us know as soon as you can. Here's
-my emergency contact information: ${emergency}${wrap}
+${waiting}If something comes up, please let us know as soon as you can.${wrap}
 
 Thank you for sharing your time and energy with the ${conf-name}
 community!
