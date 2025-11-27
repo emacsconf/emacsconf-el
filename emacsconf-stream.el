@@ -1210,10 +1210,13 @@ XDG_RUNTIME_DIR=\"/run/user/%d\"
 (defun emacsconf-stream-crontabs (&optional test-mode info)
 	"Write the streaming users' crontab files.
 If TEST-MODE is non-nil, use the videos in the test directory.
+If TEST-MODE is a date, use that as the starting date.
 If INFO is non-nil, use that as the schedule instead."
-	(interactive)
+	(interactive (list (when current-prefix-arg (org-read-date t t nil "Start time: "))))
 	(let ((emacsconf-publishing-phase 'conference))
-		(setq info (or info (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
+    (setq info (or info (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))
+    (when (and test-mode (listp test-mode))
+      (setq info (emacsconf-schedule-prepare-test-schedule test-mode info)))
 		(dolist (track emacsconf-tracks)
 			(let ((talks (seq-filter (lambda (talk)
 																 (string= (plist-get talk :track)
