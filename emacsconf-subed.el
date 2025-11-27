@@ -297,14 +297,20 @@ Create it if necessary."
 	(interactive "e")
 	(goto-char (posn-point (event-start event)))
 	(skip-syntax-backward "w")
-	(subed-split-subtitle)
+  (if (derived-mode-p 'subed-mode)
+	    (subed-split-subtitle)
+    (insert "\n"))
 	(recenter))
 
 (defun emacsconf-subed-merge-and-unfill ()
 	"Merge this subtitle with the next one."
 	(interactive)
-	(subed-merge-with-next)
-	(emacsconf-subed-unfill-paragraph))
+  (if (derived-mode-p 'subed-mode)
+      (progn
+	      (subed-merge-with-next)
+	      (emacsconf-subed-unfill-paragraph))
+    (goto-char (line-end-position))
+    (join-line)))
 
 (defun emacsconf-subed-unfill-paragraph ()
 	"Sometimes the regular fill doesn't work."
@@ -356,8 +362,8 @@ Create it if necessary."
 				 (* i 5000)
 				 (1- (* i 5000))
 				 (emacsconf-pad-expand-intro talk)
-				 (format "#+OUTPUT: %s.webm\n[[file:%s]]"
-								 (plist-get talk :slug)
+				 (format "#+OUTPUT: %s--intro.webm\n[[file:%s]]"
+								 (plist-get talk :file-prefix)
 								 (expand-file-name
 									(concat (plist-get talk :slug) ".png")
 									(expand-file-name "in-between" emacsconf-stream-asset-dir)))))
