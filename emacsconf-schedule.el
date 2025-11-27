@@ -29,16 +29,16 @@
   "List of scheduling functions.
 Each function should take the info and manipulate it as needed, returning the new info.")
 
-(defvar emacsconf-schedule-max-time 30)
+(defvar emacsconf-schedule-max-time 40)
 (defun emacsconf-schedule-allocate-at-most (info)
   "Allocate at most `emacsconf-schedule-max-time' to the talks."
   (mapcar (lambda (o)
-            (when (plist-get o :max-time)
-              (plist-put o :time
+            (plist-put o :time
                          (number-to-string
                           (min
-                           (string-to-number (plist-get o :max-time))
-                           emacsconf-max-time))))
+                           (string-to-number (or (plist-get o :time)
+                                                 (plist-get o :max-time)))
+                           emacsconf-schedule-max-time)))
             o)
           info))
 
@@ -109,6 +109,21 @@ Each function should take the info and manipulate it as needed, returning the ne
                         emacsconf-schedule-tweak-allocations)))
     (emacsconf-schedule-prepare info)))
 
+(defun emacsconf-schedule-prepare-test-schedule (start &optional info)
+  (interactive (list (org-read-date t t nil "Start time: ")))
+  (let* ((emacsconf-schedule-break-time 2)
+         (emacsconf-schedule-lunch-time 2)
+         (emacsconf-schedule-max-time 1)
+         (emacsconf-schedule-default-buffer-minutes 1)
+         (emacsconf-schedule-default-buffer-minutes-for-live-q-and-a 1)
+         (emacsconf-schedule-strategies '(emacsconf-schedule-allocate-buffer-time
+                        emacsconf-schedule-override-breaks
+                        emacsconf-schedule-allocate-buffer-time-at-most-max-time
+                        emacsconf-schedule-allocate-max-time
+                        emacsconf-schedule-allocate-at-most
+                        emacsconf-schedule-tweak-allocations)))
+    (emacsconf-schedule-prepare info)))
+
 (defun emacsconf-schedule-copy-previous-track (info)
 	"Use :set-track to update INFO."
 	(cl-loop with track = (plist-get (car info) :set-track)
@@ -124,7 +139,8 @@ Each function should take the info and manipulate it as needed, returning the ne
               (plist-put o :buffer
                          (number-to-string
                           (if (string-match "live" (or (plist-get o :q-and-a) ""))
-                              (min (string-to-number (plist-get o :max-time))
+                              (min (string-to-number (or (plist-get o :max-time)
+                                                         (plist-get o :time)))
                                    emacsconf-schedule-default-buffer-minutes-for-live-q-and-a)
                             emacsconf-schedule-default-buffer-minutes))))
             o)
@@ -741,7 +757,7 @@ Both start and end time are tested."
 
 (defun emacsconf-schedule-q-and-a-p (talk)
 	"Return non-nil if TALK has a Q&A scheduled for the event."
-	(not (string-match "after the event" (or (plist-get talk :q-and-a) ""))))
+	(not (string-match "none\\|email\\|after the event" (or (plist-get talk :qa-type) ""))))
 
 (defun emacsconf-schedule-get-time-constraint (o)
 	(when (emacsconf-schedule-q-and-a-p o)
