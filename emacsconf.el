@@ -2121,15 +2121,17 @@ With a prefix argument (\\[universal-argument]), open the general organizers not
     (call-interactively #'consult-org-heading))
    (t (call-interactively #'org-goto))))
 
+(defvar emacsconf-refresh-schedule-from-org nil "Non-nil means refresh the schedule from the organizer notebook.")
 (defun emacsconf-current-org-notebook-refresh-schedule ()
 	"Refresh info from draft schedule."
 	(interactive)
-	(save-window-excursion
-		(with-current-buffer (find-file-noselect (emacsconf-current-org-notebook-filename))
-			(save-restriction
-				(widen)
-				(goto-char (org-find-property "CUSTOM_ID" "draft-schedule"))
-				(org-babel-execute-subtree)))))
+  (when emacsconf-refresh-schedule-from-org
+	  (save-window-excursion
+		  (with-current-buffer (find-file-noselect (emacsconf-current-org-notebook-filename))
+			  (save-restriction
+				  (widen)
+				  (goto-char (org-find-property "CUSTOM_ID" "draft-schedule"))
+				  (org-babel-execute-subtree))))))
 
 (defun emacsconf-insert-availability-comment (talk)
 	(interactive (list (or (emacsconf-search-talk-info (thing-at-point 'symbol))
