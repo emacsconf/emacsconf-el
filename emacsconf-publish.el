@@ -603,7 +603,13 @@ ${categories}
 													("irc" "IRC")
 													(_ (plist-get o :qa-type)))
 												(emacsconf-surround " <" (and (member emacsconf-publishing-phase '(schedule conference))
-																											(plist-get o :qa-url)) ">" ""))
+																											(plist-get o :qa-url)) ">" "")
+												(if (string= (plist-get o :qa-type) "pad")
+														""
+													(format " Etherpad: <%s>"
+																	(plist-get o :pad-url)
+																	)
+												))
 							 (concat (or (plist-get o :video-time)
 													 (plist-get o :time)) "-min talk cancelled"))
 							:pad-info
@@ -752,8 +758,11 @@ This includes the intro note, the schedule, and talk resources."
 					"")
 				(format
 				 "[[!template text=\"\"\"%s\"\"\" start=\"%s\" video=\"%s\" id=\"subtitle\"%s]]"
-				 (replace-regexp-in-string "^#" "\\\\#"
-																	 (replace-regexp-in-string "\"" "&quot;" (elt sub 3)))
+				 (replace-regexp-in-string
+					"^#" "\\\\#"
+					(replace-regexp-in-string
+					 "*" "\\\\*"
+					 (replace-regexp-in-string "\"" "&quot;" (elt sub 3))))
 				 (concat (format-seconds "%02h:%02m:%02s" (/ (floor msecs) 1000))
 								 "." (format "%03d" (mod (floor msecs) 1000)))
 				 video-id
@@ -1239,7 +1248,9 @@ You can also get this schedule as iCalendar files: ${icals}. Importing that into
 														:time (plist-get o :time)
 														:q-and-a (plist-get o :qa-link)
 														:note (plist-get o :sched-note)
-														:pad (and emacsconf-publish-include-pads (plist-get o :pad-url))
+														:pad (and emacsconf-publish-include-pads
+																			(not (string= "pad" (plist-get o :qa-type)))
+																			(plist-get o :pad-url))
 														:startutc (format-time-string "%FT%T%z" (plist-get o :start-time) t)
 														:endutc (format-time-string "%FT%T%z" (plist-get o :end-time) t)
 														:start (format-time-string "%-l:%M" (plist-get o :start-time) emacsconf-timezone)
