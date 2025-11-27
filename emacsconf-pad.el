@@ -765,19 +765,19 @@ ${bbb-checklist}</li>")
                                         ", and \\1"
                                         (plist-get talk :speakers))
 							(emacsconf-surround " (" (plist-get talk :pronunciation) ")" "")
-              (pcase (plist-get talk :q-and-a)
+              (pcase (plist-get talk :qa-type)
                 ((or 'nil "") "")
-                ((rx "after") "\nYou can ask questions via Etherpad and IRC.\nWe'll send them to the speaker,\nand we'll post the answers on the talk page afterwards.")
-                ((rx "live")
+                ("none" "\nYou can ask questions via Etherpad and IRC.\nWe'll send them to the speaker,\nand we'll post the answers on the talk page afterwards.")
+                ("live"
 								 (if pronoun
 										 (format "\n%s will answer questions via web conference.\nYou can join using the URL from the talk page\nor ask questions through Etherpad or IRC."
 														 pronoun)
 									 "\nYou can ask questions via web conference by joining from the talk page\nor ask questions through Etherpad or IRC."))
-								((rx "pad")
+								("pad"
 								 (if pronoun
 										 (format "\n%s will answer questions via Etherpad." pronoun)
 									 "\nYou can ask questions via Etherpad."))
-								((rx "IRC")
+								("irc"
 								 (if pronoun
 										 (format "\n%s will answer questions via IRC in the #%s channel."
 														 pronoun
@@ -822,7 +822,7 @@ ${bbb-checklist}</li>")
     (setq result
           (emacsconf-replace-plist-in-string
            modified-talk
-           (format "<li><strong>%s %s (intro: %s, talk: %s, Q&A: %s) %s <a href=\"%s\">%s</a></strong><ul>%s</ul>\n</li>"
+           (format "<li><strong>%s %s (intro: %s, talk: %s, Q&A: %s) %s <a href=\"%s\">%s</a></strong><br /><ul><li>%s%s%s</li>%s</ul>\n</li>"
                    (format-time-string "%-l:%M %p" (plist-get talk :start-time) emacsconf-timezone)
                    (plist-get talk :slug)
                    (if (plist-get talk :recorded-intro) "recorded" "live")
@@ -831,7 +831,9 @@ ${bbb-checklist}</li>")
                    (plist-get talk :title)
                    (plist-get talk :absolute-url)
                    (plist-get talk :absolute-url)
-
+                   (emacsconf-surround "" (plist-get talk :speakers) "" "No speakers")
+                   (emacsconf-surround " Pron: " (plist-get talk :pronunciation) "" "")
+                   (emacsconf-surround " (" (plist-get talk :pronouns) ")" "")
                    (concat
                     (emacsconf-surround "<li><strong>" (plist-get talk :hyperlist-note) "</strong></li>" "")
 										"<li>Recorded intro: <a href=\"${media-base}${year}/backstage/${file-prefix}--intro.webm\">${media-base}${year}/backstage/${file-prefix}--intro.webm</a>"
