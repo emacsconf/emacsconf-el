@@ -1644,11 +1644,11 @@ answers without needing to listen to everything again. You can see <a href=\"htt
 				files)))
 
 (defun emacsconf-publish-public-index-for-talk (o files)
-	(format "<li><div class=\"title\"><a name=\"%s\" href=\"%s\">%s</a></div></div><div class=\"speakers\">%s</div>%s</li>%s"
+	(format "<li><div class=\"title\"><a name=\"%s\" href=\"%s\">%s</a></div></div>%s%s</li>%s"
 					(plist-get o :slug)
           (plist-get o :absolute-url)
           (plist-get o :title)
-          (plist-get o :speakers)
+          (emacsconf-surround "<div class=\"speakers\">" (plist-get o :speakers) "</div>" "")
           (emacsconf-publish-index-card
            (append (list :files
                          (seq-remove (lambda (f) (string-match "--answers" f))
