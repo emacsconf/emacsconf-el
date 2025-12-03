@@ -274,8 +274,9 @@ Pairs with `emacsconf-schedule-dump-sexp'."
      (list "Status" "Slug" "Schedule" "Time" "Buffer" "Title" "Name" "Q&A" "Availability"))
    (mapcar #'emacsconf-schedule-format-summary-row (or info (emacsconf-get-talk-info)))))
 
-(defun emacsconf-schedule-update-from-info (info)
-	(interactive (list (or emacsconf-schedule-draft (emacsconf-get-talk-info))))
+(defun emacsconf-schedule-update-from-info (&optional info)
+	(interactive)
+  (setq info (or info emacsconf-schedule-draft (emacsconf-get-talk-info)))
   (save-window-excursion
     (save-excursion
       (mapc (lambda (talk)
