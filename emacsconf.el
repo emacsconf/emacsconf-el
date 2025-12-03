@@ -2157,5 +2157,24 @@ With a prefix argument (\\[universal-argument]), open the general organizers not
     (find-file (emacsconf-latest-file (expand-file-name "../assets/intros" emacsconf-cache-dir) "^\\(intro\\|script\\).*.vtt"))
     (message "Remember to regenerate the intro videos.")))
 
+(defun emacsconf-rescheduled-talks (&optional info)
+  "See `emacsconf-schedule-save-emailed-times' and `emacsconf-mail-schedule-updates'."
+  (seq-filter
+   (lambda (o)
+     (and (plist-get o :email)
+          (plist-get o :qa-type)
+          (not (string= (plist-get o :emailed-schedule)
+                        (replace-regexp-in-string "[<>]" "" (plist-get o :scheduled))))
+          (not (string= (plist-get o :qa-type) "none"))))
+   (emacsconf-publish-prepare-for-display (emacsconf-filter-talks (or info (emacsconf-get-talk-info))))))
+
+(defun emacsconf-schedule-difference-from-emailed (talk)
+  "Return the number of minutes. Negative means earlier."
+  (let ((start (plist-get talk :start-time))
+        (emailed (org-timestamp-to-time (org-timestamp-split-range
+                                         (org-timestamp-from-string
+                                          (format "<%s>" (plist-get talk :emailed-schedule)))))))
+    (round (/ (float-time (time-subtract emailed start)) 60.0))))
+
 (provide 'emacsconf)
 ;;; emacsconf.el ends here
