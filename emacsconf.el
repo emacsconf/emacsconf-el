@@ -394,27 +394,6 @@ FILENAME specifies an extra string to add to the file prefix if needed."
 			(kill-new (string-join command " ")))
 		command))
 
-(defun emacsconf-upload-copy-scp-from-json (talk key filename)
-  "Parse PsiTransfer JSON files and make an scp command.
-This command will copy the uploaded file to the current directory.
-The file is associated with TALK. KEY identifies the file in a multi-file upload.
-FILENAME specifies an extra string to add to the file prefix if needed."
-  (interactive (let-alist (json-parse-string (buffer-string) :object-type 'alist)
-                 (list (emacsconf-complete-talk-info)
-                       .metadata.key
-                       (read-string (format "Filename: ")))))
-  (let* ((new-filename (concat (plist-get talk :file-prefix)
-                               (if (string= filename "")
-                                   filename
-                                 (concat "--" filename))
-                               "."
-                               (let-alist (json-parse-string (buffer-string) :object-type 'alist)
-                                 (file-name-extension .metadata.name))))
-         (cmd (format "scp media:%s %s"
-                      (file-name-sans-extension (tramp-file-local-name (buffer-file-name)))
-                      new-filename)))
-    (message "%s" cmd)
-    (kill-new cmd)))
 (defun emacsconf-upload-copy-from-json (talk key filename)
 	"Parse PsiTransfer JSON files and copy the uploaded file to the res directory.
 The file is associated with TALK. KEY identifies the file in a multi-file upload.
