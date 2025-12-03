@@ -884,6 +884,18 @@ Both start and end time are tested."
     (when dupes
       (list (concat "Duplicate talks: " (mapconcat 'car dupes ", "))))))
 
+(defun emacsconf-schedule-validate-videos-fit-in-time (sched &optional info)
+  "If there are prerecorded videos, make sure they fit in the time allocated."
+  (seq-keep
+   (lambda (o)
+     (when (and (plist-get o :video-time)
+                (> (string-to-number (plist-get o :video-time))
+                   (string-to-number (plist-get o :time))))
+       (format "%s: video: %s, allocated %s"
+               (plist-get o :slug)
+               (plist-get o :video-time)
+               (plist-get o :time))))
+   sched))
 (defvar emacsconf-schedule-validation-functions '(emacsconf-schedule-validate-time-constraints
 																emacsconf-schedule-validate-live-q-and-a-sessions-are-staggered
 																emacsconf-schedule-validate-all-talks-present
