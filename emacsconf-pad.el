@@ -264,9 +264,10 @@ ${next-talk-list}
     (emacsconf-pad-create-pad pad-id)
     (when (or emacsconf-pad-force-all
               (not (emacsconf-pad-modified-p pad-id))
-              (progn
-                (browse-url (emacsconf-pad-url o))
-                (y-or-n-p (format "%s might have been modified. Reset? " (plist-get o :slug)))))
+              (and (called-interactively-p)
+                   (progn
+                     (browse-url (emacsconf-pad-url o))
+                     (y-or-n-p (format "%s might have been modified. Reset? " (plist-get o :slug))))))
       (emacsconf-pad-set-html
        pad-id
        (emacsconf-pad-initial-content o))
