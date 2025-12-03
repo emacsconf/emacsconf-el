@@ -651,6 +651,7 @@ If INFO is specified, limit it to that list."
                        ;; Prep
                        (:bbb-room "ROOM")
                        (:bbb-mod-code "BBB_MOD_CODE")
+                       (:emailed-schedule "EMAILED_SCHEDULE")
                        ;; Processing
                        (:file-prefix "FILE_PREFIX")
                        (:video-file "VIDEO_FILE")
