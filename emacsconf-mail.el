@@ -800,7 +800,7 @@ ${signature}"
 
 (defvar emacsconf-mail-bcc-email "*Extra e-mail address to Bcc for delivery confirmation.")
 
-(defun emacsconf-mail-format-talk-schedule (o)
+(defun emacsconf-mail-format-talk-schedule (o &optional old-schedule)
 	"Format the schedule for O for inclusion in mail messages etc."
 	(interactive (list (emacsconf-complete-talk)))
 	(when (stringp o)
@@ -815,6 +815,8 @@ ${signature}"
 					 (plist-get o :start-time)
 					 (plist-get o :timezone)
 					 "%b %-e %a %-I:%M %#p %Z"))))
+    (when old-schedule
+      (setq result (format "%s\n(Previous: %s)" result old-schedule)))
 		(when (called-interactively-p 'any)
 			(insert result))
 		result))
@@ -1619,6 +1621,47 @@ ${signature}"))
 				(emacsconf-mail-checkin-instructions-for-nonattending-speakers group)))
 		(dolist (group (emacsconf-mail-groups (assoc-default t by-attendance)))
 			(emacsconf-mail-checkin-instructions-for-attending-speakers group))))
+
+(defun emacsconf-mail-schedule-updates ()
+  "E-mail general schedule updates."
+  (interactive)
+  (let* ((log-note (concat "sent schedule as of " (format-time-string "%Y-%m-%d")))
+         (talks (emacsconf-filter-talks-by-logbook
+                 log-note
+                 (emacsconf-rescheduled-talks)))
+         (groups (emacsconf-mail-groups talks)))
+    (dolist (group groups)
+      (emacsconf-mail-prepare
+	     (list
+		    :subject "${conf-name} ${year}: Schedule update as of ${date}"
+		    :reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+		    :mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+		    :log-note log-note
+		    :body
+		    "Hello, ${speakers-short}!
+
+We tweaked the schedule a bit to adapt to some cancellations. Your new schedule is:
+
+${schedule}
+
+Let us know if you need to reschedule!
+
+${signature}")
+	     (plist-get (car (cdr group)) :email)
+	     (list
+		    :year emacsconf-year
+		    :base-url emacsconf-base-url
+		    :conf-name emacsconf-name
+		    :user-email user-mail-address
+        :date (format-time-string "%Y-%m-%d")
+		    :email (plist-get (car (cdr group)) :email)
+		    :speakers-short (plist-get (car (cdr group)) :speakers-short)
+		    :signature user-full-name
+		    :schedule
+        (mapconcat (lambda (talk)
+		                 (emacsconf-indent-string (emacsconf-mail-format-talk-schedule talk (plist-get talk :emailed-schedule)) 2))
+                   (cdr group)
+                   "\n\n"))))))
 
 (defun emacsconf-mail-interim-schedule-update (talk)
 	"E-mail a quick update about the schedule."

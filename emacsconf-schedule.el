@@ -288,16 +288,16 @@ Pairs with `emacsconf-schedule-dump-sexp'."
 
 (defun emacsconf-schedule-save-emailed-times (info &optional field force)
 	(interactive (list (or emacsconf-schedule-draft (emacsconf-get-talk-info))
-										 (read-string "Field: ") current-prefix-arg))
+										 nil current-prefix-arg))
+  (setq field (or field "EMAILED_SCHEDULE"))
 	(save-window-excursion
     (save-excursion
       (mapc (lambda (talk)
               (emacsconf-go-to-talk (plist-get talk :slug))
 							(when (and (plist-get talk :scheduled)
-												 (or force (null (org-entry-get (point)
-																												(or field "ORIGINAL_SCHEDULE")))))
+												 (or force (null (org-entry-get (point) field))))
 								(org-entry-put (point)
-															 (or field "ORIGINAL_SCHEDULE")
+                               field
 															 (replace-regexp-in-string "[<>]" "" (plist-get talk :scheduled)))))
             (emacsconf-filter-talks info)))))
 
