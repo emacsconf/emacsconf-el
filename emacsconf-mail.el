@@ -1633,14 +1633,15 @@ ${signature}"))
     (dolist (group groups)
       (emacsconf-mail-prepare
 	     (list
-		    :subject "${conf-name} ${year}: Schedule update as of ${date}"
+		    :subject "${conf-name} ${year}: Schedule update as of ${date}: ${summary}"
 		    :reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
 		    :mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
 		    :log-note log-note
 		    :body
 		    "Hello, ${speakers-short}!
 
-We tweaked the schedule a bit to adapt to some cancellations. Your new schedule is:
+We tweaked the schedule a bit so that it's based on the current video lengths.
+Your new schedule is:
 
 ${schedule}
 
@@ -1657,6 +1658,20 @@ ${signature}")
 		    :email (plist-get (car (cdr group)) :email)
 		    :speakers-short (plist-get (car (cdr group)) :speakers-short)
 		    :signature user-full-name
+        :summary
+        (mapconcat
+         (lambda (talk)
+            (let ((minutes (emacsconf-schedule-difference-from-emailed talk)))
+              (if (> (abs minutes) 0)
+			            (format "%s: %s min %s"
+                          (plist-get talk :slug)
+                          (abs minutes)
+                          (if (< minutes 0)
+                              "earlier"
+                            "later"))
+                "same time, different length")))
+         (cdr group)
+         "; ")
 		    :schedule
         (mapconcat (lambda (talk)
 		                 (emacsconf-indent-string (emacsconf-mail-format-talk-schedule talk (plist-get talk :emailed-schedule)) 2))
@@ -1675,13 +1690,13 @@ ${signature}")
 		:body
 		"Hello, ${speakers-short}!
 
-We tweaked the schedule a bit. Your new schedule is:
+    We tweaked the schedule a bit. Your new schedule is:
 
-${schedule}
+    ${schedule}
 
-Let us know if you need to reschedule!
+    Let us know if you need to reschedule!
 
-${signature}")
+    ${signature}")
 	 (plist-get talk :email)
 	 (list
 		:year emacsconf-year

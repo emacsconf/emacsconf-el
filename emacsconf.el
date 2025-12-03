@@ -2151,7 +2151,8 @@ With a prefix argument (\\[universal-argument]), open this year's notebook."
           (plist-get o :qa-type)
           (not (string= (plist-get o :emailed-schedule)
                         (replace-regexp-in-string "[<>]" "" (plist-get o :scheduled))))
-          (not (string= (plist-get o :qa-type) "none"))))
+          (not (string= (plist-get o :qa-type) "none"))
+          (not (= (emacsconf-schedule-difference-from-emailed o) 0))))
    (emacsconf-publish-prepare-for-display (emacsconf-filter-talks (or info (emacsconf-get-talk-info))))))
 
 (defun emacsconf-schedule-difference-from-emailed (talk)
