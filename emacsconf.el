@@ -2121,6 +2121,12 @@ With a prefix argument (\\[universal-argument]), open the general organizers not
     (call-interactively #'consult-org-heading))
    (t (call-interactively #'org-goto))))
 
+(defun emacsconf-main-org-notebook-heading (&optional other)
+	"Open the main public organizers notebook and jump to a heading.
+With a prefix argument (\\[universal-argument]), open this year's notebook."
+	(interactive (list current-prefix-arg))
+  (emacsconf-current-org-notebook-heading (not other)))
+
 (defvar emacsconf-refresh-schedule-from-org nil "Non-nil means refresh the schedule from the organizer notebook.")
 (defun emacsconf-current-org-notebook-refresh-schedule ()
 	"Refresh info from draft schedule."
