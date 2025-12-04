@@ -1749,7 +1749,7 @@ answers without needing to listen to everything again. You can see <a href=\"htt
 										""))
 				"<html><head><meta charset=\"utf-8\" /></head><link rel=\"stylesheet\" href=\"/style.css\" /><body>
 <h1>${conf-name} ${year}</h1>
-<div class=\"m3u\"><a href=\"index.m3u\">M3U playlist for playing in MPV and other players</a></div>
+<div class=\"m3u\"><a href=\"index.m3u\">M3U playlist for playing in MPV and other players</a> | <a href=\"schedules/\">Schedules</a></div>
 <div>Quick links: ${quick-links}</div>
 <ol class=\"videos\">${videos}</ol>
 ${include}
