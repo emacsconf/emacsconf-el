@@ -1310,6 +1310,48 @@ people's talks too."))
 						(or (assoc-default "NAME" volunteer)
 								(assoc-default "NAME_SHORT" volunteer)))))))
 
+(defun emacsconf-mail-last-minute-activation ()
+  "E-mail backstage info to captioning volunteers."
+	(interactive)
+	(dolist (volunteer (emacsconf-get-volunteer-info "lastmin"))
+    (emacsconf-mail-prepare
+     (list
+      :subject "${conf-name} ${conf-year}: Finishing touches! =)"
+		  :reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+		  :mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+      :body
+      "Hello, ${name-short}!
+
+Home stretch! ${conf-name} ${conf-year} is coming up this weekend.
+It looks like we're in pretty good shape, and I'm excited about how things will go.
+
+If you happen to find yourself with some extra time, we'd love it if you
+could check out the backstage area for whichever talks you're interested
+in. Here's the URL:
+
+   ${backstage-url}
+
+You could watch a talk or two (or more!), see if there are any
+video/audio/caption glitches, add a couple of questions or notes to the
+Etherpad to get the ball rolling... Whatever you think might help make
+${conf-name} smoother and more fun!
+
+No worries if you're busy. =)
+
+Thanks for being part of ${conf-name} ${conf-year}!
+
+${user-signature}")
+     (assoc-default "EMAIL" volunteer)
+     (list
+      :backstage-url (emacsconf-backstage-url)
+      :conf-name emacsconf-name
+      :conf-year emacsconf-year
+      :email (assoc-default "EMAIL" volunteer)
+      :user-email user-mail-address
+      :user-signature user-full-name
+      :name-short (or (assoc-default "NAME" volunteer)
+								      (assoc-default "NAME_SHORT" volunteer))))))
+
 (defun emacsconf-mail-backstage-info-to-speakers-and-captioners ()
   (interactive)
   (let ((template (emacsconf-mail-merge-get-template "backstage"))
