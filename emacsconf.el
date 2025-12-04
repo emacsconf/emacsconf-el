@@ -2161,7 +2161,7 @@ With a prefix argument (\\[universal-argument]), open this year's notebook."
         (emailed (org-timestamp-to-time (org-timestamp-split-range
                                          (org-timestamp-from-string
                                           (format "<%s>" (plist-get talk :emailed-schedule)))))))
-    (round (/ (float-time (time-subtract emailed start)) 60.0))))
+    (round (/ (float-time (time-subtract start emailed)) 60.0))))
 
 (provide 'emacsconf)
 ;;; emacsconf.el ends here
