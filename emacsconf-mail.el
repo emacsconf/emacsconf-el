@@ -1631,14 +1631,19 @@ ${signature}"))
                  (emacsconf-rescheduled-talks)))
          (groups (emacsconf-mail-groups talks)))
     (dolist (group groups)
-      (emacsconf-mail-prepare
-	     (list
-		    :subject "${conf-name} ${year}: Schedule update as of ${date}: ${summary}"
-		    :reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
-		    :mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
-		    :log-note log-note
-		    :body
-		    "Hello, ${speakers-short}!
+      (emacsconf-mail-interim-schedule-update group log-note))))
+
+(defun emacsconf-mail-interim-schedule-update (group &optional log-note)
+	"E-mail a quick update about the schedule."
+	(interactive (list (emacsconf-complete-talk-info)))
+  (emacsconf-mail-prepare
+	 (list
+		:subject "${conf-name} ${year}: Schedule update as of ${date}: ${summary}"
+		:reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+		:mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+		:log-note log-note
+		:body
+		"Hello, ${speakers-short}!
 
 We tweaked the schedule a bit so that it's based on the current video lengths.
 Your new schedule is:
@@ -1648,71 +1653,44 @@ ${schedule}
 Let us know if you need to reschedule!
 
 ${signature}")
-	     (plist-get (car (cdr group)) :email)
-	     (list
-		    :year emacsconf-year
-		    :base-url emacsconf-base-url
-		    :conf-name emacsconf-name
-		    :user-email user-mail-address
-        :date (format-time-string "%Y-%m-%d")
-		    :email (plist-get (car (cdr group)) :email)
-		    :speakers-short (plist-get (car (cdr group)) :speakers-short)
-		    :signature user-full-name
-        :summary
-        (mapconcat
-         (lambda (talk)
-            (let ((minutes (emacsconf-schedule-difference-from-emailed talk)))
-              (if (> (abs minutes) 0)
-			            (format "%s: %s min %s"
-                          (plist-get talk :slug)
-                          (abs minutes)
-                          (if (< minutes 0)
-                              "earlier"
-                            "later"))
-                "same time, different length")))
-         (cdr group)
-         "; ")
-		    :schedule
-        (mapconcat (lambda (talk)
-		                 (emacsconf-indent-string (emacsconf-mail-format-talk-schedule talk (plist-get talk :emailed-schedule)) 2))
-                   (cdr group)
-                   "\n\n"))))))
-
-(defun emacsconf-mail-interim-schedule-update (talk)
-	"E-mail a quick update about the schedule."
-	(interactive (list (emacsconf-complete-talk-info)))
-	(emacsconf-mail-prepare
-	 (list
-		:subject "${conf-name} ${year}: Schedule update ${sched-one-line}"
-		:reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
-		:mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
-		:log-note "sent updated schedule"
-		:body
-		"Hello, ${speakers-short}!
-
-    We tweaked the schedule a bit. Your new schedule is:
-
-    ${schedule}
-
-    Let us know if you need to reschedule!
-
-    ${signature}")
-	 (plist-get talk :email)
+   (or (plist-get group :email)
+	     (plist-get (car (cdr group)) :email))
 	 (list
 		:year emacsconf-year
 		:base-url emacsconf-base-url
 		:conf-name emacsconf-name
 		:user-email user-mail-address
-		:email (plist-get talk :email)
-		:speakers-short (plist-get talk :speakers-short)
+    :date (format-time-string "%Y-%m-%d")
+		:email (or (plist-get group :email)
+	             (plist-get (car (cdr group)) :email))
+		:speakers-short
+    (or
+     (plist-get group :speakers-short)
+     (plist-get (car (cdr group)) :speakers-short))
 		:signature user-full-name
+    :summary
+    (mapconcat
+     (lambda (talk)
+       (let ((minutes (emacsconf-schedule-difference-from-emailed talk)))
+         (if (> (abs minutes) 0)
+			       (format "%s: %s min %s"
+                     (plist-get talk :slug)
+                     (abs minutes)
+                     (if (< minutes 0)
+                         "earlier"
+                       "later"))
+           "same time, different length")))
+     (if (plist-get group :slug)
+         (list group)
+       (cdr group))
+     "; ")
 		:schedule
-		(emacsconf-indent-string (emacsconf-mail-format-talk-schedule talk) 2)
-		:sched-one-line
-		(emacsconf-timezone-strings-combined
-		 (plist-get talk :start-time)
-		 (plist-get talk :timezone)
-		 "%b %-e %a %-I:%M %#p %Z"))))
+    (mapconcat (lambda (talk)
+		             (emacsconf-indent-string (emacsconf-mail-format-talk-schedule talk (plist-get talk :emailed-schedule)) 2))
+               (if (plist-get group :slug)
+                   (list group)
+                 (cdr group))
+               "\n\n"))))
 
 (defun emacsconf-mail-schedule-update ()
 	"E-mail day-of schedule updates"
