@@ -2192,23 +2192,20 @@ This video is available under the terms of the Creative Commons Attribution-Shar
 	(catch 'done
 		(while t
 			(let ((talk (seq-find (lambda (o)
-															(and (member (plist-get o :status) '("TO_STREAM" "TO_CHECK"))
-																		(not (plist-get o :youtube))
-																		(emacsconf-talk-file o "--main.webm")))
-														 (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))
+															(and (member (plist-get o :status) '("TO_STREAM" "TO_CHECK" "PLAYING"))
+																	 (not (plist-get o :youtube-url))
+																	 (emacsconf-talk-file o "--main.webm")))
+														(emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))
 				(unless talk
 					(message "All done so far.")
 					(throw 'done t))
 				(kill-new (emacsconf-talk-file talk "--main.webm"))
-				(message "Video: %s - press any key" (emacsconf-talk-file talk "--main.webm"))
-				(when (eq (read-char) ?q) (throw 'done t))
+				(y-or-n-p (format "Video: %s - create video and upload this filename. Done?" (emacsconf-talk-file talk "--main.webm")))
 				(kill-new (emacsconf-publish-video-description talk t))
-				(message "Copied description - press any key")
-				(when (eq (read-char) ?q) (throw 'done t))
+				(y-or-n-p "Copied description. Paste into description, move first line to title, add to playlist. Done?")
 				(when (emacsconf-talk-file talk "--main.vtt")
 					(kill-new (emacsconf-talk-file talk "--main.vtt"))
-					(message "Captions: %s - press any key" (emacsconf-talk-file talk "--main.vtt"))
-					(when (eq (read-char) ?q) (throw 'done t)))
+					(y-or-n-p (format "Captions: %s. Add to video elements. Done?" (emacsconf-talk-file talk "--main.vtt"))))
 				(emacsconf-set-property-from-slug
 				 (plist-get talk :slug)
 				 "YOUTUBE_URL"
