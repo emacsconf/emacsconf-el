@@ -103,6 +103,11 @@
   :type 'file
   :group 'emacsconf)
 
+(defcustom emacsconf-fallback-email "emacsconf-org-private@gnu.org"
+  "E-mail for public wiki pages if the speaker doesn't have a public email address."
+  :type 'string
+  :group 'emacsconf)
+
 (defcustom emacsconf-upcoming-file nil
   "Path to the Org file with upcoming talks."
   :type 'file
@@ -842,7 +847,8 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
     emacsconf-add-timezone-conversions
     emacsconf-add-speakers-with-pronouns
     emacsconf-add-live-info
-		emacsconf-add-video-info)
+		emacsconf-add-video-info
+    emacsconf-add-media-info)
 	"Functions to collect information.")
 
 (defun emacsconf-add-speakers-with-pronouns (o)
@@ -900,6 +906,15 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
 											 (match-string 1 (plist-get o (intern (concat ":" field "-url")))) )))
 				(list "youtube" "qa-youtube" "toobnix" "qa-toobnix"))
 	o)
+
+(defun emacsconf-add-media-info (o)
+  (plist-put o
+             :video-url (format "%s%s/%s--main.webm" emacsconf-media-base-url emacsconf-year (plist-get o :file-prefix)))
+  (plist-put o
+             :captions-url (format "%s%s/%s--main.vtt" emacsconf-media-base-url emacsconf-year (plist-get o :file-prefix)))
+  (plist-put o
+             :audio-url (format "%s%s/%s--main.opus" emacsconf-media-base-url emacsconf-year (plist-get o :file-prefix)))
+  o)
 
 (defun emacsconf-add-live-info (o)
   (plist-put o :absolute-url (concat emacsconf-base-url (plist-get o :url)))

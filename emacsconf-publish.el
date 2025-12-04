@@ -204,12 +204,6 @@
 				  (plist-get track :watch)
 				  "web-based player")
 			   "\n"
-         (emacsconf-surround "- Etherpad: " (plist-get talk :pad-url) "\n" "")
-         (emacsconf-surround "- Chat: "
-													   (org-link-make-string
-														  (plist-get talk :webchat-url)
-														  (concat "#" (plist-get talk :channel)))
-													   "\n" "")
          (emacsconf-surround "- Q&A: "
 													   (if (plist-get talk :qa-url)
 															   (org-make-link-string
@@ -217,6 +211,41 @@
 																  (plist-get talk :qa-info))
 														   (plist-get talk :qa-info))
 													   "\n" "")
+         (emacsconf-surround "- Etherpad: " (plist-get talk :pad-url) "\n" "")
+         (emacsconf-surround "  - Text version (no JS): " (plist-get talk :pad-url) "/export/txt\n" "")
+         (emacsconf-surround "  - HTML version (no JS): " (plist-get talk :pad-url) "/export/html\n" "")
+         (emacsconf-surround "- Chat: "
+													   (org-link-make-string
+														  (plist-get talk :webchat-url)
+														  (concat "#" (plist-get talk :channel)))
+													   "\n" "")
+         "- " (org-link-make-string
+               (plist-get talk :video-url)
+               (if (plist-get talk :video-time)
+
+                   "Talk recording (posted soon after the talk starts)"
+                 "Recording for live talk (posted in a week or two)")) "\n"
+         "- "
+         (org-link-make-string
+          (plist-get talk :captions-url)
+          (if (plist-get talk :video-time)
+              "Captions (posted soon after the talk starts)"
+            "Captions for live talk (posted in a week or two)"))
+         "\n"
+         "- Email for questions: "
+         (let ((email (or (plist-get talk :public-email)
+                          emacsconf-fallback-email)))
+           (org-link-make-string
+            (concat "mailto:"
+                    email
+                    "?body=&subject="
+                    (url-hexify-string
+                     (format "%s %s: %s"
+                             emacsconf-name
+                             emacsconf-year
+                             (plist-get talk :title))))
+            email))
+         "\n"
          (emacsconf-surround "\n" (plist-get talk :intro-note) "\n" "")
 			   (emacsconf-surround "\nDescription:\n\n"
 													   (when (plist-get talk :org-description)
@@ -686,7 +715,7 @@ ${alternate-apac-info}\n")))
 																 (and (string= (plist-get talk :public-email) "t")
 																			(plist-get talk :email))
 																 (plist-get talk :public-email)
-																 "emacsconf-org-private@gnu.org"))))
+																 emacsconf-fallback-email))))
 
 (defun emacsconf-publish-captions-in-wiki (talk)
   "Copy the captions file."
