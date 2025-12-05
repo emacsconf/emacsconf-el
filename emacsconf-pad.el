@@ -190,7 +190,7 @@ You can find it in $ETHERPAD_PATH/APIKEY.txt"
                  :questions
                  (string-join (make-list 6 "<li>Q: <ul><li>A: </li></ul></li>"))
                  :conf-pad-url
-                 (concat "https://pad.emacsconf.org/" emacsconf-year)
+                 (concat "https://pad.emacsconf.org/emacsconf")
                  :irc-nick-details
                  (if (plist-get o :irc)
                      (concat "Speaker nick: " (plist-get o :irc) " - ")
