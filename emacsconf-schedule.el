@@ -288,8 +288,7 @@ Pairs with `emacsconf-schedule-dump-sexp'."
 			(setq emacsconf-schedule-draft nil))))
 
 (defun emacsconf-schedule-save-emailed-times (info &optional field)
-	(interactive (list (or emacsconf-schedule-draft (emacsconf-get-talk-info))
-										 nil current-prefix-arg))
+	(interactive (list (or emacsconf-schedule-draft (emacsconf-get-talk-info))))
   (setq field (or field "EMAILED_SCHEDULE"))
 	(save-window-excursion
     (save-excursion
