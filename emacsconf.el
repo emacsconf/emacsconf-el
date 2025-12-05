@@ -73,7 +73,7 @@
 (defcustom emacsconf-base-url "https://emacsconf.org/" "Includes trailing slash"
   :group 'emacsconf
   :type 'string)
-(defcustom emacsconf-publishing-phase 'resources
+(defcustom emacsconf-publishing-phase 'conference
   "Controls what information to include.
 'program - don't include times
 'schedule - include times; use this leading up to the conference
@@ -89,7 +89,7 @@
           (const :tag "Harvest: Extracting info" conference)
           (const :tag "Resources: Don't include status, publish all Q&A" resources)))
 
-(defcustom emacsconf-backstage-phase 'harvest
+(defcustom emacsconf-backstage-phase 'prerec
 	"Contros what information to include backstage.
 'prerec - focus on captioning
 'harvest - focus on Q&A."
@@ -97,6 +97,10 @@
 	:type '(choice
 					(const tag "Prerec" 'prerec)
 					(const tag "Q&A harvesting" 'harvest)))
+
+(defcustom emacsconf-publish-include-pads  t "When non-nil, include Etherpad info."
+  :group 'emacsconf
+  :type 'boolean)
 
 (defcustom emacsconf-org-file nil
   "Path to the Org file with emacsconference information."
@@ -1662,7 +1666,8 @@ user_id = User.find_by_email(\"emacsconf@sachachua.com\").id"
 																		  (cdr group))
                               ", ")))
 				      (emacsconf-mail-groups (emacsconf-active-talks (emacsconf-get-talk-info)))
-				      "")))
+				      ""))
+  (message "Copied. Run it inside the greenlight-v3 rails console."))
 
 (defun emacsconf-load-rooms (string)
 	"Split STRING and load them as ROOM properties.
