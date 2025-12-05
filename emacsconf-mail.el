@@ -1734,19 +1734,17 @@ ${signature}")
                  (cdr group))
                "\n\n"))))
 
-(defun emacsconf-mail-schedule-update ()
+(defun emacsconf-mail-check-in-update (talk-or-group)
 	"E-mail day-of schedule updates"
-	(interactive)
+	(interactive (list (emacsconf-complete-talk-info)))
 	(let ((groups
-				 (emacsconf-mail-groups
-					(seq-remove (lambda (talk)
-												(string= (replace-regexp-in-string "[<>]" "" (plist-get talk :scheduled))
-																 (plist-get talk :checkin-schedule-sent)))
-											(emacsconf-publish-prepare-for-display (emacsconf-get-talk-info))))))
+         (emacsconf-mail-groups (if (plist-get talk-or-group :slug)
+                      (list talk-or-group)
+                    talk-or-group))))
 		(dolist (group groups)
 			(emacsconf-mail-prepare
 			 (list
-				:subject "${conf-name} ${year}: Schedule update - new check-in time ${checkin-time}"
+				:subject "${conf-name} ${year}: SCHEDULE UPDATE - new check-in time ${checkin-time}"
 				:reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
 				:mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
 				:log-note "sent updated schedule"
@@ -1882,8 +1880,8 @@ ${signature}")
 		:waiting (let ((waiting (seq-remove (lambda (o) (plist-get o :video-file)) (cdr group))))
 							 (cond
 								((= (length waiting) 0) "")
-								((= (length waiting) 1) "If you happen to be able to get a pre-recorded video together in the next few days, I think we might be able to still manage that.${fill}\n\n")
-								(t "If you happen to be able to get your pre-recorded videos together in the next few days, I think we might be able to still manage them.${fill}\n\n")))
+								((= (length waiting) 1) "If you happen to be able to get a pre-recorded video together, I think we might be able to still manage that.${fill}\n\n")
+								(t "If you happen to be able to get your pre-recorded videos together, I think we might be able to still manage them.${fill}\n\n")))
 		:signature user-full-name
 		:bbb-tech-check-note
 		(if (seq-find (lambda (o)
@@ -1891,7 +1889,7 @@ ${signature}")
 												(null (plist-get o :video-file))
 												(string= (plist-get o :qa-type) "live")))
 									(cdr group))
-				"\n\nWe upgraded BigBlueButton this year, so it might be a good idea to do a tech check to make sure I didn't mess anything up. =) Feel free to connect to your BigBlueButton room before the conference using the URL and moderator code above so that you can try your audio, screensharing (optional), webcam (optional), etc.${wrap}"
+				"\n\nIt might be a good idea to do a tech check to make sure I didn't mess up BigBlueButton. =) Feel free to connect to your BigBlueButton room before the conference using the URL and moderator code above so that you can try your audio, screensharing (optional), webcam (optional), etc. The server is up at the moment and should continue to be up until the conference, so you can do your tech check early if you want.${wrap}"
 			"")
 		:checkin-info
 		(mapconcat
@@ -1910,21 +1908,21 @@ ${signature}")
 											 ((or (plist-get o :live) (null (plist-get o :video-file)))	;; intentionally a live talk
 												(unless (plist-get o :bbb-room) (error "No BBB room for %s" (plist-get o :slug)))
 												(unless (plist-get o :bbb-mod-code) (error "No BBB mod code for %s" (plist-get o :slug)))
-												(concat "Talk & Q&A BigBlueButton room: "
-																(emacsconf-backstage-url (plist-get o :bbb-backstage))
-																" (moderator code: "
-																(plist-get o :bbb-mod-code)
-																")"))
+												(concat
+                         "Use the moderator code "
+												 (plist-get o :bbb-mod-code)
+												 "\n    for this talk & Q&A BigBlueButton room: "
+												 (emacsconf-backstage-url (plist-get o :bbb-backstage))))
                        ((string= (plist-get o :qa-type) "none")
 												"Q&A: After the event; we'll collect the questions and e-mail them to you")
 											 ((string= (plist-get o :qa-type) "live")
 												(unless (plist-get o :bbb-room) (error "No BBB room for %s" (plist-get o :slug)))
 												(unless (plist-get o :bbb-mod-code) (error "No BBB mod code for %s" (plist-get o :slug)))
-												(concat "Q&A BigBlueButton room: "
-																(emacsconf-backstage-url (plist-get o :bbb-backstage))
-																" (moderator code: "
-																(plist-get o :bbb-mod-code)
-																")"))
+                        (concat
+                         "Use the moderator code "
+												 (plist-get o :bbb-mod-code)
+												 "\n    for this Q&A BigBlueButton room: "
+												 (emacsconf-backstage-url (plist-get o :bbb-backstage))))
 											 ((string= (plist-get o :qa-type) "irc")
 												(concat "Q&A: On IRC: #" (plist-get o :channel) " ( " (plist-get o :webchat-url) " )"))
 											 ((string= (plist-get o :qa-type) "pad")
