@@ -246,6 +246,25 @@
                              (plist-get talk :title))))
             email))
          "\n"
+         (let ((other-files
+                (seq-remove (lambda (o)
+                              (string-match "--main\\.\\(vtt\\|webm\\)"))
+                            (emacsconf-publish-filter-public-files talk))))
+           (if other-files
+               (concat "- Other files:\n"
+                       (mapconcat
+                        (lambda (file)
+                          (concat "  - "
+                                  (org-link-make-string
+                                   (format "%s%s/%s"
+                                           emacsconf-media-base-url
+                                           (file-name-nondirectory file))
+                                   (replace-regexp-in-string
+                                    (concat "^" (regexp-quote (plist-get talk :file-prefix))) ""
+                                    (file-name-nondirectory file)))))
+                        other-files "\n")
+                       "\n")
+             ""))
          (emacsconf-surround "\n" (plist-get talk :intro-note) "\n" "")
 			   (emacsconf-surround "\nDescription:\n\n"
 													   (when (plist-get talk :org-description)
@@ -629,8 +648,6 @@ ${categories}
     (format "<a href=\"%s\">#%s</a>"
 						(plist-get track :webchat-url)
 						(plist-get track :channel))))
-
-(defvar emacsconf-publish-include-pads nil "When non-nil, include Etherpad info.")
 
 (defun emacsconf-publish-format-talk-schedule-info (o)
 	"Format schedule information for O."
@@ -1860,6 +1877,17 @@ ${include}
 (defun emacsconf-publish-link-file-formats (file-prefix)
   (string-join (emacsconf-publish-link-file-formats-as-list file-prefix) " "))
 
+(defun emacsconf-publish-file-description (talk file)
+  (let ((cache-file (expand-file-name (file-name-nondirectory file) emacsconf-cache-dir)))
+    (concat
+     (replace-regexp-in-string (concat "^" (regexp-quote (plist-get talk :file-prefix))) "" (file-name-nondirectory file))
+     (if
+         (and
+          (file-exists-p cache-file)
+					(> (file-attribute-size (file-attributes cache-file)) 1000000))
+				 (format " (%sB)" (file-size-human-readable (file-attribute-size (file-attributes cache-file))))
+			 ""))))
+
 (defun emacsconf-publish-link-file-formats-as-list (talk)
 	(seq-map
 	 (lambda (file)
@@ -2187,7 +2215,26 @@ This video is available under the terms of the Creative Commons Attribution-Shar
     (if copy (kill-new result))
     result))
 
-(defun emacsconf-publish-youtube-step-through-publishing ()
+(defun emacsconf-publish-youtube-step-through-publishing-talk (talk)
+  (interactive (list (emacsconf-complete-talk-info
+                      (seq-remove
+                       (lambda (talk)
+                         (or (not (emacsconf-talk-file talk "--main.webm"))
+                             (plist-get talk :youtube-url)))
+                       (emacsconf-get-talk-info)))))
+  (kill-new (emacsconf-talk-file talk "--main.webm"))
+  (y-or-n-p (format "Video: %s - create video and upload this filename. Done?" (emacsconf-talk-file talk "--main.webm")))
+  (kill-new (emacsconf-publish-video-description talk t))
+  (y-or-n-p "Copied description. Paste into description, move first line to title, add to playlist. Done?")
+  (when (emacsconf-talk-file talk "--main.vtt")
+    (kill-new (emacsconf-talk-file talk "--main.vtt"))
+    (y-or-n-p (format "Captions: %s. Add to video elements. Done?" (emacsconf-talk-file talk "--main.vtt"))))
+  (emacsconf-set-property-from-slug
+   (plist-get talk :slug)
+   "YOUTUBE_URL"
+   (read-string (format "%s - YouTube URL: " (plist-get talk :scheduled)))))
+
+(defun emacsconf-publish-youtube-step-through-publishing-all ()
 	(interactive)
 	(catch 'done
 		(while t
@@ -2199,43 +2246,42 @@ This video is available under the terms of the Creative Commons Attribution-Shar
 				(unless talk
 					(message "All done so far.")
 					(throw 'done t))
-				(kill-new (emacsconf-talk-file talk "--main.webm"))
-				(y-or-n-p (format "Video: %s - create video and upload this filename. Done?" (emacsconf-talk-file talk "--main.webm")))
-				(kill-new (emacsconf-publish-video-description talk t))
-				(y-or-n-p "Copied description. Paste into description, move first line to title, add to playlist. Done?")
-				(when (emacsconf-talk-file talk "--main.vtt")
-					(kill-new (emacsconf-talk-file talk "--main.vtt"))
-					(y-or-n-p (format "Captions: %s. Add to video elements. Done?" (emacsconf-talk-file talk "--main.vtt"))))
-				(emacsconf-set-property-from-slug
-				 (plist-get talk :slug)
-				 "YOUTUBE_URL"
-				 (read-string (format "%s - YouTube URL: " (plist-get talk :scheduled))))))))
+				(emacsconf-youtube-step-through-publishing talk)))))
 
-(defun emacsconf-publish-toobnix-step-through-publishing ()
+(defun emacsconf-publish-toobnix-step-through-publishing-talk (talk)
+  (interactive (list (emacsconf-complete-talk-info
+                      (seq-remove
+                       (lambda (talk)
+                         (or (not (emacsconf-talk-file talk "--main.webm"))
+                             (plist-get talk :toobnix-url)))
+                       (emacsconf-get-talk-info)))))
+  (kill-new (emacsconf-talk-file talk "--main.webm"))
+  (y-or-n-p
+   (format "Video: %s - create video and upload this filename. Done?"
+           (emacsconf-talk-file talk "--main.webm")))
+  (kill-new (emacsconf-publish-video-description talk t))
+  (y-or-n-p "Copied description. Paste into description, move first line to title, add to playlist. Done?")
+  (when (emacsconf-talk-file talk "--main.vtt")
+    (kill-new (emacsconf-talk-file talk "--main.vtt"))
+    (y-or-n-p (format "Captions: %s. Add to video elements. Done?"
+                      (emacsconf-talk-file talk "--main.vtt"))))
+  (emacsconf-set-property-from-slug
+   (plist-get talk :slug)
+   "TOOBNIX_URL"
+   (read-string (format "%s - Toobnix URL: " (plist-get talk :scheduled)))))
+
+(defun emacsconf-publish-toobnix-step-through-publishing-all ()
 	(interactive)
 	(catch 'done
 		(while t
 			(let ((talk (seq-find (lambda (o)
 															(and (not (plist-get o :toobnix-url))
 																	 (emacsconf-talk-file o "--main.webm")))
-														 (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))
+														(emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))
 				(unless talk
 					(message "All done so far.")
 					(throw 'done t))
-				(kill-new (emacsconf-talk-file talk "--main.webm"))
-				(message "Video: %s - press any key" (emacsconf-talk-file talk "--main.webm"))
-				(when (eq (read-char) ?q) (throw 'done t))
-				(kill-new (emacsconf-publish-video-description talk t))
-				(message "Copied description - press any key")
-				(when (eq (read-char) ?q) (throw 'done t))
-				(when (emacsconf-talk-file talk "--main.vtt")
-					(kill-new (emacsconf-talk-file talk "--main.vtt"))
-					(message "Captions: %s - press any key" (emacsconf-talk-file talk "--main.vtt"))
-					(when (eq (read-char) ?q) (throw 'done t)))
-				(emacsconf-set-property-from-slug
-				 (plist-get talk :slug)
-				 "YOUTUBE"
-				 (read-string (format "%s - Toobnix URL: " (plist-get talk :scheduled))))))))
+        (emacsconf-toobnix-step-through-publishing-talk talk)))))
 
 
 ;; (emacsconf-publish-video-description (emacsconf-find-talk-info "async") t)
