@@ -1736,7 +1736,8 @@ answers without needing to listen to everything again. You can see <a href=\"htt
 																								"\">Play recording from BigBlueButton</a></li>" ""))))
 									 o))
           (if (or (emacsconf-talk-file o "--answers.webm")
-									(emacsconf-talk-file o "--answers.opus"))
+									(emacsconf-talk-file o "--answers.opus")
+                  (emacsconf-get-preferred-video (concat (plist-get o :file-prefix) "--answers")))
               (format "<li><div class=\"title\"><a href=\"%s\">Q&amp;A for %s</a></div>%s</li>"
 											(plist-get o :absolute-url)
                       (plist-get o :title)
@@ -2326,8 +2327,9 @@ This video is available under the terms of the Creative Commons Attribution-Shar
     (emacsconf-with-talk-heading talk
       (let* ((video-file-name (emacsconf-get-preferred-video (plist-get talk :file-prefix)))
              (video-file (and video-file-name (expand-file-name video-file-name emacsconf-cache-dir)))
-						 (qa-file (or (emacsconf-talk-file talk "--answers.webm")
+             (qa-file-name (or (emacsconf-talk-file talk "--answers.webm")
                           (emacsconf-get-preferred-video (concat (plist-get talk :file-prefix) "--answers"))))
+						 (qa-file (and qa-file-name (expand-file-name qa-file-name emacsconf-cache-dir)))
 						 (intro-file (expand-file-name (concat (plist-get talk :slug) ".webm")
 																					 (expand-file-name "intros" emacsconf-stream-asset-dir)))
              duration)
@@ -2353,7 +2355,7 @@ This video is available under the terms of the Creative Commons Attribution-Shar
 					(org-entry-delete (point) "VIDEO_DURATION")
 					(org-entry-delete (point) "VIDEO_TIME")
 					(org-entry-delete (point) "CAPTIONS_EDITED"))
-				(if (and qa-file (file-exists-p qa-file))
+				(if qa-file
 						(progn
 							(org-entry-put (point) "QA_VIDEO_FILE" (file-name-nondirectory qa-file))
 							(org-entry-put (point) "QA_VIDEO_FILE_SIZE" (file-size-human-readable (file-attribute-size (file-attributes qa-file))))
