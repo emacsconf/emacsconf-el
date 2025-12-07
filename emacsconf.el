@@ -138,7 +138,7 @@
 (defvar emacsconf-backstage-dir "/ssh:orga@media.emacsconf.org:/var/www/media.emacsconf.org/2022/backstage")
 (defvar emacsconf-upload-dir "/ssh:orga@media.emacsconf.org:/srv/upload")
 (defvar emacsconf-res-dir (format "/ssh:orga@res.emacsconf.org:/data/emacsconf/shared/%s" emacsconf-year))
-(defvar emacsconf-media-extensions '("webm" "mkv" "mp4" "webm" "mov" "avi" "mpv" "ts" "ogv" "wav" "ogg" "mp3" ))
+(defvar emacsconf-media-extensions '("webm" "mkv" "mp4" "m4v" "mov" "avi" "mpv" "ts" "ogv" "wav" "ogg" "mp3" ))
 (defvar emacsconf-ftp-upload-dir "/ssh:orga@media.emacsconf.org:/srv/ftp/anon/upload-here")
 (defvar emacsconf-backstage-user "emacsconf")
 (defvar emacsconf-backstage-password nil "Password for backstage area.")
@@ -1493,9 +1493,9 @@ If TIMEZONES is a string, split it by commas."
            :webchat-url "https://chat.emacsconf.org/?join=emacsconf,emacsconf-org,emacsconf-accessible,emacsconf-dev,emacsconf-gen"
            :stream ,(concat emacsconf-stream-base "gen.webm")
            :480p ,(concat emacsconf-stream-base "gen-480p.webm")
-					 ;; :youtube-url "https://www.youtube.com/watch?v=UEJ88c7MJq0"
-					 ;; :youtube-studio-url "https://studio.youtube.com/video/UEJ88c7MJq0/livestreaming"
-					 ;; :toobnix-url "https://toobnix.org/w/7t9X8eXuSby8YpyEKTb4aj"
+					 :youtube-url "https://www.youtube.com/live/FI3eGeGCyQM"
+					 :youtube-studio-url "https://studio.youtube.com/video/FI3eGeGCyQM/livestreaming"
+					 :toobnix-url "https://toobnix.org/w/oLwaPU7MgMFDAWPhaFdW1t"
            :start "09:00" :end "17:00"
 					 :uid 2002
            :vnc-display ":5"
@@ -1504,11 +1504,11 @@ If TIMEZONES is a string, split it by commas."
            :status "online")
 		(:name "Development" :color "skyblue" :id "dev" :channel "emacsconf-dev"
            :watch  ,(format "https://live.emacsconf.org/%s/watch/dev/" emacsconf-year)
-				   :webchat-url "https://chat.emacsconf.org/?join=emacsconf,emacsconf-org,emacsconf-accessible,emacsconf-gen,emacsconf-dev"
+				   :webchat-url "https://chat.emacsconf.org/?join=emacsconf,emacsconf-org,emacsconf-accessible,emacsconf-gen,emacsconf-de"
            :tramp "/ssh:emacsconf-dev@res.emacsconf.org#46668:"
-					 ;; :toobnix-url "https://toobnix.org/w/w6K77y3bNMo8xsNuqQeCcD"
-					 ;; :youtube-url "https://www.youtube.com/watch?v=PMaoF-xa1b4"
-					 ;; :youtube-studio-url "https://studio.youtube.com/video/PMaoF-xa1b4/livestreaming"
+					 :toobnix-url "https://toobnix.org/w/uXGmcRigZD82UWr5nehKeL"
+					 :youtube-url "https://youtube.com/live/KCZthyBhHtg"
+					 :youtube-studio-url "https://studio.youtube.com/video/KCZthyBhHtg/livestreaming"
 					 :stream ,(concat emacsconf-stream-base "dev.webm")
            :480p ,(concat emacsconf-stream-base "dev-480p.webm")
 					 :uid 2003
@@ -1773,16 +1773,8 @@ Room.all.each { |x| puts x.friendly_id + " " + x.name }; nil
 
 (defun emacsconf-volunteer-insert-email (&optional info)
 	(interactive)
-	(insert (completing-read
-					 (mapcar
-						(lambda (o)
-							(emacsconf-surround
-							 (if (assoc-default "ITEM" o)
-									 (concat (assoc-default "ITEM" o) " <")
-								 "<")
-							 (assoc-default "EMAIL" o)
-							 ">" ""))
-						(or info (emacsconf-get-volunteer-info))))))
+	(insert (assoc-default "EMAIL" (emacsconf-complete-volunteer info) #'string=)))
+
 (defun emacsconf-complete-volunteer (&optional info)
   (setq info (or info (emacsconf-get-volunteer-info)))
   (let* ((choices
