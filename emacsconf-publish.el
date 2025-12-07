@@ -159,7 +159,17 @@
             :audio-html (or (plist-get video :audio) "")
 						:chapter-list (or (plist-get video :chapter-list) "")
             :resources (or (plist-get video :resources) "")
-            :extra (or (plist-get talk :extra) "")
+            :extra
+            (concat
+             (if (plist-get talk :backstage)
+                 ;; include schedule
+                 (concat
+                  "Starts: "
+                  (format-time-string "%-I:%M %#p"
+                                      (plist-get talk :start-time))
+                  " - Q&A: " (plist-get talk :q-and-a) "\n")
+                 "")
+             (or (plist-get talk :extra) ""))
             :speaker-info (or (plist-get talk :speakers-with-pronouns) ""))))
     (emacsconf-replace-plist-in-string
      talk
@@ -204,6 +214,7 @@
 				  (plist-get track :watch)
 				  "web-based player")
 			   "\n"
+         "- You can also watch it in VLC by choosing menu - Media - Open Network Stream and putting in " (plist-get track :stream) "\n"
          (emacsconf-surround "- Q&A: "
 													   (if (plist-get talk :qa-url)
 															   (org-make-link-string
@@ -470,6 +481,10 @@
 																 (and (plist-get talk :backstage)
 																			(plist-get talk :bbb-backstage))
 																 "\">Open backstage BigBlueButton</a></li>" "")
+             (emacsconf-surround "<li>BBB mod code: "
+																 (and (plist-get talk :backstage)
+																			(plist-get talk :bbb-mod-code))
+																 "</li>" "")
 						 (emacsconf-surround "<li><a href=\""
 																 (and (member emacsconf-publishing-phase '(schedule conference))
 																			(plist-get talk :qa-url))
@@ -1536,7 +1551,7 @@ If MODIFY-FUNC is specified, use it to modify the talk."
                                ", ")))
 					(pcase emacsconf-publishing-phase
 						((or 'program 'schedule 'conference)
-						 '("TO_CONFIRM" "WAITING_FOR_PREREC" "PROCESSING" "TO_ASSIGN" "TO_CAPTION" "TO_CHECK" "TO_STREAM"))
+						 '("TO_CONFIRM" "WAITING_FOR_PREREC" "PROCESSING" "TO_ASSIGN" "TO_CAPTION" "TO_CHECK" "TO_STREAM" "TO_ARCHIVE" "TO_REVIEW_QA"))
 						((or 'harvest 'resources)
 						 '("TO_ARCHIVE" "TO_REVIEW_QA" "TO_INDEX_QA" "TO_CAPTION_QA" "DONE")))
 					"")
@@ -1797,7 +1812,7 @@ ${include}
 																		 :links
 																		 (unless (eq emacsconf-publishing-phase 'resources)
 																			 (emacsconf-surround "<li><a href=\""
-																													 (plist-get o :bbb-rec)
+																													 (plist-get f :bbb-rec)
 																													 "\">Play recording from BigBlueButton</a></li>" ""))
 
 																		 :files
@@ -1891,25 +1906,31 @@ ${include}
 			 ""))))
 
 (defun emacsconf-publish-link-file-formats-as-list (talk)
-	(seq-map
-	 (lambda (file)
-		 (let ((cache-file (expand-file-name (file-name-nondirectory file) emacsconf-cache-dir)))
-			 (format "<a href=\"%s%s\">Download %s%s</a>%s"
-							 (or (plist-get talk :base-url) "")
-							 (file-name-nondirectory file)
-							 (replace-regexp-in-string (concat "^" (regexp-quote (plist-get talk :file-prefix))) "" (file-name-nondirectory file))
-							 (if (and (file-exists-p cache-file)
-												(> (file-attribute-size (file-attributes cache-file)) 1000000))
-									 (format " (%sB)" (file-size-human-readable (file-attribute-size (file-attributes cache-file))))
-								 "")
-							 (if (and (string-match "--\\(main\\|answers\\)\\.vtt" file)
-												(not (emacsconf-captions-edited-p (expand-file-name file emacsconf-cache-dir))))
-									 " (unedited)"
-								 ""))))
-	 (or (plist-get talk :files)
-			 (if (plist-get talk :backstage)
-					 (emacsconf-publish-talk-files talk)
-				 (emacsconf-publish-filter-public-files talk)))))
+  (let ((public-files (emacsconf-publish-filter-public-files talk)))
+	  (seq-map
+	   (lambda (file)
+		   (let ((cache-file (expand-file-name (file-name-nondirectory file) emacsconf-cache-dir)))
+			   (format "<a href=\"%s%s\">Download %s%s</a>%s%s"
+							   (or (plist-get talk :base-url) "")
+							   (file-name-nondirectory file)
+							   (replace-regexp-in-string (concat "^" (regexp-quote (plist-get talk :file-prefix))) "" (file-name-nondirectory file))
+							   (if (and (file-exists-p cache-file)
+												  (> (file-attribute-size (file-attributes cache-file)) 1000000))
+									   (format " (%sB)" (file-size-human-readable (file-attribute-size (file-attributes cache-file))))
+								   "")
+							   (if (and (string-match "--\\(main\\|answers\\)\\.vtt" file)
+												  (not (emacsconf-captions-edited-p (expand-file-name file emacsconf-cache-dir))))
+									   " (unedited)"
+								   "")
+                 (if (and (plist-get talk :backstage)
+                          (not (member file public-files)))
+                     " (backstage)"
+                   "")
+                 )))
+	   (or (plist-get talk :files)
+			   (if (plist-get talk :backstage)
+					   (emacsconf-publish-talk-files talk)
+				   public-files)))))
 
 (defun emacsconf-publish-talks-json ()
 	"Return JSON format with a subset of talk information."
@@ -2221,11 +2242,11 @@ This video is available under the terms of the Creative Commons Attribution-Shar
   (interactive (list (emacsconf-complete-talk-info
                       (seq-remove
                        (lambda (talk)
-                         (or (not (emacsconf-talk-file talk "--main.webm"))
+                         (or (not (plist-get talk :video-file))
                              (plist-get talk :youtube-url)))
                        (emacsconf-get-talk-info)))))
-  (kill-new (emacsconf-talk-file talk "--main.webm"))
-  (y-or-n-p (format "Video: %s - create video and upload this filename. Done?" (emacsconf-talk-file talk "--main.webm")))
+  (kill-new (plist-get talk :video-file))
+  (y-or-n-p (format "Video: %s - create video and upload this filename. Done?" (plist-get talk :video-file)))
   (kill-new (emacsconf-publish-video-description talk t))
   (y-or-n-p "Copied description. Paste into description, move first line to title, add to playlist. Done?")
   (when (emacsconf-talk-file talk "--main.vtt")
@@ -2241,26 +2262,26 @@ This video is available under the terms of the Creative Commons Attribution-Shar
 	(catch 'done
 		(while t
 			(let ((talk (seq-find (lambda (o)
-															(and (member (plist-get o :status) '("TO_STREAM" "TO_CHECK" "PLAYING"))
+															(and (member (plist-get o :status) '("TO_STREAM" "TO_CHECK" "PLAYING" "TO_ARCHIVE"))
 																	 (not (plist-get o :youtube-url))
-																	 (emacsconf-talk-file o "--main.webm")))
+																	 (plist-get o :video-file)))
 														(emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))
 				(unless talk
 					(message "All done so far.")
 					(throw 'done t))
-				(emacsconf-youtube-step-through-publishing talk)))))
+				(emacsconf-publish-youtube-step-through-publishing-talk talk)))))
 
 (defun emacsconf-publish-toobnix-step-through-publishing-talk (talk)
   (interactive (list (emacsconf-complete-talk-info
                       (seq-remove
                        (lambda (talk)
-                         (or (not (emacsconf-talk-file talk "--main.webm"))
+                         (or (not (plist-get talk :video-file))
                              (plist-get talk :toobnix-url)))
                        (emacsconf-get-talk-info)))))
-  (kill-new (emacsconf-talk-file talk "--main.webm"))
+  (kill-new (plist-get talk :video-file))
   (y-or-n-p
    (format "Video: %s - create video and upload this filename. Done?"
-           (emacsconf-talk-file talk "--main.webm")))
+           (plist-get talk :video-file)))
   (kill-new (emacsconf-publish-video-description talk t))
   (y-or-n-p "Copied description. Paste into description, move first line to title, add to playlist. Done?")
   (when (emacsconf-talk-file talk "--main.vtt")
@@ -2283,7 +2304,7 @@ This video is available under the terms of the Creative Commons Attribution-Shar
 				(unless talk
 					(message "All done so far.")
 					(throw 'done t))
-        (emacsconf-toobnix-step-through-publishing-talk talk)))))
+        (emacsconf-publish-toobnix-step-through-publishing-talk talk)))))
 
 
 ;; (emacsconf-publish-video-description (emacsconf-find-talk-info "async") t)
@@ -2305,7 +2326,8 @@ This video is available under the terms of the Creative Commons Attribution-Shar
     (emacsconf-with-talk-heading talk
       (let* ((video-file-name (emacsconf-get-preferred-video (plist-get talk :file-prefix)))
              (video-file (and video-file-name (expand-file-name video-file-name emacsconf-cache-dir)))
-						 (qa-file (emacsconf-talk-file talk "--answers.webm"))
+						 (qa-file (or (emacsconf-talk-file talk "--answers.webm")
+                          (emacsconf-get-preferred-video (concat (plist-get talk :file-prefix) "--answers"))))
 						 (intro-file (expand-file-name (concat (plist-get talk :slug) ".webm")
 																					 (expand-file-name "intros" emacsconf-stream-asset-dir)))
              duration)
@@ -2331,7 +2353,7 @@ This video is available under the terms of the Creative Commons Attribution-Shar
 					(org-entry-delete (point) "VIDEO_DURATION")
 					(org-entry-delete (point) "VIDEO_TIME")
 					(org-entry-delete (point) "CAPTIONS_EDITED"))
-				(if qa-file
+				(if (and qa-file (file-exists-p qa-file))
 						(progn
 							(org-entry-put (point) "QA_VIDEO_FILE" (file-name-nondirectory qa-file))
 							(org-entry-put (point) "QA_VIDEO_FILE_SIZE" (file-size-human-readable (file-attribute-size (file-attributes qa-file))))
@@ -2554,6 +2576,7 @@ For better performance, we recommend watching <a href=\"${stream-hires}\">${stre
 <li>mpv ${stream-hires}</li>
 <li>vlc ${stream-hires}</li>
 <li>ffplay ${stream-hires}</li>
+<li>You can also watch it in VLC by choosing menu - Media - Open Network Stream and putting in " (plist-get track :stream) "</li>
 </ul>
 
 If you have limited bandwidth, you can watch the low-res stream <a href=\"${480p}\">${480p}</a>.
@@ -2656,6 +2679,8 @@ Times are in Eastern Standard Time (America/Toronto, GMT-5). If you have Javascr
 vlc https://live0.emacsconf.org/gen.webm
 ffplay https://live0.emacsconf.org/gen.webm
 </pre>
+
+<p>You can also watch it in VLC by using menu - Media - Open Network Stream and putting in <code>https://live0.emacsconf.org/gen.webm</code></p>.
 
 <p>If you experience any disruptions, try reloading the page you're using
 to watch the video. If that still doesn't work, please check our

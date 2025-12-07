@@ -138,7 +138,7 @@
 
 (defun emacsconf-hyperlist-day-events (day &optional track info)
 	(let* ((talks
-					(emacsconf-prepare-for-display
+					(emacsconf-publish-prepare-for-display
 					 (emacsconf-filter-talks-by-time
 						(concat day "T00:00:00" emacsconf-timezone-offset)
 						(concat day "T23:59:59" emacsconf-timezone-offset)
@@ -163,7 +163,7 @@
 			 (time-less-p (car a) (car b))))))
 
 (defun emacsconf-hyperlist-format-streamer-day (day &optional track info)
-	(setq info (emacsconf-prepare-for-display
+	(setq info (emacsconf-publish-prepare-for-display
 							(if info (mapcar #'emacsconf-resolve-talk info)
 								(emacsconf-get-talk-info))))
 	(when track (setq info (emacsconf-filter-talks-by-track track info)))

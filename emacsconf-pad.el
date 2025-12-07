@@ -369,7 +369,7 @@ ${next-talk-list}
 										(replace-regexp-in-string
 										 "https://studio\\.youtube\\.com/video/\\([^/]+\\)/livestreaming" "https://youtube.com/live/\\1"
 										 (assoc-default "YouTube URL" shift-rtmp 'string=))
-                    :checkin-pad (concat emacsconf-pad-base "private-" emacsconf-private-pad-prefix "-checkin-" (downcase (format-time-string "%a" (date-to-time (plist-get shift :start)))))))
+                    :checkin-pad (concat emacsconf-pad-base "private-" emacsconf-private-pad-prefix "-" emacsconf-year "-checkin-" (downcase (format-time-string "%a" (date-to-time (plist-get shift :start)))))))
          (shift-talks
           (mapcar (lambda (o) (append prefixed o))
                   (seq-filter
@@ -489,7 +489,7 @@ ${next-talk-list}
 										(plist-get talk :timezone)
 										"%-l:%M %p"))
 						 "<ul>
-<li>Message for the speaker: Thanks for checking in! Your BigBlueButton web conference room is at ${backstage-url}. If you don't have the backstage username and password saved, let me know and I can send you a direct message with the info. Please join me there so that I can set you as a moderator and go through the preflight checklist with you.
+<li>Message for the speaker: Thanks for checking in! Your BigBlueButton web conference room is at ${backstage-url}. If you don't have the backstage username and password saved, let me know and I can send you a direct message with the info. Please join me there so that I can set you as a moderator and go through the preflight checklist with you.</li>
 <li>Direct message for the speaker if needed: Your BigBlueButton web conference room is at ${backstage-url-with-password}, or username \"${backstage-user}\" and password \"${backstage-password}\".</li>
 <li>Pronunciation: ${pronunciation}</li>
 <li>Checklist<ul>
@@ -498,9 +498,9 @@ ${next-talk-list}
 <li>[ ] Speaker can hear others</li>
 <li>[ ] No audio feedback issues (may need headphones or earphones)</li>
 <li>[ ] Screen sharing: (optional)
-<ul><li>[ ] Window or screen can be shared
-<li>[ ] Text is readable</li></ul>
-<li>[ ] Webcam sharing (optional)</li></ul></li>
+<ul><li>[ ] Window or screen can be shared</li>
+<li>[ ] Text is readable</li></ul></li>
+<li>[ ] Webcam sharing (optional)</li>
 <li>[ ] What kind of facilitation would the speaker like? (Host reads questions, chats a lot, etc.)</li></ul></li>
 <li>OK to do other things until going live at <strong>${live}</strong></li>
 <li>People will add questions to the pad or IRC channel; host can read them to you, or you can read them</li>
@@ -528,7 +528,8 @@ ${bbb-checklist}</li>")
 																	(emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))
   (mapc
    (lambda (day)
-     (let ((pad-id (concat "private-" emacsconf-private-pad-prefix "-checkin-" (downcase (format-time-string "%a" (plist-get (cadr day) :checkin-time))))))
+     (let ((base-pad (concat "private-" emacsconf-private-pad-prefix "-" emacsconf-year))
+           (pad-id (concat "private-" emacsconf-private-pad-prefix "-" emacsconf-year "-checkin-" (downcase (format-time-string "%a" (plist-get (cadr day) :checkin-time))))))
        (emacsconf-pad-create-pad pad-id)
        (emacsconf-pad-set-html
         pad-id
@@ -536,17 +537,20 @@ ${bbb-checklist}</li>")
          "<em>${checkin}:</em> " ""
          (concat
           (car day)
+          "\n"
+          emacsconf-pad-base base-pad "\n"
 					"<p>If anyone's still missing by the specified time, please let us know in #emacsconf-org so we can call them.</p>"
 					"<ul>"
-          (mapconcat
-           (lambda (talk)
-             (emacsconf-pad-format-checkin-hyperlist talk))
-           (seq-sort
-            (lambda (a b)
-              (time-less-p (plist-get a :checkin-time)
-                           (plist-get b :checkin-time)))
-            (seq-filter (lambda (talk) (plist-get talk :checkin-time)) day))
-           "\n")
+          (let ((body (mapconcat
+                       (lambda (talk)
+                         (emacsconf-pad-format-checkin-hyperlist talk))
+                       (seq-sort
+                        (lambda (a b)
+                          (time-less-p (plist-get a :checkin-time)
+                                       (plist-get b :checkin-time)))
+                        (seq-filter (lambda (talk) (plist-get talk :checkin-time)) day))
+                       "\n")))
+            body)
           "</ul>")))))
    (seq-group-by (lambda (talk)
                    (format-time-string "%A, %b %-e, %Y" (plist-get talk :checkin-time)))
@@ -691,6 +695,7 @@ ${bbb-checklist}</li>")
 															(format-time-string "%-l:%M %p" (plist-get talk :start-time) emacsconf-timezone))
 											(plist-get talk :hyperlist-note) "</li>" "")
 										 :next-talk-in-5 (if next-talk (format-time-string "%-l:%M %p" (time-subtract (plist-get next-talk :start-time) (seconds-to-time 300)) emacsconf-timezone) "")
+										 :next-talk-in-2 (if next-talk (format-time-string "%-l:%M %p" (time-subtract (plist-get next-talk :start-time) (seconds-to-time 120)) emacsconf-timezone) "")
 										 :next-talk-in-1 (if next-talk (format-time-string "%-l:%M %p" (time-subtract (plist-get next-talk :start-time) (seconds-to-time 60)) emacsconf-timezone) ""))
 							 talk)
 							(concat
@@ -698,7 +703,7 @@ ${bbb-checklist}</li>")
 							 (if (emacsconf-talk-recorded-p talk)
 									 "<li>Backup: ${start-hhmm} ${slug}: it should play a prerecorded intro and talk, but if it doesn't, join ${mumble} in Mumble and introduce talk: ${expanded-intro} (pronunciation: ${pronunciation}); then <em>play ${slug}</em></li>"
 								 ;; live talk, join BBB
-								 "<li><strong>${start-hhmm} ${slug} live talk</strong>: it should play a prerecorded intro, but if it doesn't, join ${bbb-backstage} (mod code <strong>${bbb-mod-code}</strong> ) and introduce talk, then turn it over to speaker for <strong>live talk</strong>: ${expanded-intro} (pronunciation: ${pronunciation})</li>")
+								 "<li><strong>${start-hhmm} ${slug} live talk</strong>: it should play a prerecorded intro, but if it doesn't, use mod code <strong>${bbb-mod-code}</strong> to join ${bbb-backstage} and introduce talk, then turn it over to speaker for <strong>live talk</strong>: ${expanded-intro} (pronunciation: ${pronunciation})</li>")
 							 ;; Q&A
 							 (if (and (not (emacsconf-talk-recorded-p talk))
 												(not (string= (or (plist-get talk :qa-type) "none") "none")))
@@ -716,7 +721,7 @@ ${bbb-checklist}</li>")
 										"<li>[ ] <strong>${qa-hhmm}</strong> ${slug} Q&A mumble: Join ${mumble} in Mumble. Bring the speaker into the right channel if needed. Invite people to put their questions in the Etherpad and read questions and answers from there. ${pad-url} Paste questions into Mumble chat or read them out loud.</li>")
 									 ((rx "live")
 										(concat
-										 "<li>[ ] <strong>${qa-hhmm} ${slug} Q&A live</strong> (on stream until ${end-of-qa}): Join ${bbb-backstage} (mod code <strong>${bbb-mod-code}</strong> ). START RECORDING. Invite people to put their questions in the Etherpad, and read questions from there. ${pad-url}</li>
+										 "<li>[ ] <strong>${qa-hhmm} ${slug} Q&A live</strong> (on stream until ${end-of-qa}): Use mod code <strong>${bbb-mod-code}</strong> to join ${bbb-backstage} . START RECORDING. Invite people to put their questions in the Etherpad, and read questions from there. ${pad-url}</li>
 			 ${open-qa}
 "
 										 (if next-talk
@@ -743,7 +748,8 @@ ${bbb-checklist}</li>")
 	(interactive)
 	(emacsconf-pad-prepopulate-shift-hyperlists)
 	(emacsconf-pad-prepopulate-checkins)
-	(emacsconf-pad-prepopulate-host-hyperlists))
+	(emacsconf-pad-prepopulate-host-hyperlists)
+  (emacsconf-pad-prepopulate-index))
 
 (defun emacsconf-pad-expand-intro (talk)
 	"Make an intro for TALK."
@@ -839,18 +845,18 @@ ${bbb-checklist}</li>")
                     (emacsconf-surround "<li><strong>" (plist-get talk :hyperlist-note) "</strong></li>" "")
 										"<li>Recorded intro: <a href=\"${media-base}${year}/backstage/${file-prefix}--intro.webm\">${media-base}${year}/backstage/${file-prefix}--intro.webm</a>"
 										(if (emacsconf-talk-recorded-p talk)
-												"<li>[ ] [? stream didn't auto-play] ${stream}: <em>handle-session ${slug}</em>; if that doesn't work, <em>play ${slug}</em>; if that still doesn't work, <em>track-mpv ~/current/cache/${conf-id}-${year}-${slug}*--intro.webm</em> and <em>track-mpv ~/current/cache/${conf-id}-${year}-${slug}*--main.webm</em></li>"
+												"<li>[? stream didn't auto-play] ${stream}: <em>handle-session ${slug}</em></li>"
 											(concat
                        "<li>Live talk:<ul>"
-                       "<li>[ ] [? stream didn't auto-join] ${stream}: <a href=\"${bbb-backstage}\">${bbb-backstage}</a></li>"
-                       "<li>[ ] ${host}: Join <a href=\"${bbb-backstage}\">${bbb-backstage}</a> and turn over to speaker.</li></ul></li>"))
+                       "<li>[? stream didn't auto-join] ${stream}: mod code ${bbb-mod-code} <a href=\"${bbb-backstage}\">${bbb-backstage}</a></li>"
+                       "<li>[ ] ${host}: mod code ${bbb-mod-code} , join <a href=\"${bbb-backstage}\">${bbb-backstage}</a> and turn over to speaker.</li></ul></li>"))
                     (pcase (or (plist-get talk :qa-type) "")
                       ((rx "live")
                        (concat
                         "<li>Live Q&A start ${qa-start}, on stream until ${qa-end}<ul>
 <li>[ ] ${host}: Copy the modcode <strong>${bbb-mod-code}</strong> , join the Q&A room at <a href=\"${bbb-backstage}\">${bbb-backstage}</a>, and open the pad at <a href=\"${pad-url}\">${pad-url}</a>; optionally open IRC for ${channel} (<a href=\"${webchat-url}\">${webchat-url}</a>)</li>
-<li>[ ] [? speaker missing?] ${host}: Let #emacsconf-org know so that we can text or call the speaker</li>
-<li>[ ] [? stream didn't auto-join?] ${stream}: <em>bbb ${slug}</em>
+<li> [? speaker missing?] ${host}: Let #emacsconf-org know so that we can text or call the speaker</li>
+<li> [? stream didn't auto-join?] ${stream}: <em>bbb ${slug}</em>
 <ul>
 <li>Backup URL for BBB: <a href=\"${bbb-backstage}\">${bbb-backstage}</a></li>
 <li>Backup URL for pad: <a href=\"${pad-url}\">${pad-url}</a></li>
@@ -858,12 +864,10 @@ ${bbb-checklist}</li>")
 </li>
 <li>[ ] ${stream}: Give the host the go-ahead via Mumble or #emacsconf-org</li>
 <li>[ ] ${host}: Announce that people can join using the URL on the talk page or ask questions on the pad or IRC channel. START RECORDING.</li>
-<li>[ ] ${stream}: Adjust the audio levels as needed: ${ssh-audio}</li>
 "
 												(if emacsconf-qa-start-open
 														""
-													"<li>[ ] ${host}: Decide when to open the Q&A and let ${stream} know</li>
-<li>[ ] ${stream}: Update the task status (no visible changes): ${ssh-openq}</li>")
+													"<li>[ ] ${host}: Decide when to open the Q&A and let ${stream} know</li>")
 												"
 <li>[ ] ${stream}: Confirm BBB redirect at <a href=\"${bbb-redirect}\">${bbb-redirect}</a> goes to BBB room, let host know; backup: <em>ssh orga@media.emacsconf.org \"~/bin/bbb-open ${slug}\"</em></li>
 <li>${next-talk-in-5} [? Open Q&A is still going on and it's about five minutes before the next talk]
@@ -878,30 +882,24 @@ ${bbb-checklist}</li>")
 </ul></li></ul></li>"))
                       ((rx "irc")
                        "
-<li>[ ] ${stream}: Update the task status, which should open the pad and IRC; arrange windows: ${ssh-closedq}
-<ul><li>Backup link to pad: <a href=\"${pad-url}\">${pad-url}</a></li>
-<li>Backup link to #${channel}: <a href=\"${webchat-url}\">${webchat-url}</a></li></ul></li>
-<li>[ ] ${stream}: Update the task status (no visible changes): ${ssh-openq}</li>
-<li>[ ] ${host}: Announce that people can ask questions in the ${channel} IRC channel.</li>
+<li>Backup link to pad: <a href=\"${pad-url}\">${pad-url}</a></li>
+<li>Backup link to #${channel}: <a href=\"${webchat-url}\">${webchat-url}</a></li>
 ")
                       ((rx "Mumble")
                        "
 <li>[ ] ${stream}: Bring the speaker's Mumble login over to the ${channel} channel in Mumble. Confirm that Mumble is audible and adjust audio as needed: ssh emacsconf-${track-id}@res.emacsconf.org -p 46668 \"mum-vol 85%%\" (or mum-louder, mum-quieter)</li>
 <li>[ ] ${stream}: Mark the Q&A as closed: ${ssh-closedq} . This should display the QA slide (backup: ${ssh-track} and run <em>firefox ${qa-slide-url} &</em>)</li>
-<li>[ ] ${stream}: Update the task status (no visible changes): ${ssh-openq}</li>
-
 <li>[ ] ${host}: Announce that people can ask questions in the pad or on the ${channel} IRC channel.</li>
 ")
                       ((rx "after")
                        "
-<li>[ ] ${stream}: Update the task status: ${ssh-closedq} # this should open the pad and IRC; arrange the windows
 <ul><li>Backup link to pad: ${pad-url}</li>
 <li>Backup link to #${channel}: ${webchat-url}</li></ul></li>
 <li>[ ] ${host}: Announce that people can ask questions in the pad or on the ${channel} IRC channel, and that the speaker will follow up later.</li>
-<li>[ ] ${stream}: Update the task status: ${ssh-openq} # this should not make any visible changes, just update the task status</li>"
+"
                        )
 											((rx "pad")
-											 "<li>[ ] [? pad didn't auto-open] ${stream}: ${pad-url}</li>")
+											 "<li>[? pad didn't auto-open] ${stream}: ${pad-url}</li>")
                       (_
                        "<li>[ ] ${stream}: Open the IRC channel (${channel}) and the pad, and arrange the windows: ${ssh-closedq}</li>
 "))))))
