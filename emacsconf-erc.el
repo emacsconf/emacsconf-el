@@ -229,6 +229,9 @@ If MESSAGE is not specified, reset the topic to the template."
 																	(plist-get talk :title)
 																	(emacsconf-surround " - " (plist-get talk :speakers-with-pronouns) "" "")))
 				(erc-send-message
+				 (concat "Talk page: "
+					 (plist-get talk :absolute-url)))
+				(erc-send-message
 				 (concat "Add your notes/questions to the pad: " (plist-get talk :pad-url)))
 				(cond
 				 ((string-match "live" (or (plist-get talk :q-and-a) ""))

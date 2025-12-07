@@ -812,7 +812,8 @@ This includes the intro note, the schedule, and talk resources."
 
 (defun emacsconf-format-transcript-from-list (subtitles video-id &optional lang)
   "Return subtitle directives for SUBTITLES."
-  (when (stringp subtitles) (setq subtitles (subed-parse-file subtitles)))
+  (let ((subed-sanitize-functions nil))
+    (when (stringp subtitles) (setq subtitles (subed-parse-file subtitles))))
   (mapconcat
    (lambda (sub)
      (let ((msecs (elt sub 1)))
@@ -842,7 +843,8 @@ This includes the intro note, the schedule, and talk resources."
   "Format the transcript for TALK, adding paragraph markers when possible."
 	(require 'subed)
 	(setq video-id (or video-id "mainVideo"))
-  (let* ((subtitles
+	(let* ((subed-sanitize-functions nil)
+	       (subtitles
           (subed-parse-file (if lang
 																(format "%s_%s.vtt"
 																				(file-name-sans-extension
