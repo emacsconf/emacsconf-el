@@ -169,7 +169,32 @@ TYPE can be 'end if you want the match end instead of the beginning."
      subtitles)
     (nreverse (cons current result))))
 
-(defun emacsconf-subed-mark-chapter (chapter-name)
+(defun emacsconf-subed-copy-current-chapter-text (&optional only-from-point)
+  "Copy text between NOTE and NOTE chapter comments."
+  (interactive (list current-prefix-arg))
+  (let* ((start (cond
+                 (only-from-point (save-excursion (subed-jump-to-subtitle-start-pos)))
+                 ((save-excursion (re-search-backward "^NOTE[ \n]" nil t))
+                  (match-beginning 0))
+                 (t
+                  (point-min))))
+         (end (cond
+               ((looking-at "^NOTE[ \n]") (match-beginning 0))
+               ((save-excursion (re-search-forward "^NOTE[ \n]" nil t))
+                (match-beginning 0))
+               (t
+                (point-max))))
+         (s (string-trim
+             (replace-regexp-in-string
+              "\n" " "
+              (subed-subtitle-list-text (subed-subtitle-list start end))))))
+    (message "%s" s)
+    (kill-new s)
+    s))
+
+(defun emacsconf-subed-set-chapter (chapter-name)
+  "I think this adds a chapter heading for the region.
+Use `subed-set-subtitle-comment' and `emacsconf-subed-make-chapter-file-based-on-comments' or `subed-section-comments-as-chapters' instead."
   (interactive "MChapter: ")
   (let ((start (subed-subtitle-msecs-start)))
     (save-excursion
