@@ -128,7 +128,7 @@ TYPE can be 'end if you want the match end instead of the beginning."
          (subtitles
           (mapconcat
            (lambda (sub)
-             (string-join 
+             (string-join
               (emacsconf-split-text-based-on-heuristics (elt sub 3) subtitle-text-limit)
               "\n"))
            (emacsconf-combine-close-subtitles (subed-subtitle-list))
@@ -227,7 +227,7 @@ Use `subed-set-subtitle-comment' and `emacsconf-subed-make-chapter-file-based-on
                                        "new=\"1\" "
                                      "")
                                    (replace-regexp-in-string
-                                    "\n" " " 
+                                    "\n" " "
                                     (replace-regexp-in-string
                                      "\"" "&quot ;"
      (replace-regexp-in-string "[][]" "" (subed-subtitle-text))))
