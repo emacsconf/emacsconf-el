@@ -73,7 +73,7 @@
 (defcustom emacsconf-base-url "https://emacsconf.org/" "Includes trailing slash"
   :group 'emacsconf
   :type 'string)
-(defcustom emacsconf-publishing-phase 'conference
+(defcustom emacsconf-publishing-phase 'harvest
   "Controls what information to include.
 'program - don't include times
 'schedule - include times; use this leading up to the conference
@@ -86,10 +86,10 @@
           (const :tag "Program: Don't include times" program)
           (const :tag "Schedule: Include detailed times" schedule)
 					(const :tag "Conference: Show IRC and watching info" conference)
-          (const :tag "Harvest: Extracting info" conference)
+          (const :tag "Harvest: Extracting info" harvest)
           (const :tag "Resources: Don't include status, publish all Q&A" resources)))
 
-(defcustom emacsconf-backstage-phase 'prerec
+(defcustom emacsconf-backstage-phase 'harvest
 	"Contros what information to include backstage.
 'prerec - focus on captioning
 'harvest - focus on Q&A."
