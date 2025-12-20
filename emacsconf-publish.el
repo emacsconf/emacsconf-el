@@ -446,9 +446,7 @@
 											 ))
 									(let ((tracks
                          (emacsconf-video-subtitle-tracks
-													(or (plist-get talk :caption-file)
-															(emacsconf-talk-file talk "--main.vtt")
-															(emacsconf-talk-file talk "--reencoded.vtt"))
+													(plist-get talk :caption-file)
 													(or (plist-get talk :track-base-url)
 															(plist-get talk :base-url))
 													(plist-get talk :files))))
@@ -467,8 +465,10 @@
                   (plist-get chapter-info :html))
               "")
             :video-id video-id
-            :video-file-size (if (and (stringp video-file) (file-exists-p video-file))
-                                 (file-size-human-readable (file-attribute-size (file-attributes video-file))))
+            :video-file-size (if (and (stringp video-file)
+                                      (file-exists-p
+                                       (expand-file-name video-file emacsconf-cache-dir)))
+                                 (file-size-human-readable (file-attribute-size (file-attributes (expand-file-name video-file emacsconf-cache-dir)))))
 						:links
 						(concat
 						 (emacsconf-surround "<li><a href=\""
@@ -496,7 +496,10 @@
             (mapconcat
              (lambda (s)
                (concat "<li>" s "</li>"))
-             (emacsconf-publish-link-file-formats-as-list talk)
+             (emacsconf-publish-link-file-formats-as-list
+              talk
+              (seq-filter (lambda (o) (string-match "--answers" o))
+                          (emacsconf-publish-filter-public-files talk)))
              "")
             :youtube-info (if (plist-get talk :youtube-url)
                               (format
@@ -517,7 +520,7 @@
      :video
      (emacsconf-replace-plist-in-string
       info
-			(if (and (stringp video-file) (string-match "webm$" video-file))
+			(if (stringp video-file)
 					"<video controls preload=\"none\" id=\"${video-id}\"><source src=\"${source-src}\" />${captions}${chapter-track}<p><em>Your browser does not support the video tag. Please download the video instead.</em></p></video>${chapter-list}"
 				(or (plist-get talk :video-note) "")))
 		 :audio
@@ -650,7 +653,7 @@ ${categories}
                               :toobnix-url (plist-get o :qa-toobnix)
 															:captions-edited (plist-get o :qa-captions-edited)
 															:caption-file (emacsconf-talk-file o "--answers.vtt")
-                              :video-file (emacsconf-talk-file o "--answers.webm")
+                              :video-file (plist-get o :qa-video-file)
 															:video-duration (plist-get o :qa-video-duration)
 															:audio-file (emacsconf-talk-file o "--answers.opus")
 															:chapter-file (emacsconf-talk-file o "--answers--chapters.vtt")
@@ -1716,6 +1719,8 @@ answers without needing to listen to everything again. You can see <a href=\"htt
            (append (list :files
                          (seq-remove (lambda (f) (string-match "--answers" f))
 																		 (emacsconf-publish-filter-public-files o))
+                         :caption-file
+                         (emacsconf-talk-file o "--main.vtt")
 												 :audio-file
 												 (emacsconf-talk-file o "--main.opus")
 												 :links
@@ -1751,13 +1756,16 @@ answers without needing to listen to everything again. You can see <a href=\"htt
 												 :video-file-size (plist-get o :qa-video-file-size)
                          :video-file (plist-get o :qa-video-file)
 												 :audio-file (emacsconf-talk-file o "--answers.opus")
+                         :caption-file (emacsconf-talk-file o "--answers.vtt")
+                         :youtube-url (plist-get o :qa-youtube-url)
+                         :toobnix-url (plist-get o :qa-toobnix-url)
                          :files (emacsconf-publish-filter-public-files
                                  o
                                  "--answers"
 																 files))
-                        o)))
+                        o nil)))
             "")))
-;; (emacsconf-publish-public-index-for-talk (emacsconf-resolve-talk "rms") (directory-files emacsconf-cache-dir))
+;; (emacsconf-publish-public-index-for-talk (emacsconf-resolve-talk "gmail") (directory-files emacsconf-public-media-directory))
 
 (defun emacsconf-publish-public-index (&optional filename)
   (interactive (list (expand-file-name "index.html" emacsconf-public-media-directory)))
@@ -1808,6 +1816,7 @@ ${include}
                       (emacsconf-publish-index-card
                        (append (list :base-url
                                      (concat emacsconf-media-base-url (plist-get f :conf-year) "/")
+                                     :caption-file (emacsconf-talk-file f "--main.vtt")
                                      :track-base-url
                                      (format "/%s/captions/" (plist-get f :conf-year))
 																		 :links
@@ -1824,6 +1833,7 @@ ${include}
                   (if (plist-get f :qa-public)
                       (emacsconf-publish-index-card
                        (append
+                        f
                         (list
                          :public 1
                          :base-url (concat emacsconf-media-base-url (plist-get f :conf-year) "/")
@@ -1831,10 +1841,12 @@ ${include}
                          :track-base-url
                          (format "/%s/captions/" (plist-get f :conf-year))
                          :video-file
-												 (emacsconf-talk-file f "--answers.webm")
+												 (plist-get f :qa-video-file)
+                         :caption-file (emacsconf-talk-file f "--answers.vtt")
+                         :youtube-url (plist-get f :qa-youtube-url)
 												 :files
 												 (emacsconf-publish-filter-public-files f files "--answers"))
-                        f))
+                        ))
                     "")))
         info "\n"))
       "</ol>")))
@@ -1906,8 +1918,8 @@ ${include}
 				 (format " (%sB)" (file-size-human-readable (file-attribute-size (file-attributes cache-file))))
 			 ""))))
 
-(defun emacsconf-publish-link-file-formats-as-list (talk)
-  (let ((public-files (emacsconf-publish-filter-public-files talk)))
+(defun emacsconf-publish-link-file-formats-as-list (talk &optional files)
+  (let ((public-files (or files (emacsconf-publish-filter-public-files talk))))
 	  (seq-map
 	   (lambda (file)
 		   (let ((cache-file (expand-file-name (file-name-nondirectory file) emacsconf-cache-dir)))
@@ -2163,8 +2175,11 @@ ${include}
                               (concat (regexp-quote
                                        (if suffix (concat file-prefix "--" suffix)
                                          file-prefix))
-                                      "\\." (regexp-opt emacsconf-media-extensions)) s)) files))
-     '("main" "captioned" "normalized" "reencoded" "compressed" "original" nil)))
+                                      "\\.\\(" (regexp-opt emacsconf-media-extensions)
+                                      "\\)")
+                              s))
+                 files))
+     '("main" "captioned" "normalized" "reencoded" "compressed" "original")))
    (seq-find
     'file-exists-p
     (seq-map (lambda (suffix)
@@ -3003,29 +3018,37 @@ Tends to be quota-limited, though."
 		 "This video is available under the terms of the Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0) license.\n")))
 
 (defun emacsconf-publish-answers-description (talk platform)
-	(let ((title (concat emacsconf-name " " emacsconf-year " Q&A: " (plist-get talk :title))))
-		(concat
-		 (if (< (length title) 100) "" (concat title "\n"))
-		 (plist-get talk :speakers-with-pronouns) "\n\n"
-		 "This is the Q&A for the talk at "
-		 (plist-get talk
-								(if (eq platform 'toobnix) :toobnix-url :youtube-url)) " .\n\n"
-		 (if (emacsconf-talk-file talk "--answers--chapters.vtt")
-				 (let ((chapters (subed-parse-file (emacsconf-talk-file talk "--answers--chapters.vtt"))))
-					 (concat
-						(mapconcat
-						 (lambda (chapter)
-							 (concat
-								(if (= (elt chapter 1) 0)
-										"00:00"
-									(format-seconds "%.2h:%z%.2m:%.2s" (floor (/ (elt chapter 1) 1000))))
-								" " (elt chapter 3) "\n"))
-						 chapters
-						 "")
-						"\n"))
-			 "")
-		 "You can view this and other resources using free/libre software at " (plist-get talk :absolute-url) " .\n"
-		 "This video is available under the terms of the Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0) license.\n")))
+  (interactive (list (emacsconf-complete-talk-info) 'youtube))
+	(let ((title (concat emacsconf-name " " emacsconf-year " Q&A: " (plist-get talk :title)))
+        s)
+    (setq s
+		      (concat
+		       (if (and (not (called-interactively-p 'any)) (< (length title) 100))
+               ""
+             (concat title "\n"))
+		       (plist-get talk :speakers-with-pronouns) "\n\n"
+		       "This is the Q&A for the talk at "
+		       (plist-get talk
+								      (if (eq platform 'toobnix) :toobnix-url :youtube-url)) " .\n\n"
+		       (if (emacsconf-talk-file talk "--answers--chapters.vtt")
+				       (let ((chapters (subed-parse-file (emacsconf-talk-file talk "--answers--chapters.vtt"))))
+					       (concat
+						      (mapconcat
+						       (lambda (chapter)
+							       (concat
+								      (if (= (elt chapter 1) 0)
+										      "00:00"
+									      (format-seconds "%.2h:%z%.2m:%.2s" (floor (/ (elt chapter 1) 1000))))
+								      " " (elt chapter 3) "\n"))
+						       chapters
+						       "")
+						      "\n"))
+			       "")
+		       "You can view this and other resources using free/libre software at " (plist-get talk :absolute-url) " .\n"
+		       "This video is available under the terms of the Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0) license.\n"))
+    (when (called-interactively-p 'any)
+      (kill-new s))
+    s))
 ;; (emacsconf-publish-answers-description (emacsconf-resolve-talk "async") 'toobnix)
 
 (defvar emacsconf-publish-talk-video-tags (format "emacs,%s,%s%s" emacsconf-id emacsconf-id emacsconf-year)
@@ -3102,7 +3125,8 @@ Tends to be quota-limited, though."
 			output)))
 
 (defun emacsconf-publish-upload-answers-to-youtube (talk)
-	(let ((file (emacsconf-talk-file talk "--answers.webm"))
+  (interactive (list (emacsconf-complete-talk-info)))
+	(let ((file (plist-get talk :qa-video-file))
 				(title (concat emacsconf-name " " emacsconf-year " Q&A: " (plist-get talk :title)))
 				output)
 		(when (and file (not (plist-get talk :qa-youtube)))
