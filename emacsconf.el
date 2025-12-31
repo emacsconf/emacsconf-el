@@ -662,8 +662,9 @@ If INFO is specified, limit it to that list."
                        (:sched-note "SCHED_NOTE")
                        (:hyperlist-note "HYPERLIST_NOTE")
                        ;; Extraction
-                       (:qa-youtube "QA_YOUTUBE")
-                       (:qa-toobnix "QA_TOOBNIX")
+                       (:qa-youtube-url "QA_YOUTUBE_URL")
+                       (:qa-toobnix-url "QA_TOOBNIX_URL")
+                       (:qa-video-file "QA_VIDEO_FILE")
 											 (:bbb-playback "BBB_PLAYBACK")
                        ;; Old
                        (:alternate-apac "ALTERNATE_APAC")
@@ -800,7 +801,7 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
 				 (time-less-p (plist-get o :start-time)
 											(current-time)))
     (plist-put o :public t))
-	(when (eq emacsconf-publishing-phase 'resource)
+	(when (eq emacsconf-publishing-phase 'resources)
 		(plist-put o :qa-public t))
   o)
 

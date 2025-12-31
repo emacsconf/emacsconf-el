@@ -649,8 +649,8 @@ ${categories}
                               :public 1
 															:video-type "qanda"
                               :video-id (concat "qanda-" (plist-get o :slug))
-                              :youtube-url (plist-get o :qa-youtube)
-                              :toobnix-url (plist-get o :qa-toobnix)
+                              :youtube-url (plist-get o :qa-youtube-url)
+                              :toobnix-url (plist-get o :qa-toobnix-url)
 															:captions-edited (plist-get o :qa-captions-edited)
 															:caption-file (emacsconf-talk-file o "--answers.vtt")
                               :video-file (plist-get o :qa-video-file)
@@ -2041,8 +2041,8 @@ ${include}
                                      (if (file-exists-p qa-video)
                                          (string-trim (shell-command-to-string (concat "sha1sum -b " (shell-quote-argument qa-video) " | cut -d ' ' -f 1")))
                                        "")
-                                     (or (plist-get o :qa-youtube) "")
-                                     (or (plist-get o :qa-toobnix) "")))))))
+                                     (or (plist-get o :qa-youtube-url) "")
+                                     (or (plist-get o :qa-toobnix-url) "")))))))
                           (emacsconf-public-talks (emacsconf-get-talk-info))))))
       (insert (orgtbl-to-csv
                (cons '("Conference" "Slug" "Title" "Speakers" "Talk page URL" "Video URL" "Date" "Duration" "SHA" "Youtube URL" "Toobnix URL")
@@ -2287,40 +2287,6 @@ This video is available under the terms of the Creative Commons Attribution-Shar
 					(throw 'done t))
 				(emacsconf-publish-youtube-step-through-publishing-talk talk)))))
 
-(defun emacsconf-publish-toobnix-step-through-publishing-talk (talk)
-  (interactive (list (emacsconf-complete-talk-info
-                      (seq-remove
-                       (lambda (talk)
-                         (or (not (plist-get talk :video-file))
-                             (plist-get talk :toobnix-url)))
-                       (emacsconf-get-talk-info)))))
-  (kill-new (plist-get talk :video-file))
-  (y-or-n-p
-   (format "Video: %s - create video and upload this filename. Done?"
-           (plist-get talk :video-file)))
-  (kill-new (emacsconf-publish-video-description talk t))
-  (y-or-n-p "Copied description. Paste into description, move first line to title, add to playlist. Done?")
-  (when (emacsconf-talk-file talk "--main.vtt")
-    (kill-new (emacsconf-talk-file talk "--main.vtt"))
-    (y-or-n-p (format "Captions: %s. Add to video elements. Done?"
-                      (emacsconf-talk-file talk "--main.vtt"))))
-  (emacsconf-set-property-from-slug
-   (plist-get talk :slug)
-   "TOOBNIX_URL"
-   (read-string (format "%s - Toobnix URL: " (plist-get talk :scheduled)))))
-
-(defun emacsconf-publish-toobnix-step-through-publishing-all ()
-	(interactive)
-	(catch 'done
-		(while t
-			(let ((talk (seq-find (lambda (o)
-															(and (not (plist-get o :toobnix-url))
-																	 (emacsconf-talk-file o "--main.webm")))
-														(emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))
-				(unless talk
-					(message "All done so far.")
-					(throw 'done t))
-        (emacsconf-publish-toobnix-step-through-publishing-talk talk)))))
 
 
 ;; (emacsconf-publish-video-description (emacsconf-find-talk-info "async") t)
@@ -2402,16 +2368,7 @@ This video is available under the terms of the Creative Commons Attribution-Shar
           (browse-url (format "https://studio.youtube.com/video/%s/edit" (match-string 1 url))))
       (browse-url (concat "https://studio.youtube.com/channel/" emacsconf-youtube-channel-id)))))
 
-(defun emacsconf-toobnix-edit ()
-  (interactive)
-  (let ((url (org-entry-get (point) "TOOBNIX_URL")))
-    (if url
-        (when (string-match "/w/\\([A-Za-z0-9]+\\)" url)
-          (browse-url (format "https://toobnix.org/videos/update/%s" (match-string 1 url))))
-      (when (> (length (org-entry-get (point) "FILE_PREFIX")) 80)
-        (copy-file (expand-file-name (concat (org-entry-get (point) "FILE_PREFIX") "--main.webm") emacsconf-cache-dir)
-                   (expand-file-name (concat "emacsconf-" emacsconf-year "-" (org-entry-get (point) "SLUG") ".webm") emacsconf-cache-dir) t))
-      (browse-url "https://toobnix.org/videos/upload#upload"))))
+
 
 (defun emacsconf-publish-files ()
   (interactive)
@@ -2886,43 +2843,7 @@ This video is available under the terms of the Creative Commons Attribution-Shar
 			(emacsconf-with-talk-heading talk))
 		result))
 
-(defvar emacsconf-publish-toobnix-upload-command "peertube-cli")
-(defvar emacsconf-publish-toobnix-channel "EmacsConf")
-;; (defun emacsconf-publish-get-toobnix-token ()
-;; 	(let ((secrets (plz 'get "https://toobnix.org/api/v1/oauth-clients/local" :as #'json-read)))
 
-;; 		)
-
-;; 	)
-(defun emacsconf-publish-upload-to-toobnix (properties)
-	"Uses peertube-cli: https://github.com/Chocobozzz/PeerTube/blob/develop/support/doc/tools.md"
-	(with-temp-buffer
-		(let ((arguments
-					 (append
-						(list "upload" "-f" (plist-get properties :file))
-						(when (plist-get properties :title)
-							(list "-n" (plist-get properties :title)))
-						(when (plist-get properties :description)
-							(list "-d" (plist-get properties :description)))
-						(list "-L" "en"
-									"-C" emacsconf-publish-toobnix-channel
-									"-l" "2"
-									"-c" "15"
-									"-P" (if (string= (plist-get properties :privacy) "public") "1" "2") "-t"
-									(cond
-									 ((stringp (plist-get properties :tags))
-										(plist-get properties :tags))
-									 ((listp (plist-get properties :tags))
-										(string-join (plist-get properties :tags) ","))
-									 (t "emacs"))))))
-			(kill-new (mapconcat
-								 #'shell-quote-argument
-								 (append (list emacsconf-publish-toobnix-upload-command) arguments)
-								 " "))
-			(apply #'call-process
-						 emacsconf-publish-toobnix-upload-command
-						 nil t t arguments)
-			(buffer-string))))
 ;; YouTube
 
 (defun emacsconf-publish-spookfox-update-youtube-video ()
@@ -3074,7 +2995,7 @@ Tends to be quota-limited, though."
 		 :tags emacsconf-publish-talk-video-tags
 		 :playlist (concat emacsconf-name " " emacsconf-year)
 		 :date (plist-get talk :start-time)
-		 :privacy (if (plist-get talk :public) "public" "unlisted")
+		 :privacy (if (plist-get talk :qa-public) "public" "unlisted")
 		 :title (if (< (length title) 100) title (concat (substring title 0 97) "..."))
 		 :description (emacsconf-publish-answers-description talk platform))))
 
@@ -3083,19 +3004,32 @@ Tends to be quota-limited, though."
 	 (list (emacsconf-complete-talk-info)
 				 (intern (completing-read "Platform: " '("youtube" "toobnix")))))
 	(let ((file (emacsconf-talk-file talk "--main.webm"))
+        (props (emacsconf-publish-talk-video-properties talk platform))
+        url
 				output)
 		(when (and file (not (plist-get talk (if (eq platform 'toobnix) :toobnix-url :youtube-url))))
 			(setq output
 						(funcall
 						 (if (eq platform 'toobnix)
-								 #'emacsconf-publish-upload-to-toobnix
+								 #'emacsconf-toobnix-upload
 							 #'emacsconf-publish-upload-to-youtube)
-						 (emacsconf-publish-talk-video-properties talk platform)))
-			(when (and (string-match "Video URL: \\(.*+\\)" output) (eq platform 'youtube))
-				(setq output (match-string 1 output))
-				(save-window-excursion
-					(emacsconf-go-to-talk talk)
-					(org-entry-put (point) "YOUTUBE_URL" output)))
+						 props))
+			(pcase platform
+        ('youtube
+         (when (string-match "Video URL: \\(.*+\\)" output)
+           (setq url (match-string 1 output))
+           (save-window-excursion
+             (emacsconf-go-to-talk talk)
+             (org-entry-put (point) "YOUTUBE_URL" url))))
+        ('toobnix
+         (setq url (emacsconf-toobnix-latest-video-url props))
+         (save-window-excursion
+           (emacsconf-go-to-talk talk)
+           (org-entry-put
+            (point)
+            "TOOBNIX_URL"
+            url))))
+      (message "Uploaded talk for %s: %s" (plist-get talk :slug) url)
 			output)))
 
 (defun emacsconf-publish-upload-answers (talk platform)
@@ -3103,25 +3037,32 @@ Tends to be quota-limited, though."
 										 (intern (completing-read "Platform: " '("youtube" "toobnix")))))
 	(let ((file (emacsconf-talk-file talk "--answers.webm"))
 				(title (concat emacsconf-name " " emacsconf-year " Q&A: " (plist-get talk :title)))
-				output)
-		(when (and file (not (plist-get talk (if (eq platform 'toobnix) :qa-toobnix :qa-youtube))))
+				output
+        (props (emacsconf-publish-answers-video-properties talk platform))
+        url)
+		(when (and file (not (plist-get talk (if (eq platform 'toobnix) :qa-toobnix-url :qa-youtube-url))))
 			(setq output
 						(funcall
 						 (if (eq platform 'toobnix)
-								 #'emacsconf-publish-upload-to-toobnix
+								 #'emacsconf-toobnix-upload
 							 #'emacsconf-publish-upload-to-youtube)
-						 (list
-							:file file
-							:tags "emacs,emacsconf,answers"
-							:playlist (concat emacsconf-name " " emacsconf-year)
-							:date (plist-get talk :start-time)
-							:title (if (< (length title) 100) title (concat (substring title 0 97) "..."))
-							:description (emacsconf-publish-answers-description talk platform))))
-			(when (string-match "Video URL: \\(.*+\\)" output)
-				(setq output (match-string 1 output))
-				(save-window-excursion
-					(emacsconf-go-to-talk talk)
-					(org-entry-put (point) "QA_YOUTUBE" output)))
+             props))
+      (pcase platform
+        ('youtube
+         (when (string-match "Video URL: \\(.*+\\)" output)
+           (setq url (match-string 1 output))
+           (save-window-excursion
+             (emacsconf-go-to-talk talk)
+             (org-entry-put (point) "QA_YOUTUBE_URL" url))))
+        ('toobnix
+         (setq url (emacsconf-toobnix-latest-video-url props))
+         (save-window-excursion
+           (emacsconf-go-to-talk talk)
+           (org-entry-put
+            (point)
+            "QA_TOOBNIX_URL"
+            url))))
+      (message "Uploaded Q&A for %s: %s" (plist-get talk :slug) url)
 			output)))
 
 (defun emacsconf-publish-upload-answers-to-youtube (talk)
@@ -3129,7 +3070,7 @@ Tends to be quota-limited, though."
 	(let ((file (plist-get talk :qa-video-file))
 				(title (concat emacsconf-name " " emacsconf-year " Q&A: " (plist-get talk :title)))
 				output)
-		(when (and file (not (plist-get talk :qa-youtube)))
+		(when (and file (not (plist-get talk :qa-youtube-url)))
 			(setq output
 						(emacsconf-publish-upload-to-youtube
 						 (list
@@ -3265,8 +3206,8 @@ Tends to be quota-limited, though."
 												 (list
 													:conf-name emacsconf-name
 													:conf-year emacsconf-year
-													:youtube-url (plist-get talk :qa-youtube)
-													:toobnix-url (plist-get talk :qa-toobnix)
+													:youtube-url (plist-get talk :qa-youtube-url)
+													:toobnix-url (plist-get talk :qa-toobnix-url)
 													:media-url (format "https://media.emacsconf.org/%s/%s--answers.webm"
 																						 emacsconf-year
 																						 (plist-get talk :file-prefix))
@@ -3299,7 +3240,7 @@ Tends to be quota-limited, though."
 "
 												)))
 				(with-current-buffer (find-file-noselect emacstv-index-org)
-					(if (and (plist-get talk :qa-youtube) (emacstv-find-by-youtube-url (plist-get talk :qa-youtube)))
+					(if (and (plist-get talk :qa-youtube-url) (emacstv-find-by-youtube-url (plist-get talk :qa-youtube-url)))
 							(progn
 								(org-entry-put (point) "DATE" (format-time-string "%FT%T%z" (plist-get talk :start-time) t))
 								(org-entry-put (point)
