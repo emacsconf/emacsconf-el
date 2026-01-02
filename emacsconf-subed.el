@@ -169,6 +169,8 @@ TYPE can be 'end if you want the match end instead of the beginning."
      subtitles)
     (nreverse (cons current result))))
 
+(defalias 'emacsconf-extract-subed-copy-section-text #'emacsconf-subed-copy-current-chapter-text)
+
 (defun emacsconf-subed-copy-current-chapter-text (&optional only-from-point)
   "Copy text between NOTE and NOTE chapter comments."
   (interactive (list current-prefix-arg))
