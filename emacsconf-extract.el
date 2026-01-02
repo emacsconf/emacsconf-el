@@ -428,6 +428,15 @@
 
 (defvar emacsconf-extract-irc-speaker-nick nil "*Nick for the speaker.")
 
+(defun emacsconf-extract-pad-clean-up ()
+  (interactive)
+  (goto-char (point-min))
+  (while (re-search-forward "\\\\" nil t)
+    (replace-match ""))
+  (goto-char (point-min))
+  (while (re-search-forward "{rel=\"noreferrer noopener\"}" nil t)
+    (replace-match "")))
+
 (defun emacsconf-extract-selected-irc ()
 	"Copy the lines that start with -."
 	(interactive)
@@ -450,7 +459,8 @@
 	"<down>" #'forward-line
 	"<up>" #'previous-line
 	"<right>" (lambda () (interactive) (insert "-") (forward-line))
-	"<left>" #'forward-line)
+	"<left>" #'forward-line
+  "q" #'emacsconf-extract-irc-copy-line-to-other-window-as-question)
 
 (defun emacsconf-extract-irc-log ()
 	(interactive)
@@ -478,6 +488,8 @@
 																 (match-string 1))
 												"A: ")
 									 "")))
+      (when (string= (match-string 2) "https")
+        (setq line (concat (match-string 2) line)))
 			(setq line
 						(concat
 						 (if (or (string= prefix "A: ") indent) "  " "")
@@ -503,6 +515,31 @@
 	(emacsconf-edit-wiki-page talk))
 
 (require 'hydra)
+
+(defvar-keymap emacsconf-extract-irc-keymap
+  :doc "Make it easy to extract lines from IRC"
+  "c" #'emacsconf-extract-irc-copy-line-to-other-window-as-list-item
+	"q" (lambda () (interactive) (emacsconf-extract-irc-copy-line-to-other-window-as-list-item "Q: "))
+  "o" #'other-window
+  "t" #'emacsconf-extract-irc-open-talk-in-other-window
+  "n" #'next-line
+	"p" #'previous-line
+	"N" #'move-line-down
+	"P" #'move-line-up
+  "<up>" #'previous-line
+  "<down>" #'next-line
+  "<right>" (lambda () (interactive) (goto-char (line-beginning-position)) (insert "  "))
+  "<left>" (lambda () (interactive) (goto-char (line-beginning-position)) (delete-char 2))
+  "<prior>" #'scroll-down-command
+	"<next>" #'scroll-up-command
+  "a" (lambda () (interactive) (emacsconf-extract-irc-copy-line-to-other-window-as-list-item "A: "))
+  "l" (lambda () (interactive) (save-window-excursion (other-window 1) (consult-line)))
+	"<spc>" #'pop-to-mark-command)
+
+(defun emacsconf-extract-irc ()
+  (interactive)
+  (set-transient-map emacsconf-extract-irc-keymap t))
+
 (defhydra emacsconf-extract-irc ()
   "Make it easy to extract lines from IRC"
   ("c" emacsconf-extract-irc-copy-line-to-other-window-as-list-item "copy")
@@ -513,6 +550,8 @@
 	("p" previous-line "previous")
 	("N" move-line-down "move down")
 	("P" move-line-up "move up")
+  ("<up>" previous-line)
+  ("<down>" next-line)
 	("<right>" (progn (goto-char (line-beginning-position)) (insert "  ")) "indent")
 	("<left>" (progn (goto-char (line-beginning-position)) (delete-char 2)) "dedent")
 	("<prior>" scroll-down-command)
