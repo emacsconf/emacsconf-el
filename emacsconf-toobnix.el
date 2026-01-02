@@ -60,9 +60,9 @@ TYPE is 'talk or 'answers."
          (url-request-data
           (mm-url-encode-multipart-form-data
                      `(("description" .
-                        ,(replace-regexp-in-string
-                          "\n" "\r\n"
-                          (plist-get properties :description))))
+                        ,(encode-coding-string
+                          (plist-get properties :description)
+                          'utf-8-dos)))
                      boundary))
          (url (concat "https://toobnix.org/api/v1/videos/" id)))
     (with-current-buffer (url-retrieve-synchronously url)
