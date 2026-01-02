@@ -838,7 +838,7 @@ This includes the intro note, the schedule, and talk resources."
 			 (concat
 				(if (and (elt sub 4) (not (string= (elt sub 4) "")))
 						(format "\n<div class=\"transcript-heading\">[[!template new=\"1\" text=\"\"\"%s\"\"\" start=\"%s\" video=\"%s\" id=\"subtitle\"%s]]</div>"
-										(string-trim (replace-regexp-in-string "^NOTE[ \n]" "" (elt sub 4)))
+										(replace-regexp-in-string "\\." "\\\\." (string-trim (replace-regexp-in-string "^NOTE[ \n]" "" (elt sub 4))))
 										(concat (format-seconds "%02h:%02m:%02s" (/ (floor msecs) 1000))
 														"." (format "%03d" (mod (floor msecs) 1000)))
 										video-id
