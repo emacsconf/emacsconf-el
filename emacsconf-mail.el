@@ -1168,11 +1168,13 @@ ${captions}
 		:body
 		"${email-notes}Hi ${name}!
 
-Hope things are going well for you! I got the upload service up
-and running so you can upload your video${plural} and other talk
-resources (ex: speaker notes, Org files, slides, etc.).  You can
-access it at ${upload-url} with the password
-\"${upload-password}\". Please let me know if you run into technical issues.${fill}
+Hope things are going well for you! I got the upload service up and
+running so you can upload your video${plural} and other talk
+resources (ex: speaker notes, Org files, slides, etc.).  You can access
+it at ${upload-url} with the password \"${upload-password}\". After you
+upload your file(s), please e-mail me so that I can grab it and start
+the conversion/captioning process. Please let me know if you run into
+technical issues.${fill}
 
 If you can get your file(s) uploaded by ${video-target-date},
 that would give us plenty of time to reencode it, edit captions,
@@ -1351,6 +1353,39 @@ ${user-signature}")
       :user-signature user-full-name
       :name-short (or (assoc-default "NAME" volunteer)
 								      (assoc-default "NAME_SHORT" volunteer))))))
+
+(defun emacsconf-mail-template-volunteers-thanks-after-conference ()
+  (interactive)
+  (let ((groups
+         (with-current-buffer (find-file-noselect emacsconf-org-file)
+           (org-map-entries (lambda ()
+                              (list :name (or (org-entry-get (point) "NAME_SHORT")
+                                              (org-entry-get (point) "NAME"))
+                                    :email (org-entry-get (point) "EMAIL")
+                                    :thanks (org-entry-get (point) "THANKS")
+                                    :tags (string-join (org-get-tags) ", ")))
+                            "THANKS={.}"))))
+    (dolist (volunteer groups)
+      (emacsconf-mail-prepare
+       (list
+        :subject "${conf-name} ${conf-year}: Thank you for volunteering! =)"
+		    :reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+		    :mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+        :body
+        "Hello, ${name}!
+
+${thanks} Hope you can join us again next year!
+
+Best regards,
+
+${user-signature}")
+       (plist-get volunteer :email)
+       (append volunteer
+               (list
+                :conf-name emacsconf-name
+                :conf-year emacsconf-year
+                :user-email user-mail-address
+                :user-signature user-full-name))))))
 
 (defun emacsconf-mail-backstage-info-to-speakers-and-captioners ()
   (interactive)
@@ -2001,7 +2036,7 @@ Sacha")
 				:body
 				"${email-notes}Hi, ${speakers-short}!
 
-Thank you so much for being part of ${conf-name} ${year}! Hundreds of people
+Thank you so much for being part of ${conf-name} ${year}! Lots of people
 enjoyed it, and I'm sure even more will come across the videos in the
 days to follow.
 
@@ -2010,16 +2045,14 @@ IRC/BBB/Etherpad to ${talk-urls} . For your convenience, I've also
 included them below. You can edit the wiki directly or e-mail me
 anything you'd like me to add.${wrap}
 
-Videos are also available on YouTube and Toobnix at:
+Videos are up at:
 
 ${video-urls}
-I'm waiting for people to check the audio of the Q&A videos and
-renormalize them if needed before I upload those to YouTube and Toobnix,
-but the Q&A videos are already available on the talk pages at ${wiki}
-along with chapter indices and rough transcripts.
+
+Please feel free to check for comments.${wrap}
 
 If you want to reupload the video to your own channel, feel free to do
-so.  If you like, I can switch our playlist to include your version of
+so. If you like, I can switch our playlist to include your version of
 the video instead. That way, it might be easier for you to respond to
 comments on videos.
 
