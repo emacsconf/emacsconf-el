@@ -20,7 +20,18 @@
 
 ;;; Commentary:
 
-;; 
+;; The typical communication flow for speakers is:
+
+;; - emacsconf-mail-review
+;; - emacsconf-mail-accept-talk
+;; - emacsconf-mail-upload-and-backstage-info
+;; - emacsconf-mail-acknowledge-upload
+;; - emacsconf-mail-captions-for-review
+;; - emacsconf-mail-draft-schedule
+;; - emacsconf-mail-intro-to-all
+;; - emacsconf-mail-checkin-instructions-to-all
+;; - emacsconf-mail-template-speakers-thanks-after-conference
+
 
 ;;; Code:
 
