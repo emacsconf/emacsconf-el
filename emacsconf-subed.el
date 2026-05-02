@@ -354,8 +354,6 @@ Create it if necessary."
 		(define-key map [up-1] #'ignore)
 		(define-key map [drag-mouse-1] #'ignore)
 		(define-key map [mouse-movement] #'ignore)
-		(define-key map (kbd "<up>") #'scroll-down)
-		(define-key map (kbd "<down>") #'scroll-up)
 		(define-key map (kbd "M-q") #'emacsconf-subed-unfill-paragraph)
 		(define-key map (kbd "M-.") #'emacsconf-subed-merge-and-unfill)
 		(define-key map "q" #'emacsconf-subed-unfill-paragraph)
