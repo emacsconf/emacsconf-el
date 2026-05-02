@@ -26,6 +26,13 @@
 ;; from https://github.com/sachac/compile-media .
 
 ;;; Code:
+(ert-deftest emacsconf-split-text-based-on-heuristics ()
+  "Tests `emacsconf-split-text-based-on-heuristics'."
+  (should (equal (emacsconf-split-text-based-on-heuristics
+									"This is a long sentence that can be split up at several logical points, such as that one." 40)
+								 '("This is a long sentence" "that can be split up at several"
+									 "logical points, such as that one."))))
+
 
 (require 'subed)
 
@@ -118,27 +125,38 @@ TYPE can be 'end if you want the match end instead of the beginning."
                          result))
       (setq position new-position)
       (setq next-limit (+ new-position limit)))
-    (setq result (cons (string-trim current) result))
+		(unless (string= current "")
+			(setq result (cons (string-trim current) result)))
     (nreverse result)))
 
-(defun emacsconf-reflow-automatically ()
-  (interactive)
-  (let* ((subtitle-text-limit (or emacsconf-subed-subtitle-max-length fill-column))
-         (auto-space-msecs 700)
-         (subtitles
-          (mapconcat
-           (lambda (sub)
-             (string-join
-              (emacsconf-split-text-based-on-heuristics (elt sub 3) subtitle-text-limit)
-              "\n"))
-           (emacsconf-combine-close-subtitles (subed-subtitle-list))
-           "\n")))
-    (find-file (concat (file-name-sans-extension (buffer-file-name)) ".txt"))
-    (erase-buffer)
-    (insert subtitles)
-    (goto-char (point-min))
-    (set-fill-column subtitle-text-limit)
-    (display-fill-column-indicator-mode 1)))
+
+
+(defun emacsconf-reflow-automatically (&optional beg end)
+	"Try to split subtitle text at reasonable points."
+  (interactive (if (region-active-p) (list (region-beginning) (region-end))
+								 (list (point-min) (point-max))))
+	(if (derived-mode-p 'subed-mode)
+			(let* ((subtitle-text-limit (or emacsconf-subed-subtitle-max-length fill-column))
+						 (auto-space-msecs 700)
+						 (subtitles
+							(mapconcat
+							 (lambda (sub)
+								 (string-join
+									(emacsconf-split-text-based-on-heuristics (elt sub 3) subtitle-text-limit)
+									"\n"))
+							 (emacsconf-combine-close-subtitles (subed-subtitle-list beg end))
+							 "\n")))
+				(find-file (concat (file-name-sans-extension (buffer-file-name)) ".txt"))
+				(delete-region beg end)
+				(insert subtitles)
+				(goto-char (point-min))
+				(set-fill-column subtitle-text-limit)
+				(display-fill-column-indicator-mode 1))
+		(let ((split (emacsconf-split-text-based-on-heuristics
+									(buffer-substring beg end)
+									(or emacsconf-subed-subtitle-max-length fill-column))))
+			(delete-region beg end)
+			(insert (string-join split "\n")))))
 
 ;;;###autoload
 (defun emacsconf-subed-make-chapter-file-based-on-comments ()
