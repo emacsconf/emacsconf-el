@@ -837,7 +837,8 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
       (let* ((elt (org-element-property-drawer-parser nil))
              (beg (org-element-property :contents-begin elt))
              (end (org-element-property :contents-end elt)))
-        (buffer-substring-no-properties beg end)))))
+        (when (and beg end)
+          (buffer-substring-no-properties beg end))))))
 
 (defun emacsconf-get-talk-logbook (o)
 	(plist-put o :logbook (emacsconf-get-logbook-notes)))
