@@ -34,26 +34,26 @@
   "Name of conference"
   :group 'emacsconf
   :type 'string)
-(defcustom emacsconf-year "2025"
+(defcustom emacsconf-year "2026"
   "Conference year. String for easy inclusion."
   :group 'emacsconf
   :type 'string)
-(defcustom emacsconf-cfp-deadline "2025-09-19" "Target date for proposals."
+(defcustom emacsconf-cfp-deadline "2026-09-18" "Target date for proposals."
 	:group 'emacsconf
 	:type 'string)
-(defcustom emacsconf-date "2025-12-06" "Starting date of EmacsConf."
+(defcustom emacsconf-date "2026-12-12" "Starting date of EmacsConf."
 	:group 'emacsconf
 	:type 'string)
-(defcustom emacsconf-dates "2025-12-06 to 2025-12-07" "Conference dates."
+(defcustom emacsconf-dates "2026-12-12 to 2026-12-13" "Conference dates."
 	:group 'emacsconf
 	:type 'string)
-(defcustom emacsconf-video-target-date "2025-10-31" "Target date for receiving talk videos from the speakers."
+(defcustom emacsconf-video-target-date "2026-10-30" "Target date for receiving talk videos from the speakers."
 	:group 'emacsconf
 	:type 'string)
-(defcustom emacsconf-schedule-announcement-date "2025-10-24" "Date for publishing the schedule."
+(defcustom emacsconf-schedule-announcement-date "2026-10-23" "Date for publishing the schedule."
 	:group 'emacsconf
 	:type 'string)
-(defcustom emacsconf-directory "~/vendor/emacsconf-wiki"
+(defcustom emacsconf-directory "~/proj/emacsconf/wiki"
   "Directory where the wiki files are."
   :group 'emacsconf
   :type 'directory)
@@ -73,7 +73,7 @@
 (defcustom emacsconf-base-url "https://emacsconf.org/" "Includes trailing slash"
   :group 'emacsconf
   :type 'string)
-(defcustom emacsconf-publishing-phase 'harvest
+(defcustom emacsconf-publishing-phase 'cfp
   "Controls what information to include.
 'program - don't include times
 'schedule - include times; use this leading up to the conference
@@ -1198,6 +1198,11 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
 	(interactive (list (emacsconf-complete-talk)))
 	(insert (emacsconf-mail-format-talk-schedule (emacsconf-search-talk-info search))))
 
+(defun emacsconf-insert-talk-availability-constraints (search)
+	"Insert the schedule for SEARCH."
+	(interactive (list (emacsconf-complete-talk)))
+	(insert (plist-get (emacsconf-search-talk-info search) :availability)))
+
 (defun emacsconf-insert-talk-email (search)
 	"Insert the talk email matching SEARCH."
   (interactive (list (emacsconf-complete-talk)))
@@ -1238,6 +1243,7 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
 		"i l" #'emacsconf-insert-talk-link
 		"i t" #'emacsconf-insert-talk-title
 		"i s" #'emacsconf-insert-talk-schedule
+		"i c" #'emacsconf-insert-talk-availability-constraints
 		"I" #'emacsconf-message-talk-info
     "c" #'emacsconf-find-captions-from-slug
     "d" #'emacsconf-find-caption-directives-from-slug
@@ -1274,22 +1280,24 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
   (format-time-string "%z" (date-to-time emacsconf-date) emacsconf-timezone)
   "Timezone offset for `emacsconf-timezone' on `emacsconf-date'.")
 
-(defun emacsconf-timezone-string (o tz &optional format)
+(defun emacsconf-timezone-string (o tz &optional format short)
 	(when (and (listp o) (plist-get o :scheduled)) (setq o (plist-get o :scheduled)))
   (let* ((start (org-timestamp-to-time (org-timestamp-split-range (org-timestamp-from-string o))))
          (end (org-timestamp-to-time (org-timestamp-split-range (org-timestamp-from-string o) t))))
-    (if (string= tz "UTC")
-        (format "%s - %s "
-                (format-time-string (or format "%A, %b %-e %Y, ~%-l:%M %p")
-                                    start tz)
-                (format-time-string "%-l:%M %p %Z"
-                                    end tz))
-      (format "%s - %s (%s)"
-              (format-time-string (or format "%A, %b %-e %Y, ~%-l:%M %p")
-                                  start tz)
-              (format-time-string "%-l:%M %p %Z"
-                                  end tz)
-              tz))))
+		(if short
+				(format-time-string "%a ~%-l:%M %p %Z" start tz)
+			(if (string= tz "UTC")
+					(format "%s - %s "
+									(format-time-string (or format "%A, %b %-e %Y, ~%-l:%M %p")
+																			start tz)
+									(format-time-string "%-l:%M %p %Z"
+																			end tz))
+				(format "%s - %s (%s)"
+								(format-time-string (or format "%A, %b %-e %Y, ~%-l:%M %p")
+																		start tz)
+								(format-time-string "%-l:%M %p %Z"
+																		end tz)
+								tz)))))
 
 (defun emacsconf-timezone-strings (o &optional timezones format)
   (mapcar (lambda (tz) (emacsconf-timezone-string o tz format)) (or timezones emacsconf-timezones)))
@@ -1330,12 +1338,21 @@ If TIMEZONES is a string, split it by commas."
 																						tzc-time-zones nil nil nil nil
 																						(org-entry-get (point) "TIMEZONE"))
 												 (completing-read "From zone: " tzc-time-zones nil t)))
-                     (read-string "Time: ")))
+										 (let ((current
+														(when (eq 'timestamp (org-element-type (org-element-context)))
+															(org-element-property :raw-value (org-element-context)))))
+											 (read-string "Time: " current))))
   (let* ((from-offset (format-time-string "%z" (date-to-time emacsconf-date) timezone))
          (time
           (date-to-time
-           (concat emacsconf-date "T" (string-pad time 5 ?0 t)  ":00.000"
-                   from-offset))))
+					 (if (string-match "-" time)
+							 time
+						 (concat emacsconf-date "T" (string-pad time 5 ?0 t)  ":00.000"
+										 from-offset)))))
+		(kill-new (format-time-string
+              "%b %d %H:%M %z"
+              time
+              timezone))
     (message "%s = %s"
              (format-time-string
               "%b %d %H:%M %z"
@@ -1356,17 +1373,26 @@ If TIMEZONES is a string, split it by commas."
 																						tzc-time-zones nil nil nil nil
 																						(org-entry-get (point) "TIMEZONE"))
 												 (completing-read "To zone: " tzc-time-zones nil t)))
-                     (read-string "Time: ")))
+										 (let ((current
+														(when (eq 'timestamp (org-element-type (org-element-context)))
+															(org-element-property :raw-value (org-element-context)))))
+	(read-string "Time: " current))))
   (let* ((time
           (date-to-time
-           (concat emacsconf-date "T" (string-pad time 5 ?0 t)  ":00.000"
-                   emacsconf-timezone-offset))))
+           (if (string-match "-" time)
+							 time
+						 (concat emacsconf-date "T" (string-pad time 5 ?0 t)  ":00.000"
+										 from-offset)))))
+		(kill-new (format-time-string
+              "%b %d %H:%M %z"
+              time
+              timezone))
     (message "%s = %s"
              (format-time-string
               "%b %d %H:%M %z"
               time
               emacsconf-timezone)
-             (format-time-string
+						 (format-time-string
               "%b %d %H:%M %z"
               time
               timezone))))
@@ -1504,21 +1530,22 @@ If TIMEZONES is a string, split it by commas."
            :vnc-port "5905"
 					 :autopilot crontab
            :status "online")
-		(:name "Development" :color "skyblue" :id "dev" :channel "emacsconf-dev"
-           :watch  ,(format "https://live.emacsconf.org/%s/watch/dev/" emacsconf-year)
-				   :webchat-url "https://chat.emacsconf.org/?join=emacsconf,emacsconf-org,emacsconf-accessible,emacsconf-gen,emacsconf-de"
+		(:name "B" :color "skyblue" :id "b" :channel "emacsconf-b"
+           :watch  ,(format "https://live.emacsconf.org/%s/watch/b/" emacsconf-year)
+				   :webchat-url "https://chat.emacsconf.org/?join=emacsconf,emacsconf-org,emacsconf-accessible,emacsconf-gen,emacsconf-b"
            :tramp "/ssh:emacsconf-dev@res.emacsconf.org#46668:"
 					 :toobnix-url "https://toobnix.org/w/uXGmcRigZD82UWr5nehKeL"
 					 :youtube-url "https://youtube.com/live/KCZthyBhHtg"
 					 :youtube-studio-url "https://studio.youtube.com/video/KCZthyBhHtg/livestreaming"
-					 :stream ,(concat emacsconf-stream-base "dev.webm")
-           :480p ,(concat emacsconf-stream-base "dev-480p.webm")
+					 :stream ,(concat emacsconf-stream-base "b.webm")
+           :480p ,(concat emacsconf-stream-base "b-480p.webm")
 					 :uid 2003
            :start "10:00" :end "17:00"
            :vnc-display ":6"
            :vnc-port "5906"
 					 :autopilot crontab
-           :status "offline")))
+           :status "offline")
+		))
 
 (defun emacsconf-get-track (name)
 	"Get the track for NAME.

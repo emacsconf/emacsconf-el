@@ -337,6 +337,17 @@ Create it if necessary."
         (error "Duration %d is less than minimum" (- (subed-subtitle-msecs-stop) (subed-subtitle-msecs-start))))
     (or (subed-forward-subtitle-text) (goto-char (point-max)))))
 
+;;;###autoload
+(defun emacsconf-subed-add-todo (event)
+  "Append a TODO comment at EVENT."
+	(interactive "e")
+	(goto-char (posn-point (event-start event)))
+	(let ((comment (subed-subtitle-comment)))
+		(subed-set-subtitle-comment
+		 (if comment
+				 (concat comment "\nTODO")
+			 "TODO"))))
+
 (defun emacsconf-subed-split-at-mouse (event)
 	"Split at the word clicked on."
 	(interactive "e")
@@ -369,24 +380,27 @@ Create it if necessary."
 		"\n+" " "
 		(subed-subtitle-text))))
 
-(defvar emacsconf-subed-split-map
-	(let ((map (make-sparse-keymap)))
-		(define-key map [down-mouse-1] #'emacsconf-subed-split-at-mouse)
-		(define-key map [mouse-1] #'ignore)
-		(define-key map [up-1] #'ignore)
-		(define-key map [drag-mouse-1] #'ignore)
-		(define-key map [mouse-movement] #'ignore)
-		(define-key map (kbd "M-q") #'emacsconf-subed-unfill-paragraph)
-		(define-key map (kbd "M-.") #'emacsconf-subed-merge-and-unfill)
-		(define-key map "q" #'emacsconf-subed-unfill-paragraph)
-		(define-key map "p" #'subed-backward-subtitle-text)
-		(define-key map "n" #'subed-forward-subtitle-text)
-		(define-key map "k" #'subed-kill-subtitle)
-		(define-key map "." #'emacsconf-subed-merge-and-unfill)
-		(define-key map "u" #'undo)
-		(define-key map (kbd "SPC") #'scroll-up)
-		map)
-	"Map for splitting.")
+
+(defvar-keymap emacsconf-subed-split-map
+	:doc "Shortcuts for splitting and reflowing subtitles."
+	:repeat t
+	"<down-mouse-3>" #'emacsconf-subed-add-todo
+	"<mouse-3>" #'ignore
+	"<down-mouse-1>" #'emacsconf-subed-split-at-mouse
+	"<mouse-1>" #'ignore
+	"S-<down-mouse-1>" #'emacsconf-subed-add-todo
+	"<up-mouse-1>" #'ignore
+	"<drag-mouse-1>" #'ignore
+	"<mouse-movement>" #'ignore
+	"M-q" #'emacsconf-subed-unfill-paragraph
+	"M-." #'emacsconf-subed-merge-and-unfill
+	"q" #'emacsconf-subed-unfill-paragraph
+	"p" #'subed-backward-subtitle-text
+	"n" #'subed-forward-subtitle-text
+	"k" #'subed-kill-subtitle
+	"." #'emacsconf-subed-merge-and-unfill
+	"u" #'undo
+	"SPC" #'scroll-up)
 
 ;;;###autoload
 (defun emacsconf-subed-split ()

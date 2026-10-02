@@ -344,7 +344,7 @@ Pairs with `emacsconf-schedule-dump-sexp'."
                         (cons 'title (plist-get o :title))
                         (cons 'data-slug (plist-get o :slug)))
                        (dom-node 'title nil
-                                 (concat (format-time-string "%l:%M-" (plist-get o :start-time) emacsconf-timezone)
+                                 (concat (format-time-string "%a %l:%M-" (plist-get o :start-time) emacsconf-timezone)
                                          (format-time-string "%l:%M " (plist-get o :end-time) emacsconf-timezone)
                                          (plist-get o :title)))
                        node
