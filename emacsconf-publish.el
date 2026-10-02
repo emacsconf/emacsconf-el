@@ -25,6 +25,7 @@
 ;;; Code:
 
 (require 'emacsconf-schedule)
+(require 'ox-md)
 
 (defcustom emacsconf-media-base-url "https://media.emacsconf.org/" "Base URL for published media files."
   :type 'string
@@ -66,10 +67,27 @@
   "Add the current talk to the wiki."
   (interactive)
 	(emacsconf-current-org-notebook-refresh-schedule)
-  (emacsconf-publish-talk-page (emacsconf-get-talk-info-for-subtree))
-  (emacsconf-publish-info-pages)
-	(emacsconf-publish-schedule)
-  (magit-status-setup-buffer emacsconf-directory))
+	(let ((this-talk (emacsconf-get-talk-info-for-subtree))
+				(default-directory emacsconf-directory))
+		(when (string= (plist-get this-talk :status) "TO_REVIEW")
+			(emacsconf-with-talk-heading this-talk
+				(org-todo "TO_ACCEPT")
+				(setq this-talk (emacsconf-get-talk-info-for-subtree))))
+		(emacsconf-publish-talk-page this-talk)
+		(emacsconf-publish-info-pages)
+		(emacsconf-publish-schedule)
+		(vc-register
+		 (mapcar
+			(lambda (s)
+				(expand-file-name (format s (plist-get this-talk :slug))
+													(expand-file-name emacsconf-year
+																						emacsconf-directory)))
+			(list
+			 "info/%s-before.md"
+			 "info/%s-nav.md"
+			 "info/%s-after.md"
+			 "talks/%s.md")))
+		(magit-status-setup-buffer emacsconf-directory)))
 
 (defun emacsconf-publish-update-conf-html ()
   "Update the schedules and export the page so I can easily review it."
@@ -1506,16 +1524,18 @@ If MODIFY-FUNC is specified, use it to modify the talk."
               (mapcar
                (lambda (o) (append
 														(list :captions-edited t
+																	:chapter-file (emacsconf-talk-file o "--main--chapters.vtt")
+																	:caption-file (emacsconf-talk-file o "--main.vtt")
 																	:backstage t) o))
 							 (emacsconf-filter-talks info)))
              (by-status (seq-group-by (lambda (o) (plist-get o :status)) talks))
-             (files (directory-files dest))) ;emacsconf-backstage-dir  very sislow right now
+             (files (directory-files dest))) ;emacsconf-backstage-dir  very slow right now
         (insert
          "<html><head><meta charset=\"UTF-8\"><link rel=\"stylesheet\" href=\"/style.css\" /></head><body>"
 				 (if (file-exists-p (expand-file-name "include-in-index.html" emacsconf-cache-dir))
              (with-temp-buffer (insert-file-contents (expand-file-name "include-in-index.html" emacsconf-cache-dir)) (buffer-string))
            "")
-				 "<p>Schedule by status: (gray: waiting, light yellow: processing, yellow: to assign, light blue: captioning, light green: to check, green: captioned and ready)<br />Updated by conf.org and the wiki repository</br />"
+				 "<p>Schedule by status: (gray: waiting, light yellow: processing, yellow: to assign, light blue: captioning, light green: to check, green: captioned and ready)<br />We manually update this based on conf.org and the wiki repository, so don't worry if your submission isn't up yet; feel free to follow up with organizers</br />"
 				 (let* ((emacsconf-schedule-svg-modify-functions '(emacsconf-schedule-svg-color-by-status))
 								(img (emacsconf-schedule-svg 800 200 info)))
 					 (with-temp-buffer
