@@ -249,16 +249,20 @@ Group by e-mail.  With prefix argument (e.g. \\[universal-argument]),
 insert into the current buffer instead of drafting e-mails."
   (interactive "P")
   (let* ((mail-func (emacsconf-mail-complete-template-function))
-         (grouped (emacsconf-filter-talks-by-logbook
-									 (symbol-name mail-func)
-									 (emacsconf-mail-group-by-email)))
+         (grouped (seq-filter 'car (emacsconf-mail-group-by-email
+																		(emacsconf-filter-talks-by-logbook
+																		 (symbol-name mail-func)
+																		 (emacsconf-get-talk-info)))))
 				 (emacsconf-mail-prepare-behavior (if arg t 'new-message)))
-    (mapc (lambda (group)
-            (funcall mail-func group)
-						(mapc (lambda (talk)
-										(emacsconf-mail-log-message-when-sent talk (symbol-name mail-func)))
-									(cdr group)))
-          grouped)))
+		(if grouped
+				(mapc (lambda (group)
+								(funcall mail-func group)
+
+								(mapc (lambda (talk)
+												(emacsconf-mail-log-message-when-sent talk (symbol-name mail-func)))
+											(cdr group)))
+							grouped)
+			(message "All done, maybe!"))))
 
 (defun emacsconf-mail-log-message-when-sent (o message)
   (add-hook 'message-sent-hook
@@ -837,13 +841,24 @@ ${signature}"
 GROUP is (email . (talk talk talk)).
 If called with ARG, insert into current buffer instead of composing or updating a message."
   (interactive (list (emacsconf-mail-complete-email-group) current-prefix-arg))
-	(let ((emacsconf-mail-prepare-behavior (if arg t emacsconf-mail-prepare-behavior)))
+	(let ((emacsconf-mail-prepare-behavior (if arg t emacsconf-mail-prepare-behavior))
+				(slug-times
+				 (mapconcat (lambda (o)
+											(format "%s (%s)"
+															(plist-get o :slug)
+															(emacsconf-timezone-string o (plist-get o :tz) nil t)))
+										(cdr group) ","))
+				(slugs
+				 (mapconcat (lambda (o)
+											(plist-get o :slug))
+										(cdr group) ",")))
 		(emacsconf-mail-prepare
 		 (list
 			:subject
-			"${conf-name} ${year} draft schedule FYI: ${slugs}"
+			"${conf-name} ${year} draft schedule FYI: ${slug-times}"
 			:reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
 			:mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+			:log-note (format "sent schedule draft: %s" slug-times)
 			:filter (lambda (talk)
 								(and (plist-get talk :email)
 										 (not (string= (plist-get talk :status) "CANCELLED"))))
@@ -919,13 +934,14 @@ ${signature}
 		 (plist-get (cadr group) :email)
 		 (list
 			:schedule-announcement-date emacsconf-schedule-announcement-date
-			:slugs (mapconcat (lambda (o) (plist-get o :slug)) (cdr group) ",")
+			:slugs slugs
 			:email (plist-get (cadr group) :email)
 			:base emacsconf-base-url
 			:user-email user-mail-address
 			:year emacsconf-year
 			:signature user-full-name
 			:conf-name emacsconf-name
+			:slug-times slug-times
 			:speakers-short (plist-get (cadr group) :speakers-short)
 			:plural (if (= 1 (length (cdr group))) "" "s")
 			:email-notes (emacsconf-surround "ZZZ: " (plist-get (cadr group) :email-notes) "\n\n" "")
@@ -948,8 +964,8 @@ ${signature}
 					 (append
 						(list :renamed-timezone (emacsconf-schedule-rename-etc-timezone (plist-get (cadr group) :timezone)))
 						(cadr group))
-					 "Just let me know if you want us to use a different time zone for translating times in future e-mails. ")
-				"I don't think I have a time zone noted for you yet. If you want, I can translate times into your local time zone for you in future e-mails. Just let me know what you would like. ")))))
+					 "Let me know if you want us to use a different time zone for translating times in future e-mails. ")
+				"I don't think I have a time zone noted for you yet. If you want, I can translate times into your local time zone for you in future e-mails. Let me know what you would like. ")))))
 
 (defun emacsconf-mail-acknowledge-upload (talk)
 	"Acknowledge uploaded files for TALK."
