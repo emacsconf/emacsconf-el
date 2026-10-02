@@ -274,10 +274,11 @@ insert into the current buffer instead of drafting e-mails."
             nil t))
 
 (defun emacsconf-mail-group-by-email (&optional info)
-  (seq-group-by (lambda (o) (plist-get o :email))
-								(or info (seq-filter (lambda (o) (and (plist-get o :email)
-																											(not (string= (plist-get o :status) "CANCELLED"))))
-																		 (emacsconf-get-talk-info)))))
+  (seq-group-by
+	 (lambda (o) (plist-get o :email))
+	 (or info (seq-filter (lambda (o) (and (plist-get o :email)
+																				 (not (string= (plist-get o :status) "CANCELLED"))))
+												(emacsconf-get-talk-info)))))
 
 ;;;###autoload
 (defun emacsconf-mail-speaker-from-slug (talk)
@@ -716,7 +717,7 @@ settle down. In the meantime, please let us know if you have any
 questions or if there's anything we can do to help out!
 
 ${signature}"
-								:log-note "accepted talk")
+								:log-note "emacsconf-mail-send-grouped-acceptance: accepted talk")
 		 (plist-get (cadr group) :email)
 		 (list
 			:base emacsconf-base-url
@@ -768,11 +769,13 @@ ${signature}"
 (defun emacsconf-mail-accept-talk (talk)
 	"Send acceptance letter."
   (interactive (list (emacsconf-complete-talk-info)))
+	(browse-url (concat emacsconf-base-url (plist-get talk :url)))
   (emacsconf-mail-prepare '(:subject "${conf-name} ${year} acceptance: ${title}"
 											 :cc "emacsconf-submit@gnu.org"
 											 :slugs nil
 											 :reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
 											 :mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
+
 											 :body
 											 "
 Hi, ${speakers-short}!
@@ -792,13 +795,23 @@ you're a few minutes over or under. If it looks like a much shorter or
 longer talk once you start getting into it, let us know and we might
 be able to adjust.${wrap}
 
+Here's a handy TODO you can use if you want:
+
+** TODO Prepare \"${title}\" for ${conf-name} ${year}
+   DEADLINE: <${video-target-date}>
+   (feel free to send it in earlier; let us know at ${submit-email} you're running late)
+   Reserved time: ${time} minutes${q-and-a}
+   Instructions: ${base}${year}/prepare/
+   Talk page: ${url}
+   (remember to use large text for your video!)
+
 I'll follow up with the specific schedule for your talk once things
 settle down. In the meantime, please let us know if you have any
 questions or if there's anything we can do to help out!
 
 ${signature}"
 											 :function emacsconf-mail-accept-talk
-											 :log-note "accepted talk")
+											 :log-note "emacsconf-mail-accept-talk: accepted talk")
 						(plist-get talk :email)
 						(list
 						 :base emacsconf-base-url
@@ -809,6 +822,9 @@ ${signature}"
 						 :title (plist-get talk :title)
 						 :email (plist-get talk :email)
 						 :time (plist-get talk :time)
+						 :submit-email emacsconf-submit-email
+						 :video-target-date (format-time-string "%Y-%m-%d %a" (date-to-time emacsconf-video-target-date))
+						 :q-and-a (if (emacsconf-schedule-q-and-a-p talk) " (+ time afterwards for Q&A)" "")
 						 :speakers-short (plist-get talk :speakers-short)
 						 :url (concat emacsconf-base-url (plist-get talk :url))
 						 :video-target-date emacsconf-video-target-date)))
@@ -828,7 +844,7 @@ ${signature}"
 					(plist-get o :title) "\n"
 					(emacsconf-timezone-strings-combined
 					 (plist-get o :start-time)
-					 (plist-get o :timezone)
+					 (or (plist-get o :timezone) "Etc/UTC")
 					 "%b %-e %a %-I:%M %#p %Z"))))
     (when old-schedule
       (setq result (format "%s\n(Previous: %s)" result old-schedule)))
@@ -858,7 +874,7 @@ If called with ARG, insert into current buffer instead of composing or updating 
 			"${conf-name} ${year} draft schedule FYI: ${slug-times}"
 			:reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
 			:mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
-			:log-note (format "sent schedule draft: %s" slug-times)
+			:log-note (format "emacsconf-mail-draft-schedule: %s" slug-times)
 			:filter (lambda (talk)
 								(and (plist-get talk :email)
 										 (not (string= (plist-get talk :status) "CANCELLED"))))
@@ -974,7 +990,7 @@ ${signature}
 	 '(:subject "${conf-name} ${year}: received uploaded file${plural} for ${title}"
 							;; :cc "emacsconf-submit@gnu.org"
 							:reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
-							:log-note "acknowledged submission"
+							:log-note "emacsconf-mail-acknowledge-upload"
 							:mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
 							:body
 							"Hi, ${speakers-short}!
@@ -1077,7 +1093,7 @@ ${signature}")
 			:subject "${conf-name} ${year}: Captions for ${title}"
 			:to "${email}"
 			:cc "${captioner-email}"
-			:log-note "sent captions for review"
+			:log-note "emacsconf-mail-captions-for-review"
 			:body "${email-notes}Hi ${speakers-short}!
 
 Because you sent in your video before the conference, we were able to
@@ -1147,7 +1163,7 @@ ${captions}
 		 (list
 			:subject "${conf-name} ${year}: Q&A for ${title}"
 			:to "${email}"
-			:log-note "sent q&a for review"
+			:log-note "emacsconf-mail-answers-for-review"
 			:body "${email-notes}Hi ${speakers-short}!
 
 Thank you for speaking at ${conf-name} ${year}! We're working on getting
@@ -1253,7 +1269,9 @@ ${signature}")
 (defun emacsconf-mail-upload-and-backstage-info-to-waiting-for-prerecs ()
 	"Mail upload and backstage information to all speakers who will submit files."
 	(interactive)
-	(let ((groups (emacsconf-mail-groups (seq-filter (lambda (o) (string= (plist-get o :status) "WAITING_FOR_PREREC"))
+	(let ((groups (emacsconf-mail-groups (seq-filter (lambda (o)
+																			 (or (string= (plist-get o :status) "WAITING_FOR_PREREC")
+																					 (string= (plist-get o :status) "TO_CONFIRM")))
 																		 (emacsconf-get-talk-info)))))
 		(dolist (group groups)
 			(emacsconf-mail-upload-and-backstage-info group))))
@@ -1266,7 +1284,7 @@ ${signature}")
 		:subject "EmacsConf backstage area with videos and other resources"
 		:reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
 		:mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
-		:log-note "sent backstage information"
+		:log-note "emacsconf-mail-backstage-info"
 		:body
 		"Hi ${name}!
 
@@ -1416,7 +1434,7 @@ ${user-signature}")
 
 (defun emacsconf-mail-backstage-info-to-speakers-and-captioners ()
   (interactive)
-  (let ((template (emacsconf-mail-merge-get-template "backstage"))
+  (let ((template (emacsconf-mail-merge-get-template "upload-and-backstage-info"))
         (speaker-groups
          (seq-uniq
           (mapcar
@@ -1745,7 +1763,7 @@ ${signature}"))
 		:subject "${conf-name} ${year}: Schedule update as of ${date}: ${summary}"
 		:reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
 		:mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
-		:log-note log-note
+		:log-note (concat "emacsconf-mail-interim-schedule-update" (if log-note (concat ": " log-note) ""))
 		:body
 		"Hello, ${speakers-short}!
 
@@ -1809,7 +1827,7 @@ ${signature}")
 				:subject "${conf-name} ${year}: SCHEDULE UPDATE - new check-in time ${checkin-time}"
 				:reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
 				:mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
-				:log-note "sent updated schedule"
+				:log-note "emacsconf-mail-check-in-update"
 				:body
 				"${email-notes}Hello, ${speakers-short}!
 
@@ -1906,7 +1924,7 @@ GROUP is (email . (talk talk))"
 		:subject "${conf-name} ${year}: Check-in instructions"
 		:reply-to "${user-email}"
 		:mail-followup-to "${user-email}"
-		:log-note "sent check-in information for people who will be there"
+		:log-note "emacsconf-mail-checkin-instructions-for-attending-speakers: sent check-in information for people who will be there"
 		:body
 		"${email-notes}Hello, ${speakers-short}!
 
@@ -2014,7 +2032,7 @@ GROUP is (email . (talk talk))"
 		 :subject "${conf-name} ${year}: Check-in instructions in case you happen to want to join us"
 		 :reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
 		 :mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
-		 :log-note "sent check-in information for people who will not be there"
+		 :log-note "emacsconf-mail-checkin-instructions-for-nonattending-speakers: sent check-in information for people who will not be there"
 		 :body
 		 "${email-notes}Hello, ${speakers-short}!
 
@@ -2059,7 +2077,7 @@ Sacha")
 				:subject "Thanks for speaking at ${conf-name} ${year}!"
 				:reply-to "${user-email}"
 				:mail-followup-to "${user-email}"
-				:log-note log-note
+				:log-note (concat "emacsconf-mail-template-speakers-thanks-after-conference" (if log-note (concat " " log-note) ""))
 				:body
 				"${email-notes}Hi, ${speakers-short}!
 
@@ -2152,7 +2170,7 @@ ${feedback}
 		:subject "${conf-name} ${year}: May we post the rest of the Q&A?"
 		:reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
 		:mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
-		:log-note "Asked for permission regarding the rest of the Q&A"
+		:log-note "emacsconf-mail-template-qa-permission: Asked for permission regarding the rest of the Q&A"
 		:body
 		"${email-notes}Hi, ${speakers-short}!
 
@@ -2231,7 +2249,7 @@ ${transcript}
 		:subject "${conf-name} ${year}: Can we send you a sticker or pin of appreciation?"
 		:reply-to "${user-email}, ${sticker-mailer}, ${email}"
 		:mail-followup-to "${user-email}, ${sticker-mailer}, ${email}"
-		:log-note "Asked for mailing address"
+		:log-note "emacsconf-mail-template-mailing-address: Asked for mailing address"
 		:body
 		"${email-notes}Hi, ${speakers-short}!
 
@@ -2357,7 +2375,7 @@ ${signature}
 		:subject "${conf-name} ${year}: May we post the rest of the Q&A?"
 		:reply-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
 		:mail-followup-to "emacsconf-submit@gnu.org, ${email}, ${user-email}"
-		:log-note "Asked for permission regarding the rest of the Q&A"
+		:log-note "emacsconf-mail-template-mail-youtube-comments: Asked for permission regarding the rest of the Q&A"
 		:body
 		"${email-notes}Hi, ${speakers-short}!
 
@@ -2592,7 +2610,7 @@ This minimizes the risk of mail delivery issues and radio silence."
 (defun emacsconf-notmuch-submissions ()
 	"Search for recent submissions."
 	(interactive)
-	(notmuch-search (format "to:%s and not subject:\"requires approval\" and not subject:\"moderator request(s) waiting\" and not from:no-reply@netdata.cloud" emacsconf-submit-email)))
+	(notmuch-search (format "to:%s and not subject:\"requires approval\" and not subject:\"moderator request(s) waiting\" and not from:no-reply@netdata.cloud and tag:inbox" emacsconf-submit-email)))
 
 ;;;###autoload
 (defun emacsconf-notmuch-new-submissions ()
