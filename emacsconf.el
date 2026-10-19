@@ -1203,6 +1203,15 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
 	(interactive (list (emacsconf-complete-talk)))
 	(insert (plist-get (emacsconf-search-talk-info search) :availability)))
 
+;;;###autoload
+(defun emacsconf-insert-bbb-speaker-info (search)
+  "Insert BBB URL and moderator code."
+	(interactive (list (emacsconf-complete-talk)))
+	(insert
+	 (format "You can use the mod code %s to connect to %s ."
+					 (plist-get (emacsconf-search-talk-info search) :bbb-mod-code)
+					 (plist-get (emacsconf-search-talk-info search) :bbb-room))))
+
 (defun emacsconf-insert-talk-email (search)
 	"Insert the talk email matching SEARCH."
   (interactive (list (emacsconf-complete-talk)))
@@ -1244,6 +1253,7 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
 		"i t" #'emacsconf-insert-talk-title
 		"i s" #'emacsconf-insert-talk-schedule
 		"i c" #'emacsconf-insert-talk-availability-constraints
+		"i B" #'emacsconf-insert-bbb-speaker-info
 		"I" #'emacsconf-message-talk-info
     "c" #'emacsconf-find-captions-from-slug
     "d" #'emacsconf-find-caption-directives-from-slug
