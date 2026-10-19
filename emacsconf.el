@@ -73,7 +73,7 @@
 (defcustom emacsconf-base-url "https://emacsconf.org/" "Includes trailing slash"
   :group 'emacsconf
   :type 'string)
-(defcustom emacsconf-publishing-phase 'cfp
+(defcustom emacsconf-publishing-phase 'program
   "Controls what information to include.
 'program - don't include times
 'schedule - include times; use this leading up to the conference
@@ -1530,15 +1530,15 @@ If TIMEZONES is a string, split it by commas."
            :vnc-port "5905"
 					 :autopilot crontab
            :status "online")
-		(:name "B" :color "skyblue" :id "b" :channel "emacsconf-b"
-           :watch  ,(format "https://live.emacsconf.org/%s/watch/b/" emacsconf-year)
-				   :webchat-url "https://chat.emacsconf.org/?join=emacsconf,emacsconf-org,emacsconf-accessible,emacsconf-gen,emacsconf-b"
+		(:name "Development" :color "skyblue" :id "dev" :channel "emacsconf-dev"
+           :watch  ,(format "https://live.emacsconf.org/%s/watch/dev/" emacsconf-year)
+				   :webchat-url "https://chat.emacsconf.org/?join=emacsconf,emacsconf-org,emacsconf-accessible,emacsconf-gen,emacsconf-dev"
            :tramp "/ssh:emacsconf-dev@res.emacsconf.org#46668:"
 					 :toobnix-url "https://toobnix.org/w/uXGmcRigZD82UWr5nehKeL"
 					 :youtube-url "https://youtube.com/live/KCZthyBhHtg"
 					 :youtube-studio-url "https://studio.youtube.com/video/KCZthyBhHtg/livestreaming"
-					 :stream ,(concat emacsconf-stream-base "b.webm")
-           :480p ,(concat emacsconf-stream-base "b-480p.webm")
+					 :stream ,(concat emacsconf-stream-base "dev.webm")
+           :480p ,(concat emacsconf-stream-base "dev-480p.webm")
 					 :uid 2003
            :start "10:00" :end "17:00"
            :vnc-display ":6"
