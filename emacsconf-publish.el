@@ -76,17 +76,21 @@
 		(emacsconf-publish-talk-page this-talk)
 		(emacsconf-publish-info-pages)
 		(emacsconf-publish-schedule)
-		(vc-register
-		 (mapcar
-			(lambda (s)
-				(expand-file-name (format s (plist-get this-talk :slug))
-													(expand-file-name emacsconf-year
-																						emacsconf-directory)))
-			(list
-			 "info/%s-before.md"
-			 "info/%s-nav.md"
-			 "info/%s-after.md"
-			 "talks/%s.md")))
+		(dolist (file
+						 (mapcar
+							(lambda (s)
+								(expand-file-name (format s (plist-get this-talk :slug))
+																	(expand-file-name emacsconf-year
+																										emacsconf-directory)))
+							(list
+							 "info/%s-before.md"
+							 "info/%s-nav.md"
+							 "info/%s-after.md"
+							 "talks/%s.md")))
+			(magit-stage-files file)
+			;; (unless (vc-call-backend 'git 'registered file)
+			;; 	(vc-call-backend 'git 'register (list file)))
+			)
 		(magit-status-setup-buffer emacsconf-directory)))
 
 (defun emacsconf-publish-update-conf-html ()
