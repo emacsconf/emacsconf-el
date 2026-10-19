@@ -383,42 +383,45 @@ Pairs with `emacsconf-schedule-dump-sexp'."
 	"Add the time scale and the talks on a given day."
   (let* ((label-margin (if (eq direction 'vertical) 70 15))
 				 (top-margin (if (eq direction 'vertical) 30 20))
-         (x (if (eq direction 'vertical) label-margin 0))
+				 (x (if (eq direction 'vertical) label-margin 0))
 				 (y top-margin)
 				 (track-size (if (eq direction 'vertical)
 												 (/ (- width (* 2 label-margin)) (length tracks))
 											 (/ (- height (* 2 top-margin)) (length tracks))))
-         (scale (/ (if (eq direction 'vertical) height width) (float-time (time-subtract end start))))
-         (time start))
-    (dom-append-child elem (dom-node 'title nil (concat "Schedule for " label)))
-    (svg-rectangle elem 0 0 width height :fill "white")
+				 (scale (/ (if (eq direction 'vertical) (- height (* 2 top-margin)) width) (float-time (time-subtract end start))))
+				 (time start))
+		(dom-append-child elem (dom-node 'title nil (concat "Schedule for " label)))
+		(svg-rectangle elem 0 0 width height :fill "white")
 		(if (eq direction 'vertical)
 				(svg-text elem label :x 3 :y (- top-margin 10) :fill "black" :font-size "10" :class "day-label" :data-start (format-time-string "%FT%T%z" start t))
 			(svg-text elem label :x 3 :y (- top-margin 3) :fill "black" :font-size "10" :class "day-label" :data-start (format-time-string "%FT%T%z" start t)))
-    (mapc (lambda (track)
-            (emacsconf-schedule-svg-track
-             elem x y
+		;; Draw the tracks
+		(mapc (lambda (track)
+						(emacsconf-schedule-svg-track
+						 elem x y
 						 (if (eq direction 'vertical) track-size width)
-						 (if (eq direction 'vertical) height track-size)
-             start end track
+						 (if (eq direction 'vertical)
+								 (- height (* 2 top-margin))
+							 track-size)
+						 start end track
 						 direction)
 						(if (eq direction 'vertical)
 								(setq x (+ x track-size))
 							(setq y (+ y track-size))))
-          tracks)
-    ;; draw grid
-    (while (time-less-p time end)
-      (let ((x (if (eq direction 'vertical)
+					tracks)
+		;; draw grid
+		(while (time-less-p time end)
+			(let ((x (if (eq direction 'vertical)
 									 0
 								 (* (float-time (time-subtract time start)) scale)))
 						(y (if (eq direction 'vertical)
 									 (+ (* (float-time (time-subtract time start)) scale) top-margin)
 								 3)))
-        (dom-append-child
-         elem
-         (dom-node
-          'g
-          `((transform . ,(format "translate(%d,%d)" x y)))
+				(dom-append-child
+				 elem
+				 (dom-node
+					'g
+					`((transform . ,(format "translate(%d,%d)" x y)))
 					(if (eq direction 'vertical)
 							(dom-node
 							 'line
@@ -428,14 +431,14 @@ Pairs with `emacsconf-schedule-dump-sexp'."
 								 (x2 . ,(- width label-margin))
 								 (y2 . 0)))
 						(dom-node
-							 'line
-							 `((stroke . "darkgray")
-								 (x1 . 0)
-								 (y1 . 0)
-								 (x2 . 0)
-								 (y2 . ,(- height label-margin label-margin)))))
-          (dom-node
-           'text
+						 'line
+						 `((stroke . "darkgray")
+							 (x1 . 0)
+							 (y1 . 0)
+							 (x2 . 0)
+							 (y2 . ,(- height label-margin label-margin)))))
+					(dom-node
+					 'text
 					 (append
 						`((data-start . ,(format-time-string "%FT%T%z" time t))
 							(fill . "black")
@@ -448,9 +451,9 @@ Pairs with `emacsconf-schedule-dump-sexp'."
 							`((y . ,(- height label-margin -5))
 								(font-size . 10)
 								(text-anchor . "left"))))
-           (svg--encode-text (format-time-string "%-l %p %Z" time emacsconf-timezone)))))
-        (setq time (time-add time (seconds-to-time 3600)))))
-    elem))
+					 (svg--encode-text (format-time-string "%-l %p %Z" time emacsconf-timezone)))))
+				(setq time (time-add time (seconds-to-time 3600)))))
+		elem))
 
 (defun emacsconf-schedule-svg-color-by-track (o node &optional parent)
 	"Color sessions based on track."
