@@ -55,6 +55,8 @@
          (seq-group-by (lambda (o) (plist-get o :speakers))
                        (or info (emacsconf-active-talks (emacsconf-filter-talks (emacsconf-get-talk-info))))))))
 
+(defvar emacsconf-bbb-prefix "EC26" "Prefix for conference rooms.")
+;;;###autoload
 (defun emacsconf-bbb-create-rooms ()
   "Copy the commands needed to create the rooms.
 docker exec -it greenlight-v3 /bin/bash -c \"bundle exec rails console\"
@@ -63,8 +65,9 @@ user_id = User.find_by_email(\"emacsconf@sachachua.com\").id"
   (kill-new
    (mapconcat (lambda (group)
 					      (format
-					       "Room.create(user_id: user_id, name: \"%s - %s\")\n"
-					       (plist-get (cadr group) :speakers)
+					       "Room.create(user_id: user_id, name: \"%s: %s - %s\")\n"
+					       emacsconf-bbb-prefix
+								 (plist-get (cadr group) :speakers)
 					       (string-join (mapcar (lambda (talk) (plist-get talk :slug))
 																		  (cdr group))
                               ", ")))
@@ -72,6 +75,7 @@ user_id = User.find_by_email(\"emacsconf@sachachua.com\").id"
 				      ""))
   (message "Copied. Run it inside the greenlight-v3 rails console."))
 
+;;;###autoload
 (defun emacsconf-bbb-load-rooms (string)
 	"Split STRING and load them as ROOM properties.
 STRING should be a list of rooms, one room per line, like this:
@@ -79,34 +83,40 @@ friendly-id speaker - slugs
 friendly-id speaker - slugs
 
 Print out room IDs with:
-Room.all.each { |x| puts x.friendly_id + " " + x.name }; nil
+Room.all.each { |x| puts x.friendly_id + \" \" + x.name }; nil
 "
   (interactive "MInput: ")
 	(let ((rooms
-				 (mapcar (lambda (row) (when (string-match "^\\(.+?\\) \\(.+\\)" row)
-																 (list (match-string 1 row) (match-string 2 row))))
+				 (mapcar (lambda (row)
+									 (when (string-match
+													(format "^\\(.+?\\) %s: \\(.+\\)"
+																	(regexp-quote emacsconf-bbb-prefix))
+													row)
+										 (list (match-string 1 row) (match-string 2 row))))
 								 (split-string string "\n"))))
 		(mapc (lambda (talk)
-						(emacsconf-go-to-talk talk)
-						(when (plist-get talk :speakers)
-							(org-entry-put
-							 (point)
-							 "ROOM"
-							 (concat
-								emacsconf-bbb-base-url
-								"rooms/"
-								(car
-								 (seq-find
-									(lambda (o)
-										(string-match
-										 (concat
-											"^"
-											(regexp-quote
-											 (plist-get talk :speakers))
-											" - ")
-										 (cadr o)))
-									rooms))
-								"/join"))))
+						(when-let* ((room (and (plist-get talk :speakers)
+																		 (car
+																			(seq-find
+																			 (lambda (o)
+																				 (and (cadr o)
+																							(string-match
+																							 (concat
+																								"^"
+																								(regexp-quote
+																								 (plist-get talk :speakers))
+																								" - ")
+																							 (cadr o))))
+																			 rooms)))))
+								(emacsconf-go-to-talk talk)
+								(org-entry-put
+								 (point)
+								 "ROOM"
+								 (concat
+									emacsconf-bbb-base-url
+									"rooms/"
+									room
+									"/join"))))
 					(emacsconf-active-talks (emacsconf-get-talk-info)))))
 
 
