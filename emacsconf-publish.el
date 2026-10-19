@@ -510,6 +510,12 @@
 						 (emacsconf-surround "<li><a href=\""
 																 (and (not (eq emacsconf-publishing-phase 'resources)) (plist-get talk :bbb-rec))
 																 "\">Play recording from BigBlueButton</a></li>" ""))
+						:normalization
+						(if (and (plist-get talk :backstage)
+										 (emacsconf-talk-file talk "--reencoded.opus")
+										 (not (emacsconf-talk-file talk "--normalized.opus")))
+								"<li class=\"unnormalized\">UNNORMALIZED</li>"
+							"")
             :other-files
             (mapconcat
              (lambda (s)
@@ -553,7 +559,7 @@
      :resources
      (emacsconf-replace-plist-in-string
       info
-      "<div class=\"files resources\"><ul>${links}${other-files}${toobnix-info}${youtube-info}</ul></div>"))))
+      "<div class=\"files resources\"><ul>${normalization}${links}${other-files}${toobnix-info}${youtube-info}</ul></div>"))))
 
 (defun emacsconf-publish-format-public-email (o &optional email)
   (format "[%s](mailto:%s?subject=%s)"
@@ -1529,13 +1535,17 @@ If MODIFY-FUNC is specified, use it to modify the talk."
 																	:backstage t) o))
 							 (emacsconf-filter-talks info)))
              (by-status (seq-group-by (lambda (o) (plist-get o :status)) talks))
+						 (unnormalized (seq-filter (lambda (o)
+														(and (emacsconf-talk-file o "--reencoded.opus")
+																 (not (emacsconf-talk-file o "--normalized.opus"))))
+																			 talks))
              (files (directory-files dest))) ;emacsconf-backstage-dir  very slow right now
         (insert
          "<html><head><meta charset=\"UTF-8\"><link rel=\"stylesheet\" href=\"/style.css\" /></head><body>"
 				 (if (file-exists-p (expand-file-name "include-in-index.html" emacsconf-cache-dir))
              (with-temp-buffer (insert-file-contents (expand-file-name "include-in-index.html" emacsconf-cache-dir)) (buffer-string))
            "")
-				 "<p>Schedule by status: (gray: waiting, light yellow: processing, yellow: to assign, light blue: captioning, light green: to check, green: captioned and ready)<br />We manually update this based on conf.org and the wiki repository, so don't worry if your submission isn't up yet; feel free to follow up with organizers</br />"
+				 "<p>Schedule by status: (gray: waiting, light yellow: processing, yellow: to assign, light blue: captioning, light green: to check, green: captioned and ready)<br />We manually update this based on conf.org and the wiki repository, so don't worry if your submission isn't up yet; feel free to follow up with organizers. <a href=\"#file-explanation\">Explanation of file suffixes</a></br />"
 				 (let* ((emacsconf-schedule-svg-modify-functions '(emacsconf-schedule-svg-color-by-status))
 								(img (emacsconf-schedule-svg 800 200 info)))
 					 (with-temp-buffer
@@ -1578,6 +1588,15 @@ If MODIFY-FUNC is specified, use it to modify the talk."
 						((or 'harvest 'resources)
 						 '("TO_ARCHIVE" "TO_REVIEW_QA" "TO_INDEX_QA" "TO_CAPTION_QA" "DONE")))
 					"")
+				 (format "<li>Not yet normalized - %d talk(s), %d minutes: %s</li>"
+								 (length unnormalized)
+								 (emacsconf-sum '(:video-time :time) unnormalized)
+								 (mapconcat (lambda (o) (format "<a href=\"#%s\">%s</a>%s"
+                                                   (plist-get o :slug)
+                                                   (plist-get o :slug)
+																									 (emacsconf-surround " (" (plist-get o :video-duration) ")" "")))
+                            unnormalized
+                            ", "))
          "</ul>"
 				 ;; alphabetical index
 				 "<div>Alphabetical index: "
@@ -1601,6 +1620,11 @@ If MODIFY-FUNC is specified, use it to modify the talk."
 							"Not ready for captioning yet, but they will be eventually")
 						 (emacsconf-publish-backstage-to-assign by-status files)
 						 (emacsconf-publish-backstage-to-caption by-status files)
+						 (emacsconf-publish-backstage-list
+							unnormalized
+							files
+							"not yet normalized"
+							"Audio has not yet been normalized to ~ -14 LUFS")
 						 (emacsconf-publish-backstage-list
 							(assoc-default "TO_CHECK" by-status) files
 							"to be checked"
