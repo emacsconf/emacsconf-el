@@ -862,7 +862,7 @@ If called with ARG, insert into current buffer instead of composing or updating 
 				 (mapconcat (lambda (o)
 											(format "%s (%s)"
 															(plist-get o :slug)
-															(emacsconf-timezone-string o (plist-get o :tz) nil t)))
+															(emacsconf-timezone-string o (plist-get o :timezone) nil t)))
 										(cdr group) ","))
 				(slugs
 				 (mapconcat (lambda (o)
@@ -1767,8 +1767,7 @@ ${signature}"))
 		:body
 		"Hello, ${speakers-short}!
 
-We tweaked the schedule a bit so that it's based on the current video lengths.
-Your new schedule is:
+We tweaked the schedule a bit. Your new schedule is:
 
 ${schedule}
 
@@ -1795,8 +1794,9 @@ ${signature}")
      (lambda (talk)
        (let ((minutes (emacsconf-schedule-difference-from-emailed talk)))
          (if (> (abs minutes) 0)
-			       (format "%s: %s min %s"
+			       (format "%s: %s (%s min %s)"
                      (plist-get talk :slug)
+										 (emacsconf-timezone-string talk (plist-get talk :timezone) nil t)
                      (abs minutes)
                      (if (< minutes 0)
                          "earlier"
