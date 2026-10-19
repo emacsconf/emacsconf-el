@@ -525,6 +525,10 @@
               (seq-filter (lambda (o) (string-match "--answers" o))
                           (emacsconf-publish-filter-public-files talk)))
              "")
+						:transcript-details
+						(if (plist-get talk :backstage)
+								(format "<details><summary>Transcript</summary>%s</details" (emacsconf-publish-format-transcript talk nil nil nil 'html))
+							"")
             :youtube-info (if (plist-get talk :youtube-url)
                               (format
                                "<li><a href=\"%s\">View on Youtube</a></li>"
@@ -545,7 +549,7 @@
      (emacsconf-replace-plist-in-string
       info
 			(if (stringp video-file)
-					"<video controls preload=\"none\" id=\"${video-id}\"><source src=\"${source-src}\" />${captions}${chapter-track}<p><em>Your browser does not support the video tag. Please download the video instead.</em></p></video>${chapter-list}"
+					"<video controls preload=\"none\" id=\"${video-id}\"><source src=\"${source-src}\" />${captions}${chapter-track}<p><em>Your browser does not support the video tag. Please download the video instead.</em></p></video>${chapter-list}${transcript-details}"
 				(or (plist-get talk :video-note) "")))
 		 :audio
 		 (if (and (plist-get talk :audio-file) (plist-get talk :public))
@@ -852,36 +856,53 @@ This includes the intro note, the schedule, and talk resources."
     (insert "<!-- End of emacsconf-publish-before-page -->")))
 
 
-(defun emacsconf-format-transcript-from-list (subtitles video-id &optional lang)
+(defun emacsconf-format-transcript-from-list (subtitles video-id &optional lang format)
   "Return subtitle directives for SUBTITLES."
   (let ((subed-sanitize-functions nil))
     (when (stringp subtitles) (setq subtitles (subed-parse-file subtitles))))
-  (mapconcat
-   (lambda (sub)
-     (let ((msecs (elt sub 1)))
-			 (concat
-				(if (and (elt sub 4) (not (string= (elt sub 4) "")))
-						(format "\n<div class=\"transcript-heading\">[[!template new=\"1\" text=\"\"\"%s\"\"\" start=\"%s\" video=\"%s\" id=\"subtitle\"%s]]</div>"
-										(replace-regexp-in-string "\\." "\\\\." (string-trim (replace-regexp-in-string "^NOTE[ \n]" "" (elt sub 4))))
-										(concat (format-seconds "%02h:%02m:%02s" (/ (floor msecs) 1000))
-														"." (format "%03d" (mod (floor msecs) 1000)))
-										video-id
-										(emacsconf-surround " lang=\"" lang "\"" ""))
-					"")
-				(format
-				 "[[!template text=\"\"\"%s\"\"\" start=\"%s\" video=\"%s\" id=\"subtitle\"%s]]"
-				 (replace-regexp-in-string
-					"^#" "\\\\#"
-					(replace-regexp-in-string
-					 "*" "\\\\*"
-					 (replace-regexp-in-string "\"" "&quot;" (elt sub 3))))
-				 (concat (format-seconds "%02h:%02m:%02s" (/ (floor msecs) 1000))
-								 "." (format "%03d" (mod (floor msecs) 1000)))
-				 video-id
-				 (emacsconf-surround " lang=\"" lang "\"" "")))))
-   subtitles "\n"))
+	(replace-regexp-in-string
+	 "^</p>\\|<p>$" ""
+	 (mapconcat
+		(lambda (sub)
+			(let* ((msecs (elt sub 1))
+						 (text (replace-regexp-in-string
+										"^#" "\\\\#"
+										(replace-regexp-in-string
+										 "*" "\\\\*"
+										 (replace-regexp-in-string "\"" "&quot;" (elt sub 3)))))
+						 (start (concat (format-seconds "%02h:%02m:%02s" (/ (floor msecs) 1000))
+														"." (format "%03d" (mod (floor msecs) 1000)))))
+				(if (eq format 'html)
+						(if (and (elt sub 4) (not (string= (elt sub 4) "")))
+								(format "</p><p><a href=\"#%s\" class=\"subtitle\" data-start=\"%s\" data-video=\"%s\">[%s]</a> <span class=\"subtitle\" data-start=\"%s\" title=\"%s\" data-video=\"%s\">%s</span>"
+												video-id
+												start
+												video-id
+												start
+												start
+												start
+												video-id
+												text)
+							(format "<span class=\"subtitle\" data-start=\"%s\" title=\"%s\" data-video=\"%s\">%s</span>"
+											start
+											start
+											video-id
+											text))
+					(if (and (elt sub 4) (not (string= (elt sub 4) "")))
+							(format "\n<div class=\"transcript-heading\">[[!template new=\"1\" text=\"\"\"%s\"\"\" start=\"%s\" video=\"%s\" id=\"subtitle\"%s]]</div>"
+											(replace-regexp-in-string "\\." "\\\\." (string-trim (replace-regexp-in-string "^NOTE[ \n]" "" (elt sub 4))))
+											start
+											video-id
+											(emacsconf-surround " lang=\"" lang "\"" ""))
+						(format
+						 "[[!template text=\"\"\"%s\"\"\" start=\"%s\" video=\"%s\" id=\"subtitle\"%s]]"
+						 text
+						 start
+						 video-id
+						 (emacsconf-surround " lang=\"" lang "\"" ""))))))
+		subtitles "\n")))
 
-(defun emacsconf-publish-format-transcript (talk &optional video-id lang title)
+(defun emacsconf-publish-format-transcript (talk &optional video-id lang title format)
   "Format the transcript for TALK, adding paragraph markers when possible."
 	(require 'subed)
 	(setq video-id (or video-id "mainVideo"))
@@ -899,7 +920,7 @@ This includes the intro note, the schedule, and talk resources."
 %s
 
 </div>"
-								(if video-id (concat " transcript-" video-id) "")
+								(if (and video-id (not (eq format 'html))) (concat " transcript-" video-id) "")
 								(plist-get talk :slug)
                 video-id
                 (emacsconf-surround "-" lang "" "")
@@ -908,7 +929,7 @@ This includes the intro note, the schedule, and talk resources."
 										""
 									" (unedited)")
 								(emacsconf-format-transcript-from-list
-                 subtitles (concat video-id "-" (plist-get talk :slug))))
+                 subtitles (concat video-id "-" (plist-get talk :slug)) lang format))
       "")))
 
 (defun emacsconf-publish-format-captions (talk)
@@ -1556,7 +1577,9 @@ If MODIFY-FUNC is specified, use it to modify the talk."
 
 										 (dom-append-child
 											(dom-by-tag node 'title)
-											(plist-get (emacsconf-resolve-talk (dom-attr node 'data-slug) talks) :status)))
+											(concat
+											 " "
+											 (plist-get (emacsconf-resolve-talk (dom-attr node 'data-slug) talks) :status))))
 									 (dom-by-tag img 'a))
 						 (svg-print img)
 						 (buffer-string)))
