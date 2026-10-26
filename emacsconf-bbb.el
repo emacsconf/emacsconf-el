@@ -56,24 +56,32 @@
                        (or info (emacsconf-active-talks (emacsconf-filter-talks (emacsconf-get-talk-info))))))))
 
 (defvar emacsconf-bbb-prefix "EC26" "Prefix for conference rooms.")
+(defvar emacsconf-bbb-user-email "emacsconf@sachachua.com" "E-mail address for the BBB account.")
+
 ;;;###autoload
 (defun emacsconf-bbb-create-rooms ()
   "Copy the commands needed to create the rooms.
 docker exec -it greenlight-v3 /bin/bash -c \"bundle exec rails console\"
 user_id = User.find_by_email(\"emacsconf@sachachua.com\").id"
   (interactive)
-  (kill-new
-   (mapconcat (lambda (group)
-					      (format
-					       "Room.create(user_id: user_id, name: \"%s: %s - %s\")\n"
-					       emacsconf-bbb-prefix
-								 (plist-get (cadr group) :speakers)
-					       (string-join (mapcar (lambda (talk) (plist-get talk :slug))
-																		  (cdr group))
-                              ", ")))
-				      (emacsconf-mail-groups (emacsconf-active-talks (emacsconf-get-talk-info)))
-				      ""))
-  (message "Copied. Run it inside the greenlight-v3 rails console."))
+	(let ((rooms (emacsconf-mail-groups (seq-remove (lambda (o) (plist-get o :bbb-room)) (emacsconf-active-talks (emacsconf-get-talk-info))))))
+		(if rooms
+				(progn
+					(kill-new
+					 (format "user_id = User.find_by_email(\"%s\").id\n%s\nRoom.all.each { |x| puts x.friendly_id + \" \" + x.name }\nnil"
+									 emacsconf-bbb-user-email
+									 (mapconcat (lambda (group)
+																(format
+																 "Room.create(user_id: user_id, name: \"%s: %s - %s\")\n"
+																 emacsconf-bbb-prefix
+																 (plist-get (cadr group) :speakers)
+																 (string-join (mapcar (lambda (talk) (plist-get talk :slug))
+																											(cdr group))
+																							", ")))
+															rooms
+															"")))
+					(message "Copied. Run it inside the greenlight-v3 rails console."))
+			(message "No more rooms needed."))))
 
 ;;;###autoload
 (defun emacsconf-bbb-load-rooms (string)
