@@ -287,6 +287,17 @@ Pairs with `emacsconf-schedule-dump-sexp'."
             (emacsconf-filter-talks info))
 			(setq emacsconf-schedule-draft nil))))
 
+;;;###autoload
+(defun emacsconf-schedule-save-emailed-time ()
+  "Save e-mailed time for this talk."
+	(interactive)
+	(when (org-entry-get (point) "SCHEDULED")
+		(org-entry-put
+		 (point)
+		 "EMAILED_SCHEDULE"
+		 (replace-regexp-in-string
+			"[<>]" "" (org-entry-get (point) "SCHEDULED")))))
+
 (defun emacsconf-schedule-save-emailed-times (info &optional field)
 	(interactive (list (or emacsconf-schedule-draft (emacsconf-get-talk-info))))
   (setq field (or field "EMAILED_SCHEDULE"))
@@ -1040,7 +1051,48 @@ Return nil if there are no errors."
                      ))))))
 (defvar emacsconf-schedule-plan nil "Sequence of talks.")
 
+;;;###autoload
+(defun emacsconf-schedule-difference-from-emailed (talk)
+  "Return the number of minutes. Negative means earlier."
+  (let ((start (plist-get talk :start-time))
+        (emailed (org-timestamp-to-time
+									(org-timestamp-split-range
+                   (org-timestamp-from-string
+                    (format "<%s>" (plist-get talk :emailed-schedule)))))))
+    (round (/ (float-time (time-subtract start emailed)) 60.0))))
 
+;;;###autoload
+(defun emacsconf-schedule-format-difference (talk)
+  "Return the number of minutes. Negative means earlier."
+  (let* ((emailed (org-timestamp-to-time
+									 (org-timestamp-split-range
+										(org-timestamp-from-string
+                     (format "<%s>" (plist-get talk :emailed-schedule))))))
+				 (minutes (emacsconf-schedule-difference-from-emailed talk)))
+		(if (not (string= (format-time-string "%Y-%m-%d" emailed (plist-get talk :timezone))
+											(format-time-string "%Y-%m-%d" (plist-get talk :start-time) (plist-get talk :timezone))))
+				(format
+				 "%s: different day - now %s"
+				 (plist-get talk :slug)
+				 (emacsconf-timezone-string talk (plist-get talk :timezone) nil t))
+				(if (> (abs minutes) 0)
+						(format "%s: %s (%s min %s)"
+										(plist-get talk :slug)
+										(emacsconf-timezone-string talk (plist-get talk :timezone) nil t)
+										(abs minutes)
+										(if (< minutes 0)
+												"earlier"
+											"later"))
+					"same time, different length"))))
+
+;;;###autoload
+(defun emacsconf-schedule-open-draft ()
+  "Open the draft schedule and the SVG."
+  (interactive)
+	(delete-other-windows)
+	(let ((org-dir (expand-file-name "organizers-notebook" (expand-file-name emacsconf-year emacsconf-directory))))
+		(find-file (expand-file-name "schedule.svg" org-dir))
+		(find-file-other-window (expand-file-name "index.org" org-dir))))
 
 (provide 'emacsconf-schedule)
 ;;; emacsconf-schedule.el ends here
