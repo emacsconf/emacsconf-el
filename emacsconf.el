@@ -1847,7 +1847,10 @@ tracks with the ID in the cdr of that list."
 	(save-window-excursion
 		(save-excursion
 			(emacsconf-with-talk-heading talk
-				(emacsconf-add-to-logbook note)
+				(emacsconf-add-to-logbook
+				 (if (functionp note)
+						 (funcall note)
+					 note))
 				(bury-buffer (current-buffer))))))
 
 (defun emacsconf-reload ()
@@ -2076,23 +2079,35 @@ With a prefix argument (\\[universal-argument]), open this year's notebook."
 
 (defun emacsconf-rescheduled-talks (&optional info)
   "See `emacsconf-schedule-save-emailed-times' and `emacsconf-mail-schedule-updates'."
-  (seq-filter
-   (lambda (o)
-     (and (plist-get o :email)
-          (plist-get o :qa-type)
-          (not (string= (plist-get o :emailed-schedule)
-                        (replace-regexp-in-string "[<>]" "" (plist-get o :scheduled))))
-          (not (string= (plist-get o :qa-type) "none"))
-          (not (= (emacsconf-schedule-difference-from-emailed o) 0))))
-   (emacsconf-publish-prepare-for-display (emacsconf-filter-talks (or info (emacsconf-get-talk-info))))))
+	(interactive)
+	(let ((rescheduled
+				 (seq-filter
+					(lambda (o)
+						(and (plist-get o :email)
+								 (plist-get o :qa-type)
+								 (not (string= (plist-get o :emailed-schedule)
+															 (replace-regexp-in-string "[<>]" "" (plist-get o :scheduled))))
+								 (not (string= (plist-get o :qa-type) "none"))
+								 (not (= (emacsconf-schedule-difference-from-emailed o) 0))))
+					(emacsconf-publish-prepare-for-display (emacsconf-filter-talks (or info (emacsconf-get-talk-info)))))))
+		(when (called-interactively-p 'any)
+			(if rescheduled
+					(message
+					 "%s"
+					 (mapconcat
+						#'emacsconf-schedule-format-difference
+						rescheduled
+						", "))
+				(message "Up to date.")))
+		rescheduled))
 
-(defun emacsconf-schedule-difference-from-emailed (talk)
-  "Return the number of minutes. Negative means earlier."
-  (let ((start (plist-get talk :start-time))
-        (emailed (org-timestamp-to-time (org-timestamp-split-range
-                                         (org-timestamp-from-string
-                                          (format "<%s>" (plist-get talk :emailed-schedule)))))))
-    (round (/ (float-time (time-subtract start emailed)) 60.0))))
+(defun emacsconf-slugs (&optional info)
+	"Display the slugs of INFO."
+	(message
+	 "%s"
+	 (mapconcat
+		(lambda (o) (plist-get o :slug)) (or info (emacsconf-get-talk-info))
+		", ")))
 
 (provide 'emacsconf)
 ;;; emacsconf.el ends here
