@@ -73,7 +73,7 @@
 (defcustom emacsconf-base-url "https://emacsconf.org/" "Includes trailing slash"
   :group 'emacsconf
   :type 'string)
-(defcustom emacsconf-publishing-phase 'program
+(defcustom emacsconf-publishing-phase 'schedule
   "Controls what information to include.
 'program - don't include times
 'schedule - include times; use this leading up to the conference
