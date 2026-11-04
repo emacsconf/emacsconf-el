@@ -384,14 +384,14 @@ Create it if necessary."
 (defvar-keymap emacsconf-subed-split-map
 	:doc "Shortcuts for splitting and reflowing subtitles."
 	:repeat t
-	"<down-mouse-3>" #'emacsconf-subed-add-todo
-	"<mouse-3>" #'ignore
-	"<down-mouse-1>" #'emacsconf-subed-split-at-mouse
-	"<mouse-1>" #'ignore
-	"S-<down-mouse-1>" #'emacsconf-subed-add-todo
-	"<up-mouse-1>" #'ignore
-	"<drag-mouse-1>" #'ignore
-	"<mouse-movement>" #'ignore
+	;; "<down-mouse-3>" #'emacsconf-subed-add-todo
+	;; "<mouse-3>" #'ignore
+	;; "<down-mouse-1>" #'emacsconf-subed-split-at-mouse
+	;; "<mouse-1>" #'ignore
+	;; "S-<down-mouse-1>" #'emacsconf-subed-add-todo
+	;; "<up-mouse-1>" #'ignore
+	;; "<drag-mouse-1>" #'ignore
+	;; "<mouse-movement>" #'ignore
 	"M-q" #'emacsconf-subed-unfill-paragraph
 	"M-." #'emacsconf-subed-merge-and-unfill
 	"q" #'emacsconf-subed-unfill-paragraph
