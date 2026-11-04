@@ -823,9 +823,6 @@ ${bbb-checklist}</li>")
                                    status)))
                    '("PLAYING" "OPEN_Q" "CLOSED_Q"))))
          result)
-		(unless (plist-get talk :recorded-intro)
-			(error "Unplanned scenario for %s - no recorded intro?"
-						 (plist-get talk :slug)))
     (setq result
           (emacsconf-replace-plist-in-string
            modified-talk
