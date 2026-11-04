@@ -281,7 +281,7 @@
          "\n"
          (let ((other-files
                 (seq-remove (lambda (o)
-                              (string-match "--main\\.\\(vtt\\|webm\\)"))
+                              (string-match "--main\\.\\(vtt\\|webm\\)" o))
                             (emacsconf-publish-filter-public-files talk))))
            (if other-files
                (concat "- Other files:\n"
@@ -289,7 +289,7 @@
                         (lambda (file)
                           (concat "  - "
                                   (org-link-make-string
-                                   (format "%s%s/%s"
+                                   (format "%s/%s"
                                            emacsconf-media-base-url
                                            (file-name-nondirectory file))
                                    (replace-regexp-in-string
@@ -334,6 +334,7 @@
                   "\n")))))
 
 (defun emacsconf-publish-schedule-org-files (&optional info)
+	"Post the schedule as Org files for each time zone."
   (interactive)
 	(let ((emacsconf-talk-info-functions (append emacsconf-talk-info-functions (list 'emacsconf-get-abstract-from-wiki))))
 		(setq info (or info (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))
@@ -530,7 +531,8 @@
                           (emacsconf-publish-filter-public-files talk)))
              "")
 						:transcript-details
-						(if (plist-get talk :backstage)
+						(if (and (plist-get talk :backstage)
+										 (emacsconf-talk-file talk "--main.vtt"))
 								(format "<details><summary>Transcript</summary>%s</details" (emacsconf-publish-format-transcript talk nil nil nil 'html))
 							"")
             :youtube-info (if (plist-get talk :youtube-url)
@@ -720,12 +722,13 @@ ${categories}
 													(_ (plist-get o :qa-type)))
 												(emacsconf-surround " <" (and (member emacsconf-publishing-phase '(schedule conference))
 																											(plist-get o :qa-url)) ">" "")
-												(if (string= (plist-get o :qa-type) "pad")
-														""
-													(format " Etherpad: <%s>"
-																	(plist-get o :pad-url)
-																	)
-												))
+												;; (if (string= (plist-get o :qa-type) "pad")
+												;; 		""
+												;; 	(format " Etherpad: <%s>"
+												;; 					(plist-get o :pad-url)
+												;; 					)
+												;; )
+												)
 							 (concat (or (plist-get o :video-time)
 													 (plist-get o :time))
 											 (if (string= (plist-get o :status) "CANCELLED")
@@ -1278,7 +1281,7 @@ Entries are sorted chronologically, with different tracks interleaved."
 								 emacsconf-tracks " - "))
 		 :schedule-directory
 		 (concat emacsconf-media-base-url emacsconf-year "/schedules/"))
-		"Times below are in ${timezone} (GMT${gmt-offset}). If you have Javascript enabled, clicking on talk pages should include times in your computer's local time setting.
+		"Times below are in ${timezone} (GMT${gmt-offset}) unless you have Javascript enabled, in which case we will try to translaze the times into your local time zone. Dates might not be translated.
 
 [[!inline pages=\"internal(${year}/schedule-image)\" raw=\"yes\"]]
 
@@ -1394,7 +1397,7 @@ You can also get this schedule as iCalendar files: ${icals}. Importing that into
 														:startutc (format-time-string "%FT%T%z" (plist-get o :start-time) t)
 														:endutc (format-time-string "%FT%T%z" (plist-get o :end-time) t)
 														:start (format-time-string "%-l:%M" (plist-get o :start-time) emacsconf-timezone)
-														:end (format-time-string "%-l:%M" (plist-get o :end-time) emacsconf-timezone)))
+														:end (format-time-string "%-l:%M %Z" (plist-get o :end-time) emacsconf-timezone)))
 													((or 'harvest 'resources)
 													 (list
 														:pad nil
@@ -1489,13 +1492,11 @@ Use FILES as the file list, or look in the cache directory."
 	 (assoc-default "TO_ASSIGN" by-status)
 	 files
 	 "to be captioned, waiting for volunteers"
-	 "<p>You can e-mail <a href=\"mailto:sacha@sachachua.com\">sacha@sachachua.com</a> to call dibs on editing the captions for one of these talks. We use OpenAI Whisper to provide auto-generated VTT that you can use as a starting point, but you can also write the captions from scratch if you like. The VTT file has timing information and the TXT file has the plain text; you can work with either. If you're writing the captions from scratch, you can choose to include timing information, or we can figure them out afterwards with a forced alignment tool. More info: <a href=\"https://emacsconf.org/captioning/\">captioning tips</a></p>"
+	 "<p>You can update <a href=\"https://pad.emacsconf.org/emacsconf-2026-backstage\">https://pad.emacsconf.org/emacsconf-2026-backstage</a> or e-mail <a href=\"mailto:sacha@sachachua.com\">sacha@sachachua.com</a> to call dibs on editing the captions for one of these talks. We use OpenAI Whisper to provide auto-generated VTT that you can use as a starting point (--main.vtt, or --reencoded.vtt if --main.vtt doesn't exist), but you can also write the captions from scratch if you like. The VTT file has timing information and the TXT file has the plain text; you can work with either. If you're writing the captions from scratch, you can choose to include timing information, or we can figure them out afterwards with a forced alignment tool. More info: <a href=\"https://emacsconf.org/captioning/\">captioning tips</a></p>"
 	 (lambda (f)
 		 (append
 			f
-			(list :extra
-						(if (plist-get f :caption-note) (concat "<div class=\"caption-note\">" (plist-get f :caption-note) "</div>") "")
-						:files
+			(list :files
 						(emacsconf-publish-talk-files f files))))))
 
 (defun emacsconf-publish-backstage-to-caption (by-status files)
@@ -1557,6 +1558,9 @@ If MODIFY-FUNC is specified, use it to modify the talk."
 														(list :captions-edited t
 																	:chapter-file (emacsconf-talk-file o "--main--chapters.vtt")
 																	:caption-file (emacsconf-talk-file o "--main.vtt")
+																	:extra
+																	(if (plist-get o :caption-note)
+																			(concat "<div class=\"caption-note\">" (plist-get o :caption-note) "</div>") "")
 																	:backstage t) o))
 							 (emacsconf-filter-talks info)))
              (by-status (seq-group-by (lambda (o) (plist-get o :status)) talks))
@@ -1597,18 +1601,21 @@ If MODIFY-FUNC is specified, use it to modify the talk."
          "<ul>"
          (mapconcat
           (lambda (status)
-            (format "<li>%s - %d talk(s), %d minutes: %s</li>"
-										(if (string= status "TO_ASSIGN")
-												"<strong>TO_ASSIGN (waiting for captioning volunteers)</strong>"
-											status)
-										(length (assoc-default status by-status))
-										(emacsconf-sum '(:video-time :time) (assoc-default status by-status))
-                    (mapconcat (lambda (o) (format "<a href=\"#%s\">%s</a>%s"
-                                                   (plist-get o :slug)
-                                                   (plist-get o :slug)
-																									 (emacsconf-surround " (" (plist-get o :video-duration) ")" "")))
-                               (assoc-default status by-status)
-                               ", ")))
+						(if (assoc-default status by-status)
+								(format "<li>%s - %d talk(s), %d minutes: %s</li>"
+												(if (string= status "TO_ASSIGN")
+														"<strong>TO_ASSIGN (waiting for captioning volunteers)</strong>"
+													status)
+												(length (assoc-default status by-status))
+												(emacsconf-sum '(:video-time :time) (assoc-default status by-status))
+												(mapconcat (lambda (o)
+																		 (format "<a href=\"#%s\">%s</a>%s"
+																						 (plist-get o :slug)
+																						 (plist-get o :slug)
+																						 (emacsconf-surround " (" (plist-get o :video-duration) ")" "")))
+																	 (assoc-default status by-status)
+																	 ", "))
+							""))
 					(pcase emacsconf-publishing-phase
 						((or 'program 'schedule 'conference)
 						 '("TO_CONFIRM" "WAITING_FOR_PREREC" "PROCESSING" "TO_ASSIGN" "TO_CAPTION" "TO_CHECK" "TO_STREAM" "TO_ARCHIVE" "TO_REVIEW_QA"))
@@ -1651,15 +1658,16 @@ If MODIFY-FUNC is specified, use it to modify the talk."
 							unnormalized
 							files
 							"not yet normalized"
-							"Audio has not yet been normalized to ~ -14 LUFS")
+							"Audio has not yet been normalized to ~ -14 LUFS; see <a href=\"https://emacsconf.org/normalization/\">https://emacsconf.org/normalization/</a> for some notes.")
 						 (emacsconf-publish-backstage-list
 							(assoc-default "TO_CHECK" by-status) files
 							"to be checked"
-							"These can be checked to see if the subtitle timings are correct, audio/video is fine, etc.")
+							"These can be checked to see if the subtitle timings are correct, audio/video is fine, etc. We've e-mailed the speaker to double-check captions, but feel free to double-check. Please use --main.webm and --main.vtt as your basis for corrections. Thank you!")
 						 (emacsconf-publish-backstage-list
 							(assoc-default "TO_STREAM" by-status)
 							files
-							"ready to be streamed")
+							"ready to be streamed"
+							"These ones have (probably) been verified by the speaker(s), or are scheduled to be done live. Feel free to double-check the --main.webm and --main.vtt files if you want.")
 						 (emacsconf-publish-backstage-list
 							(seq-sort
 							 #'emacsconf-sort-by-scheduled
@@ -2525,8 +2533,8 @@ We recommend using a streaming player like mpv to watch the livestreams. Example
   (setq talk (append talk (list
                            :startutc (format-time-string "%FT%T%z" (plist-get talk :start-time) t)
                            :endutc (format-time-string "%FT%T%z" (plist-get talk :end-time) t)
-                           :start (format-time-string "%-l:%M" (plist-get talk :start-time) emacsconf-timezone)
-                           :end (format-time-string "%-l:%M" (plist-get talk :end-time) emacsconf-timezone)
+                           :start (format-time-string "%-l:%M %Z" (plist-get talk :start-time) emacsconf-timezone)
+                           :end (format-time-string "%-l:%M %Z" (plist-get talk :end-time) emacsconf-timezone)
                            :base-url emacsconf-base-url)))
   (emacsconf-replace-plist-in-string
    (append talk (list
@@ -2643,7 +2651,7 @@ If you don't have a streaming media player, you might be able to watch using the
 <ul>Legend:
 <li>Solid lines: Q&A will be through a BigBlueButton room (you can ask questions there or through IRC/Etherpad)</li>
 <li>Dashed lines: Q&A will be over IRC or the Etherpad, or the speaker will follow up afterwards</li></ul>
-<div>Times are in Eastern Standard Time (America/Toronto, GMT-5). If you have Javascript enabled, clicking on talk pages should include times in your computer's local time setting.</div>
+<div>Times are in Eastern Standard Time (America/Toronto, GMT-5) unless you have Javascript enabled, in which case we try to translate times to local time zone. Dates might not be translated.</div>
 <div>${sched}</div>
 <div>${talks}</div>
 "))))
@@ -2711,7 +2719,7 @@ if (video) {
 <h1>${conf-name} ${year}</h1>
 ${watch-index}
 <p>
-Times are in Eastern Standard Time (America/Toronto, GMT-5). If you have Javascript enabled, clicking on talk pages should include times in your computer's local time setting.</p>
+Times are in Eastern Standard Time (America/Toronto, GMT-5) unless you have Javascript enabled, clicking on talk pages should include times in your computer's local time setting. Dates might still be in America/Toronto.</p>
 
         <p>Depending on which media player you use, you may enter the stream address
         in a graphical user interface or provide it as an argument to the program
@@ -2951,6 +2959,8 @@ Tends to be quota-limited, though."
 															 ((listp (plist-get properties :tags))
 																(string-join (plist-get properties :tags) ","))
 															 (t "emacs")))
+											(concat "--thumbnail=" (expand-file-name (concat (plist-get properties :slug) ".png") emacsconf-stream-asset-dir))
+											(concat "--publish-at=" (format-time-string "%FT%T%z" (plist-get properties :start-time) t))
 											(concat "--category=" (or (plist-get properties :category) "Science & Technology"))
 											(concat "--privacy=" (or (plist-get properties :privacy) "unlisted"))
 											(concat "--license=" (or (plist-get properties :license) "creativeCommon"))
