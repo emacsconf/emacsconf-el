@@ -849,7 +849,7 @@ ${signature}"
 					 (or (plist-get o :timezone) "Etc/UTC")
 					 "%b %-e %a %-I:%M %#p %Z"))))
     (when old-schedule
-      (setq result (format "%s\n(Previous: %s %s)"
+      (setq result (format "%s\n(Previous: %s)"
 													 result
 													 old-schedule)))
 		(when (called-interactively-p 'any)
@@ -998,6 +998,7 @@ ${signature}
 					 "Let me know if you want us to use a different time zone for translating times in future e-mails. ")
 				"I don't think I have a time zone noted for you yet. If you want, I can translate times into your local time zone for you in future e-mails. Let me know what you would like. ")))))
 
+;;;###autoload
 (defun emacsconf-mail-acknowledge-upload (talk)
 	"Acknowledge uploaded files for TALK."
   (interactive (list (emacsconf-complete-talk-info)))
