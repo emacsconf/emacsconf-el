@@ -1220,7 +1220,7 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
 (defun emacsconf-insert-talk-link (search)
 	"Insert the talk link matching SEARCH."
   (interactive (list (emacsconf-complete-talk)))
-  (insert (concat emacsconf-base-url "/" (plist-get (emacsconf-search-talk-info search) :url))))
+  (insert (concat emacsconf-base-url (plist-get (emacsconf-search-talk-info search) :url))))
 
 (defun emacsconf-backstage-url (&optional base-url)
 	"Return or insert backstage URL with credentials."
