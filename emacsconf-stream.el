@@ -580,6 +580,7 @@ With a prefix argument (\\[universal-argument]), clear the overlay."
                     (emacsconf-filter-talks (cdr track)))))
           by-track)))
 
+;;;###autoload
 (defun emacsconf-stream-generate-titles (&optional info)
   (interactive)
   (setq info (or emacsconf-schedule-draft (emacsconf-publish-prepare-for-display (emacsconf-filter-talks (or info (emacsconf-get-talk-info))))))
