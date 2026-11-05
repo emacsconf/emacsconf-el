@@ -1197,16 +1197,23 @@ If TEST-MODE is non-nil, load the videos from the test directory."
 MAILTO=\"\"
 XDG_RUNTIME_DIR=\"/run/user/%d\"
 " (plist-get track :uid))
-	 (mapconcat
-		(lambda (talk)
-			(format "%s /usr/bin/screen -dmS play-%s bash -c \"DISPLAY=%s TEST_MODE=%s /usr/local/bin/handle-session %s | tee -a ~/track.log\"\n"
-							;; cron times are UTC
-							(format-time-string "%-M %-H %-d %m *" (plist-get talk :start-time))
-							(plist-get talk :slug)
-							(plist-get track :vnc-display)
-							(if test-mode "1" "")
-							(plist-get talk :slug)))
-		(emacsconf-filter-talks talks))))
+	 (let ((i 0)
+				 (start-time test-mode))
+		 (mapconcat
+			(lambda (talk)
+				(incf i)
+				(format "%s /usr/bin/screen -dmS play-%s bash -c \"DISPLAY=%s TEST_MODE=%s /usr/local/bin/handle-session %s | tee -a ~/track.log\"\n"
+								;; cron times are UTC
+								(format-time-string
+								 "%-M %-H %-d %m *"
+								 (if test-mode
+										 (seconds-to-time (+ start-time (* 60 2 i)))
+									 (plist-get talk :start-time)))
+								(plist-get talk :slug)
+								(plist-get track :vnc-display)
+								(if test-mode "1" "")
+								(plist-get talk :slug)))
+			(emacsconf-filter-talks talks)))))
 
 (defun emacsconf-stream-crontabs (&optional test-mode info)
 	"Write the streaming users' crontab files.
@@ -1230,12 +1237,14 @@ If INFO is non-nil, use that as the schedule instead."
 						(insert (emacsconf-stream-format-crontab track talks test-mode))))
 				(emacsconf-stream-track-ssh track (concat "crontab ~/" (plist-get track :id) ".crontab"))))))
 
+;;;###autoload
 (defun emacsconf-stream-cancel-crontab (track)
 	"Remove crontab for TRACK."
 	(interactive (list (emacsconf-complete-track)))
 	(plist-put track :autopilot nil)
 	(emacsconf-stream-track-ssh track "crontab -r"))
 
+;;;###autoload
 (defun emacsconf-stream-cancel-all-crontabs ()
 	"Remove crontabs."
 	(interactive)
