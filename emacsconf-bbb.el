@@ -29,14 +29,16 @@
 (defun emacsconf-bbb-status (talk)
   (let ((states
          '((open . "OPEN_Q UNSTREAMED_Q")
-           (before . "TODO TO_REVIEW TO_ACCEPT WAITING_FOR_PREREC TO_PROCESS PROCESSING TO_AUTOCAP TO_ASSIGN TO_CAPTION TO_CHECK TO_STREAM PLAYING CLOSED_Q")
+           (before . "TODO TO_REVIEW TO_ACCEPT TO_CONFIRM WAITING_FOR_PREREC TO_PROCESS PROCESSING TO_AUTOCAP TO_ASSIGN TO_CAPTION TO_CHECK TO_STREAM PLAYING CLOSED_Q")
            (after . "TO_ARCHIVE TO_EXTRACT TO_REVIEW_QA TO_INDEX_QA TO_CAPTION_QA TO_FOLLOW_UP DONE")
            (cancelled . "CANCELLED"))))
     (if (string-match "live" (or (plist-get talk :q-and-a) ""))
         (or (car (seq-find (lambda (state)
                              (member (plist-get talk :status) (split-string (cdr state))))
                            states))
-            (throw 'error "Unknown talk BBB state"))
+            (throw 'error (format "Unknown talk BBB state for %s %s"
+																	(plist-get talk :slug)
+																	(plist-get talk :status))))
       'irc)))
 
 (defvar emacsconf-bbb-base-url "https://bbb.emacsverse.org/" "Include trailing slash.")
