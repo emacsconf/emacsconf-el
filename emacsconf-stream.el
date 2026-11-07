@@ -483,39 +483,50 @@ With a prefix argument (\\[universal-argument]), clear the overlay."
 	(interactive (list (emacsconf-complete-talk-info)))
 	(let* ((prev (or prev (emacsconf-previous-talk talk info)))
 				 (dir (expand-file-name "in-between" emacsconf-stream-asset-dir))
-         (template (expand-file-name "template.svg" dir))
-				 (dom (xml-parse-file template)))
-		(mapc (lambda (entry)
-            (let ((prefix (car entry)))
-              (emacsconf-stream-svg-set-text dom (concat prefix "title")
-                                             (plist-get (cdr entry) :title))
-              (emacsconf-stream-svg-set-text dom (concat prefix "speakers")
-                                             (plist-get (cdr entry) :speakers-with-pronouns))
-              (emacsconf-stream-svg-set-text dom (concat prefix "url")
-                                             (and (cdr entry) (concat emacsconf-base-url (plist-get (cdr entry) :url))))
-              (emacsconf-stream-svg-set-text
-               dom
-               (concat prefix "qa")
-               (pcase (plist-get (cdr entry) :q-and-a)
-                 ("live" "Live Q&A after talk")
-                 ("IRC" "IRC Q&A after talk")
-                 (_ "")))))
-          (list (cons "previous-" prev)
-                (cons "current-" talk)))
-    (with-temp-file (expand-file-name (concat (plist-get talk :slug) ".svg") dir)
-      (dom-print dom))
-    (when (or force (null (file-exists-p (expand-file-name (concat (plist-get talk :slug) ".png")
-																													 dir))))
-      (shell-command
-       (concat "inkscape --export-type=png -w 1280 -h 720 --export-background-opacity=0 "
-               (shell-quote-argument (expand-file-name (concat (plist-get talk :slug) ".svg")
-                                                       dir))))
-			(shell-command
-       (concat "mogrify -alpha off "
-               (shell-quote-argument (expand-file-name (concat (plist-get talk :slug) ".png")
-                                                       dir))))
-			(expand-file-name (concat (plist-get talk :slug) ".png")
-                        dir))))
+				 (template
+					(with-temp-buffer
+						(insert-file-contents
+						 (expand-file-name "_template.tex" dir))
+						(buffer-string)))
+				 (default-directory dir))
+		(write-region
+		 (emacsconf-replace-plist-in-string
+			(list
+			 :current-title
+			 (or (plist-get talk :title) "")
+			 :current-speakers
+			 (or (plist-get talk :speakers) "")
+			 :current-details
+			 (format "%s\\\\\n%s"
+							 (or (plist-get talk :absolute-url) "")
+							 (pcase (plist-get talk :q-and-a)
+								 ((rx "live") "Live Q\\&A after talk")
+								 ((rx "pad") "Etherpad")
+								 ((rx "IRC") "IRC Q\\&A after talk")
+								 (_ "")))
+			 :previous-title
+			 (or (plist-get prev :title) "")
+			 :conf-name emacsconf-name
+			 :conf-year emacsconf-year
+			 :previous-speakers
+			 (or (plist-get prev :speakers) "")
+			 :previous-details
+			 (format "%s\\\\\n%s"
+							 (or (plist-get prev :absolute-url) "")
+							 (pcase (plist-get prev :q-and-a)
+								 ((rx "live") "Live Q\\&A after talk")
+								 ((rx "pad") "Etherpad")
+								 ((rx "IRC") "IRC Q\\&A after talk")
+								 (_ ""))))
+			template)
+		 nil
+		 (expand-file-name (concat (plist-get talk :slug) ".tex") dir))
+    (shell-command
+		 (format "lualatex -shell-escape %s && inkscape --pdf-poppler --export-type=png -w 1280 -h 720 --export-background-opacity=0 --export-text-to-path %s"
+						 (expand-file-name (concat (plist-get talk :slug) ".tex")
+															 dir)
+						 (expand-file-name (concat (plist-get talk :slug) ".pdf")
+															 dir)))))
 ;; (emacsconf-stream-generate-in-between-page (emacsconf-resolve-talk "science") nil nil t)
 ;; (emacsconf-stream-generate-in-between-page (emacsconf-resolve-talk "health") nil nil t)
 ;; (emacsconf-stream-generate-in-between-page (emacsconf-resolve-talk "eev") nil nil t)
@@ -545,37 +556,13 @@ With a prefix argument (\\[universal-argument]), clear the overlay."
   (setq info (or emacsconf-schedule-draft (emacsconf-publish-prepare-for-display (emacsconf-filter-talks (or info (emacsconf-get-talk-info))))))
   (let* ((by-track (seq-group-by (lambda (o) (plist-get o :track)) info))
          (dir (expand-file-name "in-between" emacsconf-stream-asset-dir))
-         (template (expand-file-name "template.svg" dir)))
+				 (default-directory dir))
 		(unless (file-directory-p dir)
 			(make-directory dir t))
     (mapc (lambda (track)
             (let (prev)
               (mapc (lambda (talk)
-                      (let ((dom (xml-parse-file template)))
-                        (mapc (lambda (entry)
-                                (let ((prefix (car entry)))
-                                  (emacsconf-stream-svg-set-text dom (concat prefix "title")
-                                                 (plist-get (cdr entry) :title))
-                                  (emacsconf-stream-svg-set-text dom (concat prefix "speakers")
-                                                 (plist-get (cdr entry) :speakers))
-                                  (emacsconf-stream-svg-set-text dom (concat prefix "url")
-                                                 (and (cdr entry) (concat emacsconf-base-url (plist-get (cdr entry) :url))))
-                                  (emacsconf-stream-svg-set-text
-                                   dom
-                                   (concat prefix "qa")
-                                   (pcase (plist-get (cdr entry) :q-and-a)
-                                     ((rx "live") "Live Q&A after talk")
-                                     ((rx "pad") "Etherpad")
-																		 ((rx "IRC") "IRC Q&A after talk")
-                                     (_ "")))))
-                              (list (cons "previous-" prev)
-                                    (cons "current-" talk)))
-                        (with-temp-file (expand-file-name (concat (plist-get talk :slug) ".svg") dir)
-                          (dom-print dom))
-												(shell-command
-                         (concat "inkscape --export-type=png -w 1280 -h 720 --export-background-opacity=0 "
-                                 (shell-quote-argument (expand-file-name (concat (plist-get talk :slug) ".svg")
-                                                                         dir)))))
+											(emacsconf-stream-generate-in-between-page talk prev)
                       (setq prev talk))
                     (emacsconf-filter-talks (cdr track)))))
           by-track)))
