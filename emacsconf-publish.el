@@ -2823,7 +2823,7 @@ when the host has opened the Q&A.</p>
              (lambda (talk)
                (emacsconf-publish-bbb-redirect talk (intern state)))
              (emacsconf-publish-prepare-for-display (emacsconf-get-talk-info)))))
-        '("before" "open" "after")))
+        '("mod" "before" "open" "after")))
 
 (defun emacsconf-publish-bbb-redirect (talk &optional status)
 	"Update the publicly-available redirect for TALK."
@@ -2846,6 +2846,9 @@ The live Q&A room for ${title} is now open. You should be redirected to <a href=
           ('after
            "<html><head><body>
 The Q&A room for ${title} has finished. You can find more information about the talk at <a href=\"${base-url}${url}\">${base-url}${url}</a>.</body></html>")
+					('mod
+           "<html><head><meta http-equiv=\"refresh\" content=\"0; URL=${bbb-room}?viewerCode=${bbb-mod-code}\"></head><body>
+The live Q&A room for ${title} is now open. You should be redirected to <a href=\"${bbb-room}?viewerCode=${bbb-mod-code}\">${bbb-room}/join?viewerCode=${bbb-mod-code}</a> automatically, but if not, please visit the URL manually to moderate the Q&A.</body></html>")
           (_
            "<html><head><body>
 There is no live Q&A room for ${title}. You can find more information about the talk at <a href=\"${base-url}${url}\">${base-url}${url}</a>.</body></html>"
