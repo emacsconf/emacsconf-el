@@ -948,7 +948,7 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
 													 "")))
 			(plist-put o :track-id (plist-get track :id)))
 		(plist-put o :channel (if (eq emacsconf-publishing-phase 'conference) (plist-get track :channel) "emacsconf"))
-    (plist-put o :bbb-backstage (concat emacsconf-media-base-url emacsconf-year "/backstage/assets/redirects/open/bbb-" (plist-get o :slug) ".html"))
+    (plist-put o :bbb-backstage (concat emacsconf-media-base-url emacsconf-year "/backstage/assets/redirects/mod/bbb-" (plist-get o :slug) ".html"))
 		(plist-put o :pad-url (format "https://pad.emacsconf.org/%s-%s" emacsconf-year (plist-get o :slug)))
 		(cond
      ((string= (or (plist-get o :q-and-a) "") "")
@@ -963,7 +963,7 @@ The subheading should match `emacsconf-abstract-heading-regexp'."
       (plist-put o :qa-info (plist-get o :bbb-redirect))
 			(plist-put o :qa-url (plist-get o :bbb-redirect))
 			(plist-put o :qa-backstage-url
-								 (format "https://media.emacsconf.org/%s/backstage/assets/redirects/open/bbb-%s.html" emacsconf-year (plist-get o :slug)))
+								 (format "https://media.emacsconf.org/%s/backstage/assets/redirects/mod/bbb-%s.html" emacsconf-year (plist-get o :slug)))
 			(plist-put o :qa-type "live")
       (plist-put o :qa-link (format "<a href=\"%s\">BBB</a>" (plist-get o :bbb-redirect))))
      ((string-match "IRC" (plist-get o :q-and-a))
