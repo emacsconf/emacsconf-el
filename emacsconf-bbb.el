@@ -907,5 +907,67 @@ Strategies:
 
 (defvar emacsconf-extract-conference-username "emacsconf" "Name of the streaming user.")
 
+
+(defun emacsconf-bbb-request (url)
+	"Return the DOM for the URL request."
+	(let* ((secret (bbb-get-env-or-error "BBB_SECRET"))
+         (api-url (bbb-get-env-or-error "BBB_API_URL"))
+				 (parts (url-path-and-query
+								 (url-generic-parse-url url)))
+         (checksum (secure-hash 'sha1 (concat (car parts)
+																							(or (cdr parts) "")
+																							secret)))
+         (full-url (format "%s%s%schecksum=%s" api-url url
+													 (if (string-match "?" url) "&" "?")
+													 checksum))
+         (url-automatic-caching nil)
+				 data)
+		(with-current-buffer (url-retrieve-synchronously full-url)
+			;; Jump past the HTTP response headers to get the body
+			(goto-char (point-min))
+			(re-search-forward "\r?\n\r?\n" nil t)
+			(xml-parse-region (point) (point-max)))))
+
+;; (emacsconf-bbb-request "getMeetingInfo?meetingID=tiggu7us2zst7o8cs1ozd1mtzhpakmbp4bqlictw")
+(defun emacsconf-bbb-update-dashboard ()
+  "Fetch active BigBlueButton meetings."
+  (interactive)
+  (let* ((dom (emacsconf-bbb-request "getMeetings"))
+				 (info (emacsconf-get-talk-info))
+				 (data (seq-keep (lambda (o)
+													 (let* ((room-id (dom-text (dom-by-tag o 'bbb-context-id)))
+																	(count (dom-text (dom-by-tag o 'participantCount)))
+																	(matching-talks
+																	 (seq-filter
+																		(lambda (talk)
+																			(and (plist-get talk :bbb-room)
+																					 (string-match room-id (plist-get talk :bbb-room))))
+																		info)))
+														 (and matching-talks
+																	(cons matching-talks count))))
+												 (dom-by-tag dom 'meeting))))
+		(with-current-buffer (get-buffer-create "*emacsconf*")
+			(erase-buffer)
+			(org-mode)
+			(insert
+			 (mapconcat
+				(lambda (o)
+					(format "%s: %s"
+									(cdr o)
+									(mapconcat
+									 (lambda (talk)
+										 (org-link-make-string
+											(format "elisp:(shell-command \"wmctrl -x -a bbb-%s\")"
+															(plist-get talk :slug))
+											(plist-get talk :slug)))
+									 (car o)
+									 ", ")))
+				data
+				"\n"))
+			(goto-char (point-min))
+			(display-buffer (current-buffer)))))
+
+;; (emacsconf-bbb-get-meeting-participants)
+
 (provide 'emacsconf-bbb)
 ;;; emacsconf-bbb.el ends here
