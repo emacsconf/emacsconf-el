@@ -479,6 +479,45 @@ With a prefix argument (\\[universal-argument]), clear the overlay."
     (set-frame-size nil 1280 720 t)
     (mapc #'emacsconf-stream-generate-title-page info)))
 
+(defun emacsconf-stream-generate-in-between-page-svg (talk &optional prev info force)
+	"Generate the intro slide for TALK based on assets/in-between/template.svg."
+	(interactive (list (emacsconf-complete-talk-info)))
+	(let* ((prev (or prev (emacsconf-previous-talk talk info)))
+				 (dir (expand-file-name "in-between" emacsconf-stream-asset-dir))
+         (template (expand-file-name "template.svg" dir))
+				 (dom (xml-parse-file template)))
+		(mapc (lambda (entry)
+            (let ((prefix (car entry)))
+              (emacsconf-stream-svg-set-text dom (concat prefix "title")
+                             (plist-get (cdr entry) :title))
+              (emacsconf-stream-svg-set-text dom (concat prefix "speakers")
+                             (plist-get (cdr entry) :speakers-with-pronouns))
+              (emacsconf-stream-svg-set-text dom (concat prefix "url")
+                             (and (cdr entry) (concat emacsconf-base-url (plist-get (cdr entry) :url))))
+              (emacsconf-stream-svg-set-text
+               dom
+               (concat prefix "qa")
+               (pcase (plist-get (cdr entry) :q-and-a)
+                 ("live" "Live Q&A after talk")
+                 ("IRC" "IRC Q&A after talk")
+                 (_ "")))))
+          (list (cons "previous-" prev)
+                (cons "current-" talk)))
+    (with-temp-file (expand-file-name (concat (plist-get talk :slug) ".svg") dir)
+      (dom-print dom))
+    (when (or force (null (file-exists-p (expand-file-name (concat (plist-get talk :slug) ".png")
+																													 dir))))
+      (shell-command
+       (concat "inkscape --export-type=png -w 1280 -h 720 --export-background-opacity=0 "
+               (shell-quote-argument (expand-file-name (concat (plist-get talk :slug) ".svg")
+                                                       dir))))
+			(shell-command
+       (concat "mogrify -alpha off "
+               (shell-quote-argument (expand-file-name (concat (plist-get talk :slug) ".png")
+                                                       dir))))
+			(expand-file-name (concat (plist-get talk :slug) ".png")
+                        dir))))
+
 (defun emacsconf-stream-generate-in-between-page (talk &optional prev info force)
 	(interactive (list (emacsconf-complete-talk-info)))
 	(let* ((prev (or prev (emacsconf-previous-talk talk info)))
